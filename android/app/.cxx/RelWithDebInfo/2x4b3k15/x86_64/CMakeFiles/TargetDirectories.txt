@@ -1,0 +1,2 @@
+D:/sohel/RussiaNew/android/app/.cxx/RelWithDebInfo/2x4b3k15/x86_64/CMakeFiles/edit_cache.dir
+D:/sohel/RussiaNew/android/app/.cxx/RelWithDebInfo/2x4b3k15/x86_64/CMakeFiles/rebuild_cache.dir

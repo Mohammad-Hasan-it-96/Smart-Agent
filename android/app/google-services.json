@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "606648171084",
+    "project_id": "lectures-d4f78",
+    "storage_bucket": "lectures-d4f78.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:606648171084:android:693895d842c309bf0bd2e9",
+        "android_client_info": {
+          "package_name": "com.example.lectures"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBLjC5_u8b4SsGnEVUy2n8R_0ifyvJM6e0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:606648171084:android:f9d01f033fd0db460bd2e9",
+        "android_client_info": {
+          "package_name": "com.example.watch_lectures"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBLjC5_u8b4SsGnEVUy2n8R_0ifyvJM6e0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

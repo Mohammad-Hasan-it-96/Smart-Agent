@@ -1,0 +1,57 @@
+plugins {
+    id "com.android.application"
+    id "kotlin-android"
+    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
+    id "dev.flutter.flutter-gradle-plugin"
+    id "com.google.gms.google-services"
+}
+
+android {
+    namespace = "com.example.lectures"
+    compileSdk = 35
+    ndkVersion = flutter.ndkVersion
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+        coreLibraryDesugaringEnabled true
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+
+    defaultConfig {
+        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
+        applicationId = "com.example.lectures"
+        // You can update the following values to match your application needs.
+        // For more information, see: https://flutter.dev/to/review-gradle-config.
+        minSdk = 24
+        targetSdk = 35
+        versionCode = flutter.versionCode
+        versionName = flutter.versionName
+        testInstrumentationRunner "pl.leancode.patrol.PatrolJUnitRunner"
+        testInstrumentationRunnerArguments clearPackageData: "true"
+
+    }
+
+      buildTypes {
+    release {
+        minifyEnabled true  // تفعيل تقليل الكود (R8)
+        shrinkResources true // تقليل حجم الموارد (اختياري لكن مفيد)
+        proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        signingConfig signingConfigs.debug // أو استبدلها بتوقيع الإصدار الخاص بك
+}
+}
+}
+
+flutter {
+    source = "../.."
+}
+dependencies {
+
+    implementation platform('com.google.firebase:firebase-bom:33.13.0')
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.1.20"
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'
+
+}

@@ -1,0 +1,2 @@
+D:/sohel/Student/lectures/android/app/.cxx/RelWithDebInfo/6ta70561/x86_64/CMakeFiles/edit_cache.dir
+D:/sohel/Student/lectures/android/app/.cxx/RelWithDebInfo/6ta70561/x86_64/CMakeFiles/rebuild_cache.dir
