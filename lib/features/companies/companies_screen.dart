@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/db/database_helper.dart';
 import '../../core/models/company.dart';
+import '../../core/utils/slide_page_route.dart';
 import 'company_form.dart';
 
 class CompaniesScreen extends StatefulWidget {
@@ -107,8 +108,9 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
   Future<void> _navigateToForm(Company? company) async {
     final result = await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => CompanyForm(company: company),
+      SlidePageRoute(
+        page: CompanyForm(company: company),
+        direction: SlideDirection.rightToLeft,
       ),
     );
 

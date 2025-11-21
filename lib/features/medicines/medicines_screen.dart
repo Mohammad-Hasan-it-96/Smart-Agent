@@ -1,6 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../core/db/database_helper.dart';
 import '../../core/models/medicine.dart';
+import '../../core/models/company.dart';
+import '../../core/utils/slide_page_route.dart';
 import 'medicine_form.dart';
 
 class MedicinesScreen extends StatefulWidget {
@@ -12,69 +15,231 @@ class MedicinesScreen extends StatefulWidget {
 
 class _MedicinesScreenState extends State<MedicinesScreen> {
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
-  List<Map<String, dynamic>> _medicines = [];
-  List<Map<String, dynamic>> _filteredMedicines = [];
   final TextEditingController _searchController = TextEditingController();
-  bool _isLoading = true;
+  final ScrollController _scrollController = ScrollController();
+
+  // Data
+  List<Company> _companies = [];
+  Map<int, List<Map<String, dynamic>>> _medicinesByCompany = {};
+  List<Map<String, dynamic>> _filteredMedicines = [];
+  Set<int> _expandedCompanies = {};
+
+  // Filtering
+  int? _selectedCompanyId;
+  String _searchQuery = '';
+
+  // Pagination
+  static const int _pageSize = 50;
+  int _currentPage = 0;
+  bool _isLoading = false;
+  bool _hasMoreData = true;
+  bool _isInitialLoading = true;
+  Timer? _debounceTimer;
 
   @override
   void initState() {
     super.initState();
-    _loadMedicines();
-    _searchController.addListener(_filterMedicines);
+    _loadCompanies();
+    _searchController.addListener(_onSearchChanged);
+    _scrollController.addListener(_onScroll);
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _scrollController.dispose();
+    _debounceTimer?.cancel();
     super.dispose();
   }
 
-  Future<void> _loadMedicines() async {
-    setState(() {
-      _isLoading = true;
-    });
-
+  Future<void> _loadCompanies() async {
     try {
-      // Join medicines with companies to get company name
-      final db = await _dbHelper.database;
-      final maps = await db.rawQuery('''
-        SELECT 
-          medicines.id,
-          medicines.name,
-          medicines.company_id,
-          companies.name as company_name
-        FROM medicines
-        LEFT JOIN companies ON medicines.company_id = companies.id
-        ORDER BY medicines.name
-      ''');
-
+      final maps = await _dbHelper.query('companies', orderBy: 'name');
       setState(() {
-        _medicines = maps;
-        _filteredMedicines = maps;
-        _isLoading = false;
+        _companies = maps.map((map) => Company.fromMap(map)).toList();
       });
+      await _loadMedicines();
     } catch (e) {
       setState(() {
-        _isLoading = false;
+        _isInitialLoading = false;
       });
     }
   }
 
-  void _filterMedicines() {
-    final query = _searchController.text.toLowerCase();
+  Future<void> _loadMedicines({bool loadMore = false}) async {
+    // Prevent multiple simultaneous loads
+    if (_isLoading) return;
+
+    // Prevent initial load if already loading initially
+    if (!loadMore && _isInitialLoading && _isLoading) return;
+
     setState(() {
-      if (query.isEmpty) {
-        _filteredMedicines = _medicines;
+      _isLoading = true;
+      if (!loadMore) {
+        _isInitialLoading = true;
+        _currentPage = 0;
+        _filteredMedicines.clear();
+        _medicinesByCompany.clear();
+      }
+    });
+
+    try {
+      final db = await _dbHelper.database;
+      final offset = loadMore ? _currentPage * _pageSize : 0;
+
+      List<Map<String, dynamic>> maps;
+
+      // Optimized query: Use simple SELECT with indexed columns
+      if (_searchQuery.isNotEmpty) {
+        // Search query with LIMIT - uses idx_medicine_name index
+        maps = await db.rawQuery(
+            '''
+          SELECT 
+            medicines.id,
+            medicines.name,
+            medicines.company_id,
+            companies.name as company_name
+          FROM medicines
+          LEFT JOIN companies ON medicines.company_id = companies.id
+          WHERE medicines.name LIKE ?
+          ${_selectedCompanyId != null ? 'AND medicines.company_id = ?' : ''}
+          ORDER BY medicines.name
+          LIMIT ? OFFSET ?
+        ''',
+            _selectedCompanyId != null
+                ? ['%$_searchQuery%', _selectedCompanyId, _pageSize, offset]
+                : ['%$_searchQuery%', _pageSize, offset]);
+      } else if (_selectedCompanyId != null) {
+        // Filter by company - uses idx_medicine_company index
+        maps = await db.rawQuery('''
+          SELECT 
+            medicines.id,
+            medicines.name,
+            medicines.company_id,
+            companies.name as company_name
+          FROM medicines
+          LEFT JOIN companies ON medicines.company_id = companies.id
+          WHERE medicines.company_id = ?
+          ORDER BY medicines.name
+          LIMIT ? OFFSET ?
+        ''', [_selectedCompanyId, _pageSize, offset]);
       } else {
-        _filteredMedicines = _medicines
-            .where((medicine) =>
-                medicine['name'].toString().toLowerCase().contains(query) ||
-                medicine['company_name']
-                    .toString()
-                    .toLowerCase()
-                    .contains(query))
-            .toList();
+        // Load all medicines with pagination
+        maps = await db.rawQuery('''
+          SELECT 
+            medicines.id,
+            medicines.name,
+            medicines.company_id,
+            companies.name as company_name
+          FROM medicines
+          LEFT JOIN companies ON medicines.company_id = companies.id
+          ORDER BY medicines.name
+          LIMIT ? OFFSET ?
+        ''', [_pageSize, offset]);
+      }
+
+      if (mounted) {
+        // Convert read-only query results to mutable lists
+        final mutableMaps = List<Map<String, dynamic>>.from(maps);
+
+        if (loadMore) {
+          setState(() {
+            _filteredMedicines.addAll(mutableMaps);
+            _currentPage++;
+            _hasMoreData = mutableMaps.length == _pageSize;
+            _isLoading = false;
+          });
+        } else {
+          // Group medicines by company for non-search mode (only if not filtering by specific company)
+          if (_selectedCompanyId == null && _searchQuery.isEmpty) {
+            final Map<int, List<Map<String, dynamic>>> grouped = {};
+            for (final medicine in mutableMaps) {
+              final companyId = medicine['company_id'] as int?;
+              if (companyId != null) {
+                // Create a new map to ensure mutability
+                final medicineMap = Map<String, dynamic>.from(medicine);
+                grouped.putIfAbsent(companyId, () => []).add(medicineMap);
+              }
+            }
+            _medicinesByCompany = grouped;
+          } else {
+            // When filtering by company or searching, just store in filtered list
+            // Also update medicinesByCompany for the selected company
+            if (_selectedCompanyId != null) {
+              _medicinesByCompany = {
+                _selectedCompanyId!:
+                    List<Map<String, dynamic>>.from(mutableMaps)
+              };
+            }
+          }
+
+          setState(() {
+            _filteredMedicines = mutableMaps;
+            _currentPage = 1;
+            _hasMoreData = mutableMaps.length == _pageSize;
+            _isLoading = false;
+            _isInitialLoading = false;
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _isInitialLoading = false;
+        });
+      }
+    }
+  }
+
+  void _onSearchChanged() {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 300), () {
+      if (!mounted) return;
+      final query = _searchController.text.trim();
+      if (query != _searchQuery) {
+        setState(() {
+          _searchQuery = query;
+          _currentPage = 0;
+          _hasMoreData = true;
+          _filteredMedicines.clear();
+          _medicinesByCompany.clear();
+        });
+        _loadMedicines();
+      }
+    });
+  }
+
+  void _onScroll() {
+    // Load more when scrolled to 80% of the list
+    if (_scrollController.hasClients &&
+        _scrollController.position.pixels >=
+            _scrollController.position.maxScrollExtent * 0.8 &&
+        !_isLoading &&
+        _hasMoreData) {
+      _loadMedicines(loadMore: true);
+    }
+  }
+
+  void _onCompanyFilterChanged(int? companyId) {
+    setState(() {
+      _selectedCompanyId = companyId;
+      _searchQuery = ''; // Clear search when filtering by company
+      _searchController.clear();
+      _currentPage = 0;
+      _hasMoreData = true;
+      _filteredMedicines.clear();
+      _medicinesByCompany.clear();
+    });
+    _loadMedicines();
+  }
+
+  void _toggleCompany(int companyId) {
+    setState(() {
+      if (_expandedCompanies.contains(companyId)) {
+        _expandedCompanies.remove(companyId);
+      } else {
+        _expandedCompanies.add(companyId);
       }
     });
   }
@@ -133,8 +298,9 @@ class _MedicinesScreenState extends State<MedicinesScreen> {
 
     final result = await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => MedicineForm(medicine: medicineModel),
+      SlidePageRoute(
+        page: MedicineForm(medicine: medicineModel),
+        direction: SlideDirection.rightToLeft,
       ),
     );
 
@@ -152,12 +318,13 @@ class _MedicinesScreenState extends State<MedicinesScreen> {
       ),
       body: Column(
         children: [
+          // Search bar
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: TextField(
               controller: _searchController,
               decoration: InputDecoration(
-                hintText: 'بحث...',
+                hintText: 'بحث عن دواء...',
                 prefixIcon: const Icon(Icons.search),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -166,63 +333,306 @@ class _MedicinesScreenState extends State<MedicinesScreen> {
               textDirection: TextDirection.rtl,
             ),
           ),
+
+          // Company filter dropdown
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: DropdownButtonFormField<int>(
+              value: _selectedCompanyId,
+              decoration: InputDecoration(
+                labelText: 'تصفية حسب الشركة',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                prefixIcon: const Icon(Icons.filter_list),
+              ),
+              items: [
+                const DropdownMenuItem<int>(
+                  value: null,
+                  child: Text('جميع الشركات'),
+                ),
+                ..._companies.map((company) {
+                  return DropdownMenuItem<int>(
+                    value: company.id,
+                    child: Text(
+                      company.name,
+                      textDirection: TextDirection.rtl,
+                    ),
+                  );
+                }),
+              ],
+              onChanged: _onCompanyFilterChanged,
+            ),
+          ),
+
+          const SizedBox(height: 8),
+
+          // Content
           Expanded(
-            child: _isLoading
+            child: _isInitialLoading
                 ? const Center(child: CircularProgressIndicator())
-                : _filteredMedicines.isEmpty
-                    ? Center(
-                        child: Text(
-                          _searchController.text.isEmpty
-                              ? 'لا توجد أدوية'
-                              : 'لا توجد نتائج',
-                          style: const TextStyle(fontSize: 18),
-                        ),
-                      )
-                    : ListView.builder(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        itemCount: _filteredMedicines.length,
-                        itemBuilder: (context, index) {
-                          final medicine = _filteredMedicines[index];
-                          return Card(
-                            margin: const EdgeInsets.only(bottom: 8),
-                            child: ListTile(
-                              title: Text(
-                                medicine['name'] as String,
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                textDirection: TextDirection.rtl,
-                              ),
-                              subtitle: Text(
-                                'الشركة: ${medicine['company_name'] ?? 'غير محدد'}',
-                                style: const TextStyle(fontSize: 14),
-                                textDirection: TextDirection.rtl,
-                              ),
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  IconButton(
-                                    icon: const Icon(Icons.edit),
-                                    onPressed: () => _navigateToForm(medicine),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.delete,
-                                        color: Colors.red),
-                                    onPressed: () => _deleteMedicine(medicine),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
-                      ),
+                : _buildContent(),
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _navigateToForm(null),
         child: const Icon(Icons.add),
+      ),
+    );
+  }
+
+  Widget _buildContent() {
+    // If searching, show flat list
+    if (_searchQuery.isNotEmpty) {
+      if (_filteredMedicines.isEmpty && !_isLoading) {
+        return const Center(
+          child: Text(
+            'لا توجد نتائج',
+            style: TextStyle(fontSize: 18),
+          ),
+        );
+      }
+
+      return ListView.builder(
+        controller: _scrollController,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount:
+            _filteredMedicines.length + (_hasMoreData && _isLoading ? 1 : 0),
+        itemBuilder: (context, index) {
+          // Show loading indicator at the end when loading more
+          if (index == _filteredMedicines.length) {
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.all(16.0),
+                child: CircularProgressIndicator(),
+              ),
+            );
+          }
+
+          final medicine = _filteredMedicines[index];
+          return _buildMedicineCard(medicine, index: index);
+        },
+      );
+    }
+
+    // If filtering by company, show only that company's medicines
+    if (_selectedCompanyId != null) {
+      final companyMedicines = _medicinesByCompany[_selectedCompanyId] ?? [];
+      if (companyMedicines.isEmpty && !_isLoading) {
+        return const Center(
+          child: Text(
+            'لا توجد أدوية لهذه الشركة',
+            style: TextStyle(fontSize: 18),
+          ),
+        );
+      }
+
+      return ListView.builder(
+        controller: _scrollController,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount:
+            companyMedicines.length + (_hasMoreData && _isLoading ? 1 : 0),
+        itemBuilder: (context, index) {
+          if (index == companyMedicines.length) {
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.all(16.0),
+                child: CircularProgressIndicator(),
+              ),
+            );
+          }
+          final medicine = companyMedicines[index];
+          return _buildMedicineCard(medicine, index: index);
+        },
+      );
+    }
+
+    // Default: show grouped by company with expandable tiles
+    if (_medicinesByCompany.isEmpty && !_isLoading) {
+      return const Center(
+        child: Text(
+          'لا توجد أدوية',
+          style: TextStyle(fontSize: 18),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      itemCount: _companies.length,
+      itemBuilder: (context, index) {
+        final company = _companies[index];
+        final medicines = _medicinesByCompany[company.id] ?? [];
+
+        if (medicines.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        return Card(
+          margin: const EdgeInsets.only(bottom: 8),
+          child: ExpansionTile(
+            leading: const Icon(Icons.business),
+            title: Text(
+              company.name,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+              textDirection: TextDirection.rtl,
+            ),
+            subtitle: Text(
+              '${medicines.length} دواء',
+              textDirection: TextDirection.rtl,
+            ),
+            initiallyExpanded: _expandedCompanies.contains(company.id),
+            onExpansionChanged: (expanded) {
+              _toggleCompany(company.id!);
+            },
+            children: medicines.asMap().entries.map((entry) {
+              final index = entry.key;
+              final medicine = entry.value;
+              return TweenAnimationBuilder<double>(
+                key: ValueKey('medicine_tile_${medicine['id']}_$index'),
+                tween: Tween(begin: 0.0, end: 1.0),
+                duration: Duration(milliseconds: 300 + (index * 50)),
+                curve: Curves.easeOut,
+                builder: (context, value, child) {
+                  return Opacity(
+                    opacity: value,
+                    child: Transform.translate(
+                      offset: Offset(0, 20 * (1 - value)),
+                      child: child,
+                    ),
+                  );
+                },
+                child: _buildMedicineTile(medicine),
+              );
+            }).toList(),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildMedicineCard(Map<String, dynamic> medicine, {int? index}) {
+    final cardWidget = Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: InkWell(
+        onTap: () => _navigateToForm(medicine),
+        borderRadius: BorderRadius.circular(12),
+        child: ListTile(
+          title: Text(
+            medicine['name'] as String,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+            textDirection: TextDirection.rtl,
+          ),
+          subtitle: Text(
+            'الشركة: ${medicine['company_name'] ?? 'غير محدد'}',
+            style: const TextStyle(fontSize: 14),
+            textDirection: TextDirection.rtl,
+          ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => _navigateToForm(medicine),
+                  borderRadius: BorderRadius.circular(20),
+                  child: const Padding(
+                    padding: EdgeInsets.all(8.0),
+                    child: Icon(Icons.edit),
+                  ),
+                ),
+              ),
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => _deleteMedicine(medicine),
+                  borderRadius: BorderRadius.circular(20),
+                  child: const Padding(
+                    padding: EdgeInsets.all(8.0),
+                    child: Icon(Icons.delete, color: Colors.red),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    // Only animate if index is provided (for initial load)
+    if (index != null) {
+      return TweenAnimationBuilder<double>(
+        key: ValueKey('medicine_${medicine['id']}_$index'),
+        tween: Tween(begin: 0.0, end: 1.0),
+        duration: Duration(milliseconds: 300 + (index % 5) * 50),
+        curve: Curves.easeOut,
+        builder: (context, value, child) {
+          return Opacity(
+            opacity: value,
+            child: Transform.translate(
+              offset: Offset(0, 20 * (1 - value)),
+              child: child,
+            ),
+          );
+        },
+        child: cardWidget,
+      );
+    }
+
+    return cardWidget;
+  }
+
+  Widget _buildMedicineTile(Map<String, dynamic> medicine) {
+    return InkWell(
+      onTap: () => _navigateToForm(medicine),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Text(
+                medicine['name'] as String,
+                style: const TextStyle(fontSize: 16),
+                textDirection: TextDirection.rtl,
+              ),
+            ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => _navigateToForm(medicine),
+                    borderRadius: BorderRadius.circular(20),
+                    child: const Padding(
+                      padding: EdgeInsets.all(8.0),
+                      child: Icon(Icons.edit, size: 20),
+                    ),
+                  ),
+                ),
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => _deleteMedicine(medicine),
+                    borderRadius: BorderRadius.circular(20),
+                    child: const Padding(
+                      padding: EdgeInsets.all(8.0),
+                      child: Icon(Icons.delete, color: Colors.red, size: 20),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

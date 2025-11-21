@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/db/database_helper.dart';
-import 'order_details_screen.dart';
+import '../../core/utils/slide_page_route.dart';
+import 'daily_orders_screen.dart';
 
 class OrdersListScreen extends StatefulWidget {
   const OrdersListScreen({super.key});
@@ -11,55 +12,114 @@ class OrdersListScreen extends StatefulWidget {
 
 class _OrdersListScreenState extends State<OrdersListScreen> {
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
-  List<Map<String, dynamic>> _orders = [];
+  Map<String, int> _ordersByDay = {}; // Map of date string to order count
+  List<String> _sortedDays = [];
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _loadOrders();
+    _loadOrdersByDay();
   }
 
-  Future<void> _loadOrders() async {
+  String _formatDisplayDate(String dateStr) {
+    try {
+      final parts = dateStr.split('-');
+      if (parts.length == 3) {
+        return '${parts[0]}/${parts[1]}/${parts[2]}';
+      }
+      return dateStr;
+    } catch (e) {
+      return dateStr;
+    }
+  }
+
+  Future<void> _loadOrdersByDay() async {
     setState(() {
       _isLoading = true;
     });
 
     try {
       final db = await _dbHelper.database;
-      // Get orders with pharmacy name and item count
+
+      // First, let's check what's actually in the database
+      final allOrders = await db.rawQuery('''
+        SELECT id, created_at, SUBSTR(created_at, 1, 10) as date_part
+        FROM orders
+        LIMIT 10
+      ''');
+      print('Sample orders in database:');
+      for (var row in allOrders) {
+        print(
+            '  Order ID: ${row['id']}, Date part: ${row['date_part']}, Full: ${row['created_at']}');
+      }
+
+      // Get orders grouped by day with count
+      // Use SUBSTR to extract date part from ISO8601 format (YYYY-MM-DDTHH:mm:ss...)
       final maps = await db.rawQuery('''
         SELECT 
-          orders.id,
-          orders.pharmacy_id,
-          orders.created_at,
-          pharmacies.name as pharmacy_name,
-          COUNT(order_items.id) as item_count
+          SUBSTR(orders.created_at, 1, 10) as order_date,
+          COUNT(DISTINCT orders.id) as order_count
         FROM orders
-        LEFT JOIN pharmacies ON orders.pharmacy_id = pharmacies.id
-        LEFT JOIN order_items ON orders.id = order_items.order_id
-        GROUP BY orders.id
-        ORDER BY orders.created_at DESC
+        GROUP BY SUBSTR(orders.created_at, 1, 10)
+        ORDER BY order_date DESC
       ''');
 
+      final Map<String, int> ordersByDay = {};
+      for (final map in maps) {
+        final dateStr = map['order_date'] as String?;
+        if (dateStr != null) {
+          ordersByDay[dateStr] = map['order_count'] as int? ?? 0;
+        }
+      }
+
       setState(() {
-        _orders = maps;
+        _ordersByDay = ordersByDay;
+        _sortedDays = ordersByDay.keys.toList()..sort((a, b) => b.compareTo(a));
         _isLoading = false;
       });
     } catch (e) {
+      print('Error loading orders by day: $e');
       setState(() {
         _isLoading = false;
       });
     }
   }
 
-  String _formatDate(String dateString) {
-    try {
-      final date = DateTime.parse(dateString);
-      return '${date.year}/${date.month}/${date.day} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
-    } catch (e) {
-      return dateString;
+  Future<void> _selectDate() async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+      locale: const Locale('ar', 'SA'),
+      builder: (context, child) {
+        return Directionality(
+          textDirection: TextDirection.rtl,
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      Navigator.push(
+        context,
+        SlidePageRoute(
+          page: DailyOrdersScreen(date: picked),
+          direction: SlideDirection.rightToLeft,
+        ),
+      );
     }
+  }
+
+  void _navigateToDay(DateTime date) {
+    Navigator.push(
+      context,
+      SlidePageRoute(
+        page: DailyOrdersScreen(date: date),
+        direction: SlideDirection.rightToLeft,
+      ),
+    );
   }
 
   @override
@@ -71,67 +131,178 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : _orders.isEmpty
-              ? const Center(
-                  child: Text(
-                    'لا توجد طلبيات',
-                    style: TextStyle(fontSize: 18),
-                  ),
-                )
-              : RefreshIndicator(
-                  onRefresh: _loadOrders,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _orders.length,
-                    itemBuilder: (context, index) {
-                      final order = _orders[index];
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        child: ListTile(
-                          leading: const Icon(Icons.receipt_long, size: 32),
-                          title: Text(
-                            order['pharmacy_name'] ?? 'صيدلية غير معروفة',
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            textDirection: TextDirection.rtl,
-                          ),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+          : RefreshIndicator(
+              onRefresh: _loadOrdersByDay,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Date Picker Button
+                    Card(
+                      elevation: 2,
+                      child: InkWell(
+                        onTap: _selectDate,
+                        borderRadius: BorderRadius.circular(12),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              const SizedBox(height: 4),
-                              Text(
-                                'التاريخ: ${_formatDate(order['created_at'] as String)}',
-                                style: const TextStyle(fontSize: 14),
-                                textDirection: TextDirection.rtl,
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                'عدد العناصر: ${order['item_count'] ?? 0}',
-                                style: const TextStyle(fontSize: 14),
+                              const Icon(Icons.calendar_today,
+                                  color: Colors.blue),
+                              const SizedBox(width: 8),
+                              const Text(
+                                'اختر تاريخ',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
                                 textDirection: TextDirection.rtl,
                               ),
                             ],
                           ),
-                          trailing: const Icon(Icons.arrow_back_ios, size: 16),
-                          onTap: () async {
-                            await Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => OrderDetailsScreen(
-                                  orderId: order['id'] as int,
-                                ),
-                              ),
-                            );
-                            // Refresh list after returning
-                            _loadOrders();
-                          },
                         ),
-                      );
-                    },
-                  ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Quick Navigation Buttons
+                    const Text(
+                      'أيام سريعة',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textDirection: TextDirection.rtl,
+                    ),
+                    const SizedBox(height: 8),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          _buildQuickDayButton(
+                            'اليوم',
+                            DateTime.now(),
+                          ),
+                          const SizedBox(width: 8),
+                          _buildQuickDayButton(
+                            'أمس',
+                            DateTime.now().subtract(const Duration(days: 1)),
+                          ),
+                          const SizedBox(width: 8),
+                          _buildQuickDayButton(
+                            'قبل يومين',
+                            DateTime.now().subtract(const Duration(days: 2)),
+                          ),
+                          const SizedBox(width: 8),
+                          _buildQuickDayButton(
+                            'قبل ٣ أيام',
+                            DateTime.now().subtract(const Duration(days: 3)),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Grouped Orders by Day
+                    if (_sortedDays.isEmpty)
+                      const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(32.0),
+                          child: Text(
+                            'لا توجد طلبيات',
+                            style: TextStyle(fontSize: 18),
+                            textDirection: TextDirection.rtl,
+                          ),
+                        ),
+                      )
+                    else
+                      ..._sortedDays.map((dayStr) {
+                        final orderCount = _ordersByDay[dayStr] ?? 0;
+                        DateTime dayDate;
+                        try {
+                          final parts = dayStr.split('-');
+                          dayDate = DateTime(
+                            int.parse(parts[0]),
+                            int.parse(parts[1]),
+                            int.parse(parts[2]),
+                          );
+                        } catch (e) {
+                          dayDate = DateTime.now();
+                        }
+
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          elevation: 2,
+                          child: InkWell(
+                            onTap: () => _navigateToDay(dayDate),
+                            borderRadius: BorderRadius.circular(12),
+                            child: Padding(
+                              padding: const EdgeInsets.all(16.0),
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 6,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Theme.of(context).primaryColor,
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: Text(
+                                      '$orderCount طلبية',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14,
+                                      ),
+                                      textDirection: TextDirection.rtl,
+                                    ),
+                                  ),
+                                  Text(
+                                    _formatDisplayDate(dayStr),
+                                    style: const TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                    textDirection: TextDirection.rtl,
+                                  ),
+                                  const Icon(
+                                    Icons.arrow_back_ios,
+                                    size: 20,
+                                    textDirection: TextDirection.rtl,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                  ],
                 ),
+              ),
+            ),
+    );
+  }
+
+  Widget _buildQuickDayButton(String label, DateTime date) {
+    return ElevatedButton(
+      onPressed: () => _navigateToDay(date),
+      style: ElevatedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(fontSize: 14),
+        textDirection: TextDirection.rtl,
+      ),
     );
   }
 }

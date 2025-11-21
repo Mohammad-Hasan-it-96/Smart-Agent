@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/db/database_helper.dart';
 import '../../core/models/pharmacy.dart';
+import '../../core/utils/slide_page_route.dart';
 import 'pharmacy_form.dart';
 
 class PharmaciesScreen extends StatefulWidget {
@@ -110,8 +111,9 @@ class _PharmaciesScreenState extends State<PharmaciesScreen> {
   Future<void> _navigateToForm(Pharmacy? pharmacy) async {
     final result = await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => PharmacyForm(pharmacy: pharmacy),
+      SlidePageRoute(
+        page: PharmacyForm(pharmacy: pharmacy),
+        direction: SlideDirection.rightToLeft,
       ),
     );
 

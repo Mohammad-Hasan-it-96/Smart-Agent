@@ -9,6 +9,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
 
   # Local database
   sqflite: ^2.3.0
@@ -28,6 +30,7 @@ dependencies:
   # One-time activation (HTTP)
   http: ^1.2.0
   device_info_plus: ^10.1.0
+  package_info_plus: ^8.0.0
 
 dev_dependencies:
   flutter_test:
@@ -36,4 +39,8 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  
+  # Assets (for PDF font loading)
+  assets:
+    - assets/fonts/Cairo-Regular.ttf
 

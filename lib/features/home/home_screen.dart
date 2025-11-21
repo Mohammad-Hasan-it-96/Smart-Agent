@@ -1,4 +1,11 @@
 import 'package:flutter/material.dart';
+import '../../core/utils/slide_page_route.dart';
+import '../companies/companies_screen.dart';
+import '../medicines/medicines_screen.dart';
+import '../pharmacies/pharmacies_screen.dart';
+import '../orders/new_order_screen.dart';
+import '../orders/orders_list_screen.dart';
+import '../settings/settings_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -18,8 +25,13 @@ class HomeScreen extends StatelessWidget {
             title: 'الشركات',
             icon: Icons.business,
             onTap: () {
-              // Navigate to companies screen
-              // Navigator.pushNamed(context, '/companies');
+              Navigator.push(
+                context,
+                SlidePageRoute(
+                  page: const CompaniesScreen(),
+                  direction: SlideDirection.rightToLeft,
+                ),
+              );
             },
           ),
           const SizedBox(height: 12),
@@ -28,8 +40,13 @@ class HomeScreen extends StatelessWidget {
             title: 'الأدوية',
             icon: Icons.medication,
             onTap: () {
-              // Navigate to medicines screen
-              // Navigator.pushNamed(context, '/medicines');
+              Navigator.push(
+                context,
+                SlidePageRoute(
+                  page: const MedicinesScreen(),
+                  direction: SlideDirection.rightToLeft,
+                ),
+              );
             },
           ),
           const SizedBox(height: 12),
@@ -38,8 +55,13 @@ class HomeScreen extends StatelessWidget {
             title: 'الصيدليات',
             icon: Icons.local_pharmacy,
             onTap: () {
-              // Navigate to pharmacies screen
-              // Navigator.pushNamed(context, '/pharmacies');
+              Navigator.push(
+                context,
+                SlidePageRoute(
+                  page: const PharmaciesScreen(),
+                  direction: SlideDirection.rightToLeft,
+                ),
+              );
             },
           ),
           const SizedBox(height: 12),
@@ -48,8 +70,13 @@ class HomeScreen extends StatelessWidget {
             title: 'إنشاء طلبية جديدة',
             icon: Icons.add_shopping_cart,
             onTap: () {
-              // Navigate to create order screen
-              // Navigator.pushNamed(context, '/orders/create');
+              Navigator.push(
+                context,
+                SlidePageRoute(
+                  page: const NewOrderScreen(),
+                  direction: SlideDirection.rightToLeft,
+                ),
+              );
             },
             color: Colors.green,
           ),
@@ -59,8 +86,13 @@ class HomeScreen extends StatelessWidget {
             title: 'الطلبيات السابقة',
             icon: Icons.history,
             onTap: () {
-              // Navigate to orders history screen
-              // Navigator.pushNamed(context, '/orders');
+              Navigator.push(
+                context,
+                SlidePageRoute(
+                  page: const OrdersListScreen(),
+                  direction: SlideDirection.rightToLeft,
+                ),
+              );
             },
           ),
           const SizedBox(height: 12),
@@ -69,8 +101,13 @@ class HomeScreen extends StatelessWidget {
             title: 'الإعدادات',
             icon: Icons.settings,
             onTap: () {
-              // Navigate to settings screen
-              // Navigator.pushNamed(context, '/settings');
+              Navigator.push(
+                context,
+                SlidePageRoute(
+                  page: const SettingsScreen(),
+                  direction: SlideDirection.rightToLeft,
+                ),
+              );
             },
           ),
         ],
@@ -127,4 +164,3 @@ class HomeScreen extends StatelessWidget {
     );
   }
 }
-

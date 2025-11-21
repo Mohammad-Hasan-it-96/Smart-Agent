@@ -20,8 +20,9 @@ class DatabaseHelper {
     return await databaseFactory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 1,
+        version: 4,
         onCreate: _createDB,
+        onUpgrade: _onUpgrade,
       ),
     );
   }
@@ -42,6 +43,14 @@ class DatabaseHelper {
         name TEXT,
         company_id INTEGER
       )
+    ''');
+
+    // Create optimized indexes for medicines table
+    await db.execute('''
+      CREATE INDEX idx_medicine_name ON medicines(name)
+    ''');
+    await db.execute('''
+      CREATE INDEX idx_medicine_company ON medicines(company_id)
     ''');
 
     // Create pharmacies table
@@ -72,6 +81,58 @@ class DatabaseHelper {
         qty INTEGER
       )
     ''');
+
+    // Create optimized indexes for medicines table (duplicate removal)
+    // Indexes are already created above, this is just for migration compatibility
+
+    // Create index for orders table (for date filtering)
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS idx_orders_date ON orders(created_at)
+    ''');
+  }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      // Add indexes for existing databases
+      try {
+        await db.execute('''
+          CREATE INDEX IF NOT EXISTS idx_medicine_name ON medicines(name)
+        ''');
+        await db.execute('''
+          CREATE INDEX IF NOT EXISTS idx_medicine_company ON medicines(company_id)
+        ''');
+      } catch (e) {
+        // Indexes might already exist, ignore error
+      }
+    }
+    if (oldVersion < 3) {
+      // Add index for orders date filtering
+      try {
+        await db.execute('''
+          CREATE INDEX IF NOT EXISTS idx_orders_date ON orders(created_at)
+        ''');
+      } catch (e) {
+        // Index might already exist, ignore error
+      }
+    }
+    if (oldVersion < 4) {
+      // Recreate indexes with optimized names (if they don't exist)
+      try {
+        // Drop old indexes if they exist
+        await db.execute('DROP INDEX IF EXISTS idx_medicines_name');
+        await db.execute('DROP INDEX IF EXISTS idx_medicines_company_id');
+
+        // Create new optimized indexes
+        await db.execute('''
+          CREATE INDEX IF NOT EXISTS idx_medicine_name ON medicines(name)
+        ''');
+        await db.execute('''
+          CREATE INDEX IF NOT EXISTS idx_medicine_company ON medicines(company_id)
+        ''');
+      } catch (e) {
+        // Indexes might already exist, ignore error
+      }
+    }
   }
 
   Future<Database> openDatabase() async {

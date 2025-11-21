@@ -36,7 +36,15 @@ class ActivationService {
   }
 
   // Check online activation via POST request
+  // TEMPORARY: Always returns true for development/testing
+  // TODO: Re-enable API call when ready for production
   Future<bool> checkOnlineActivation(String deviceId) async {
+    // Temporarily bypass activation - always return true
+    return true;
+
+    // COMMENTED OUT: API call disabled temporarily
+    // TODO: Uncomment when API integration is ready
+    /*
     try {
       final response = await http.post(
         Uri.parse(_dummyApiUrl),
@@ -54,6 +62,7 @@ class ActivationService {
       // Return false on error
       return false;
     }
+    */
   }
 
   // Save activation status to SharedPreferences
@@ -63,8 +72,17 @@ class ActivationService {
   }
 
   // Check if device is activated from SharedPreferences
+  // TEMPORARY: Always returns true for development/testing
+  // TODO: Re-enable SharedPreferences check when ready for production
   Future<bool> isActivated() async {
+    // Temporarily bypass activation check - always return true
+    return true;
+
+    // COMMENTED OUT: SharedPreferences check disabled temporarily
+    // TODO: Uncomment when activation is required
+    /*
     final prefs = await SharedPreferences.getInstance();
     return prefs.getBool(_activationKey) ?? false;
+    */
   }
 }

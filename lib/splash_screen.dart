@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'core/services/activation_service.dart';
-import 'features/home/home_screen.dart';
-import 'features/activation/activation_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -32,17 +30,9 @@ class _SplashScreenState extends State<SplashScreen> {
 
     // Navigate based on activation status
     if (isActivated) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (context) => const HomeScreen(),
-        ),
-      );
+      Navigator.of(context).pushReplacementNamed('/home');
     } else {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (context) => const ActivationScreen(),
-        ),
-      );
+      Navigator.of(context).pushReplacementNamed('/activation');
     }
   }
 
