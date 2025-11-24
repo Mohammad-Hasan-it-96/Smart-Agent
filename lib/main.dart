@@ -4,7 +4,8 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'core/db/database_helper.dart';
 import 'core/utils/slide_page_route.dart';
-import 'splash_screen.dart';
+import 'features/splash/splash_screen.dart';
+import 'features/onboarding/onboarding_screen.dart';
 import 'features/home/home_screen.dart';
 import 'features/activation/activation_screen.dart';
 import 'features/companies/companies_screen.dart';
@@ -75,6 +76,8 @@ class MyApp extends StatelessWidget {
         switch (settings.name) {
           case '/':
             return MaterialPageRoute(builder: (_) => const SplashScreen());
+          case '/onboarding':
+            return MaterialPageRoute(builder: (_) => const OnboardingScreen());
           case '/home':
             page = const HomeScreen();
             break;
