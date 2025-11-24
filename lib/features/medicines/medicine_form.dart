@@ -17,11 +17,24 @@ class _MedicineFormState extends State<MedicineForm> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _priceController = TextEditingController();
+  final _sourceController = TextEditingController();
+  final _notesController = TextEditingController();
   final _dbHelper = DatabaseHelper.instance;
   List<Company> _companies = [];
   int? _selectedCompanyId;
+  String? _selectedForm;
   bool _isLoading = false;
   bool _isLoadingCompanies = true;
+
+  final List<String> _formOptions = [
+    'ظرف',
+    'حنجور',
+    'تحاميل',
+    'علبة',
+    'شريط',
+    'مرهم',
+    'محلول',
+  ];
 
   @override
   void initState() {
@@ -33,6 +46,9 @@ class _MedicineFormState extends State<MedicineForm> {
       if (widget.medicine!.priceUsd > 0) {
         _priceController.text = widget.medicine!.priceUsd.toString();
       }
+      _sourceController.text = widget.medicine!.source ?? '';
+      _selectedForm = widget.medicine!.form;
+      _notesController.text = widget.medicine!.notes ?? '';
     }
   }
 
@@ -40,6 +56,8 @@ class _MedicineFormState extends State<MedicineForm> {
   void dispose() {
     _nameController.dispose();
     _priceController.dispose();
+    _sourceController.dispose();
+    _notesController.dispose();
     super.dispose();
   }
 
@@ -89,6 +107,15 @@ class _MedicineFormState extends State<MedicineForm> {
         'name': _nameController.text.trim(),
         'company_id': _selectedCompanyId,
         'price_usd': priceUsd ?? 0.0,
+        'source': _sourceController.text.trim().isEmpty
+            ? null
+            : _sourceController.text.trim(),
+        'form': _selectedForm?.trim().isEmpty == true
+            ? null
+            : _selectedForm?.trim(),
+        'notes': _notesController.text.trim().isEmpty
+            ? null
+            : _notesController.text.trim(),
       };
 
       if (widget.medicine == null) {
@@ -209,6 +236,56 @@ class _MedicineFormState extends State<MedicineForm> {
                           }
                           return null;
                         },
+                      ),
+                      const SizedBox(height: 20),
+                      TextFormField(
+                        controller: _sourceController,
+                        decoration: const InputDecoration(
+                          labelText: 'المصدر',
+                          hintText: 'أدخل مصدر الدواء (بلد – مستودع – أي نص)',
+                          prefixIcon: Icon(Icons.flag),
+                        ),
+                        textDirection: TextDirection.rtl,
+                        textAlign: TextAlign.right,
+                      ),
+                      const SizedBox(height: 20),
+                      DropdownButtonFormField<String>(
+                        value: _selectedForm,
+                        decoration: const InputDecoration(
+                          labelText: 'نوع الدواء',
+                          prefixIcon: Icon(Icons.category),
+                        ),
+                        items: [
+                          const DropdownMenuItem<String>(
+                            value: null,
+                            child: Text('اختر النوع'),
+                          ),
+                          ..._formOptions.map((form) {
+                            return DropdownMenuItem<String>(
+                              value: form,
+                              child: Text(
+                                form,
+                                textDirection: TextDirection.rtl,
+                              ),
+                            );
+                          }),
+                        ],
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedForm = value;
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 20),
+                      TextFormField(
+                        controller: _notesController,
+                        decoration: const InputDecoration(
+                          labelText: 'ملاحظات',
+                          prefixIcon: Icon(Icons.note),
+                        ),
+                        textDirection: TextDirection.rtl,
+                        textAlign: TextAlign.right,
+                        maxLines: 3,
                       ),
                       const SizedBox(height: 32),
                       FilledButton(

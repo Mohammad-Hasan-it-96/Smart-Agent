@@ -20,7 +20,7 @@ class DatabaseHelper {
     return await databaseFactory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 5,
+        version: 6,
         onCreate: _createDB,
         onUpgrade: _onUpgrade,
       ),
@@ -42,7 +42,10 @@ class DatabaseHelper {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT,
         company_id INTEGER,
-        price_usd REAL DEFAULT 0
+        price_usd REAL DEFAULT 0,
+        source TEXT,
+        form TEXT,
+        notes TEXT
       )
     ''');
 
@@ -148,6 +151,30 @@ class DatabaseHelper {
       try {
         await db.execute('''
           ALTER TABLE order_items ADD COLUMN price REAL DEFAULT 0
+        ''');
+      } catch (e) {
+        // Column might already exist, ignore error
+      }
+    }
+    if (oldVersion < 6) {
+      // Add source, form, and notes columns to medicines table
+      try {
+        await db.execute('''
+          ALTER TABLE medicines ADD COLUMN source TEXT
+        ''');
+      } catch (e) {
+        // Column might already exist, ignore error
+      }
+      try {
+        await db.execute('''
+          ALTER TABLE medicines ADD COLUMN form TEXT
+        ''');
+      } catch (e) {
+        // Column might already exist, ignore error
+      }
+      try {
+        await db.execute('''
+          ALTER TABLE medicines ADD COLUMN notes TEXT
         ''');
       } catch (e) {
         // Column might already exist, ignore error

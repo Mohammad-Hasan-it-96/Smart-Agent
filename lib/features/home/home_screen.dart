@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../core/widgets/custom_app_bar.dart';
 import '../../core/utils/slide_page_route.dart';
@@ -8,106 +9,65 @@ import '../orders/new_order_screen.dart';
 import '../orders/orders_list_screen.dart';
 import '../settings/settings_screen.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
   @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  final PageController _pageController = PageController();
+  int _currentPage = 0;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _startAutoSlide();
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _startAutoSlide() {
+    _timer = Timer.periodic(const Duration(seconds: 4), (timer) {
+      if (_pageController.hasClients) {
+        if (_currentPage < 2) {
+          _currentPage++;
+        } else {
+          _currentPage = 0;
+        }
+        _pageController.animateToPage(
+          _currentPage,
+          duration: const Duration(milliseconds: 500),
+          curve: Curves.easeInOut,
+        );
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
       appBar: const CustomAppBar(title: 'الصفحة الرئيسية'),
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(16.0),
+        child: Column(
           children: [
-            _buildMenuCard(
-              context,
-              title: 'الشركات',
-              icon: Icons.business,
-              onTap: () {
-                Navigator.push(
-                  context,
-                  SlidePageRoute(
-                    page: const CompaniesScreen(),
-                    direction: SlideDirection.rightToLeft,
-                  ),
-                );
-              },
-            ),
-            const SizedBox(height: 12),
-            _buildMenuCard(
-              context,
-              title: 'الأدوية',
-              icon: Icons.medication,
-              onTap: () {
-                Navigator.push(
-                  context,
-                  SlidePageRoute(
-                    page: const MedicinesScreen(),
-                    direction: SlideDirection.rightToLeft,
-                  ),
-                );
-              },
-            ),
-            const SizedBox(height: 12),
-            _buildMenuCard(
-              context,
-              title: 'الصيدليات',
-              icon: Icons.local_pharmacy,
-              onTap: () {
-                Navigator.push(
-                  context,
-                  SlidePageRoute(
-                    page: const PharmaciesScreen(),
-                    direction: SlideDirection.rightToLeft,
-                  ),
-                );
-              },
-            ),
-            const SizedBox(height: 12),
-            _buildMenuCard(
-              context,
-              title: 'إنشاء طلبية جديدة',
-              icon: Icons.add_shopping_cart,
-              onTap: () {
-                Navigator.push(
-                  context,
-                  SlidePageRoute(
-                    page: const NewOrderScreen(),
-                    direction: SlideDirection.rightToLeft,
-                  ),
-                );
-              },
-              color: Colors.green,
-            ),
-            const SizedBox(height: 12),
-            _buildMenuCard(
-              context,
-              title: 'الطلبيات السابقة',
-              icon: Icons.history,
-              onTap: () {
-                Navigator.push(
-                  context,
-                  SlidePageRoute(
-                    page: const OrdersListScreen(),
-                    direction: SlideDirection.rightToLeft,
-                  ),
-                );
-              },
-            ),
-            const SizedBox(height: 12),
-            _buildMenuCard(
-              context,
-              title: 'الإعدادات',
-              icon: Icons.settings,
-              onTap: () {
-                Navigator.push(
-                  context,
-                  SlidePageRoute(
-                    page: const SettingsScreen(),
-                    direction: SlideDirection.rightToLeft,
-                  ),
-                );
-              },
+            // Header Carousel Slider
+            _buildCarouselSlider(theme),
+            const SizedBox(height: 8),
+            _buildPageIndicators(theme),
+            const SizedBox(height: 16),
+
+            // Main Menu Grid
+            Expanded(
+              child: _buildMenuGrid(context, theme),
             ),
           ],
         ),
@@ -115,50 +75,271 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildMenuCard(
-    BuildContext context, {
-    required String title,
-    required IconData icon,
-    required VoidCallback onTap,
-    Color? color,
-  }) {
-    final theme = Theme.of(context);
+  Widget _buildCarouselSlider(ThemeData theme) {
+    final slides = [
+      _SlideData(
+        title: 'مرحباً بك أيها المندوب!',
+        subtitle: 'نظام إدارة الطلبيات الذكي',
+        icon: Icons.person,
+        gradient: [
+          theme.colorScheme.primary,
+          theme.colorScheme.primary.withValues(alpha: 0.7),
+        ],
+      ),
+      _SlideData(
+        title: 'سجل الطلبيات بسهولة',
+        subtitle: 'إنشاء وإدارة الطلبيات بضغطة واحدة',
+        icon: Icons.shopping_cart,
+        gradient: [
+          theme.colorScheme.secondary,
+          theme.colorScheme.secondary.withValues(alpha: 0.7),
+        ],
+      ),
+      _SlideData(
+        title: 'إدارة الأدوية والشركات',
+        subtitle: 'تنظيم كامل لقاعدة بياناتك',
+        icon: Icons.medication,
+        gradient: [
+          theme.colorScheme.tertiary,
+          theme.colorScheme.tertiary.withValues(alpha: 0.7),
+        ],
+      ),
+    ];
+
+    return SizedBox(
+      height: 200,
+      child: PageView.builder(
+        controller: _pageController,
+        onPageChanged: (index) {
+          setState(() {
+            _currentPage = index;
+          });
+        },
+        itemCount: slides.length,
+        itemBuilder: (context, index) {
+          final slide = slides[index];
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: Card(
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  gradient: LinearGradient(
+                    begin: Alignment.topRight,
+                    end: Alignment.bottomLeft,
+                    colors: slide.gradient,
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(24.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              slide.title,
+                              style: theme.textTheme.headlineSmall?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              textDirection: TextDirection.rtl,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              slide.subtitle,
+                              style: theme.textTheme.bodyLarge?.copyWith(
+                                color: Colors.white.withValues(alpha: 0.9),
+                              ),
+                              textDirection: TextDirection.rtl,
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Icon(
+                          slide.icon,
+                          size: 48,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildPageIndicators(ThemeData theme) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List.generate(3, (index) {
+        return Container(
+          width: _currentPage == index ? 24 : 8,
+          height: 8,
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(4),
+            color: _currentPage == index
+                ? theme.colorScheme.primary
+                : theme.colorScheme.primary.withValues(alpha: 0.3),
+          ),
+        );
+      }),
+    );
+  }
+
+  Widget _buildMenuGrid(BuildContext context, ThemeData theme) {
+    final menuItems = [
+      _MenuItem(
+        title: 'الشركات',
+        icon: Icons.business,
+        onTap: () {
+          Navigator.push(
+            context,
+            SlidePageRoute(
+              page: const CompaniesScreen(),
+              direction: SlideDirection.rightToLeft,
+            ),
+          );
+        },
+      ),
+      _MenuItem(
+        title: 'الأدوية',
+        icon: Icons.medication,
+        onTap: () {
+          Navigator.push(
+            context,
+            SlidePageRoute(
+              page: const MedicinesScreen(),
+              direction: SlideDirection.rightToLeft,
+            ),
+          );
+        },
+      ),
+      _MenuItem(
+        title: 'الصيدليات',
+        icon: Icons.local_pharmacy,
+        onTap: () {
+          Navigator.push(
+            context,
+            SlidePageRoute(
+              page: const PharmaciesScreen(),
+              direction: SlideDirection.rightToLeft,
+            ),
+          );
+        },
+      ),
+      _MenuItem(
+        title: 'إنشاء طلبية جديدة',
+        icon: Icons.add_shopping_cart,
+        color: theme.colorScheme.tertiary,
+        onTap: () {
+          Navigator.push(
+            context,
+            SlidePageRoute(
+              page: const NewOrderScreen(),
+              direction: SlideDirection.rightToLeft,
+            ),
+          );
+        },
+      ),
+      _MenuItem(
+        title: 'الطلبيات السابقة',
+        icon: Icons.history,
+        onTap: () {
+          Navigator.push(
+            context,
+            SlidePageRoute(
+              page: const OrdersListScreen(),
+              direction: SlideDirection.rightToLeft,
+            ),
+          );
+        },
+      ),
+      _MenuItem(
+        title: 'الإعدادات',
+        icon: Icons.settings,
+        onTap: () {
+          Navigator.push(
+            context,
+            SlidePageRoute(
+              page: const SettingsScreen(),
+              direction: SlideDirection.rightToLeft,
+            ),
+          );
+        },
+      ),
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      child: GridView.builder(
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          childAspectRatio: 0.85,
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+        ),
+        itemCount: menuItems.length,
+        itemBuilder: (context, index) {
+          final item = menuItems[index];
+          return _buildMenuCard(context, item, theme);
+        },
+      ),
+    );
+  }
+
+  Widget _buildMenuCard(BuildContext context, _MenuItem item, ThemeData theme) {
     return Card(
       child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
+        onTap: item.onTap,
+        borderRadius: BorderRadius.circular(20),
         child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Row(
+          padding: const EdgeInsets.all(12.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: (color ?? theme.colorScheme.primary)
-                      .withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  icon,
-                  size: 28,
-                  color: color ?? theme.colorScheme.primary,
+              Flexible(
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: (item.color ?? theme.colorScheme.primary)
+                        .withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Icon(
+                    item.icon,
+                    size: 28,
+                    color: item.color ?? theme.colorScheme.primary,
+                  ),
                 ),
               ),
-              const SizedBox(width: 16),
-              Expanded(
+              const SizedBox(height: 8),
+              Flexible(
                 child: Text(
-                  title,
-                  style: theme.textTheme.titleLarge?.copyWith(
+                  item.title,
+                  style: theme.textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
+                  textAlign: TextAlign.center,
                   textDirection: TextDirection.rtl,
-                  textAlign: TextAlign.right,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-              Icon(
-                Icons.arrow_back_ios,
-                size: 20,
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
               ),
             ],
           ),
@@ -166,4 +347,32 @@ class HomeScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+class _SlideData {
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final List<Color> gradient;
+
+  _SlideData({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.gradient,
+  });
+}
+
+class _MenuItem {
+  final String title;
+  final IconData icon;
+  final VoidCallback onTap;
+  final Color? color;
+
+  _MenuItem({
+    required this.title,
+    required this.icon,
+    required this.onTap,
+    this.color,
+  });
 }

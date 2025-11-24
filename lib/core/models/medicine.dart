@@ -3,12 +3,18 @@ class Medicine {
   final String name;
   final int companyId;
   final double priceUsd;
+  final String? source;
+  final String? form;
+  final String? notes;
 
   Medicine({
     this.id,
     required this.name,
     required this.companyId,
     this.priceUsd = 0.0,
+    this.source,
+    this.form,
+    this.notes,
   });
 
   Map<String, dynamic> toMap() {
@@ -17,6 +23,9 @@ class Medicine {
       'name': name,
       'company_id': companyId,
       'price_usd': priceUsd,
+      'source': source,
+      'form': form,
+      'notes': notes,
     };
   }
 
@@ -26,6 +35,9 @@ class Medicine {
       name: map['name'] as String,
       companyId: map['company_id'] as int,
       priceUsd: (map['price_usd'] as num?)?.toDouble() ?? 0.0,
+      source: map['source'] as String?,
+      form: map['form'] as String?,
+      notes: map['notes'] as String?,
     );
   }
 }
