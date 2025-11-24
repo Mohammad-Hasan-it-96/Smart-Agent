@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../core/db/database_helper.dart';
 import '../../core/utils/slide_page_route.dart';
+import '../../core/widgets/custom_app_bar.dart';
+import '../../core/widgets/empty_state.dart';
 import 'daily_orders_screen.dart';
 
 class OrdersListScreen extends StatefulWidget {
@@ -124,175 +126,177 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('الطلبيات السابقة'),
-        centerTitle: true,
-      ),
+      appBar: const CustomAppBar(title: 'الطلبيات السابقة'),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
               onRefresh: _loadOrdersByDay,
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Date Picker Button
-                    Card(
-                      elevation: 2,
-                      child: InkWell(
-                        onTap: _selectDate,
-                        borderRadius: BorderRadius.circular(12),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(Icons.calendar_today,
-                                  color: Colors.blue),
-                              const SizedBox(width: 8),
-                              const Text(
-                                'اختر تاريخ',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
+              child: SafeArea(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Date Picker Button
+                      Card(
+                        child: InkWell(
+                          onTap: _selectDate,
+                          borderRadius: BorderRadius.circular(16),
+                          child: Padding(
+                            padding: const EdgeInsets.all(20.0),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.calendar_today,
+                                  color: theme.colorScheme.primary,
                                 ),
-                                textDirection: TextDirection.rtl,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Quick Navigation Buttons
-                    const Text(
-                      'أيام سريعة',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      textDirection: TextDirection.rtl,
-                    ),
-                    const SizedBox(height: 8),
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: [
-                          _buildQuickDayButton(
-                            'اليوم',
-                            DateTime.now(),
-                          ),
-                          const SizedBox(width: 8),
-                          _buildQuickDayButton(
-                            'أمس',
-                            DateTime.now().subtract(const Duration(days: 1)),
-                          ),
-                          const SizedBox(width: 8),
-                          _buildQuickDayButton(
-                            'قبل يومين',
-                            DateTime.now().subtract(const Duration(days: 2)),
-                          ),
-                          const SizedBox(width: 8),
-                          _buildQuickDayButton(
-                            'قبل ٣ أيام',
-                            DateTime.now().subtract(const Duration(days: 3)),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Grouped Orders by Day
-                    if (_sortedDays.isEmpty)
-                      const Center(
-                        child: Padding(
-                          padding: EdgeInsets.all(32.0),
-                          child: Text(
-                            'لا توجد طلبيات',
-                            style: TextStyle(fontSize: 18),
-                            textDirection: TextDirection.rtl,
-                          ),
-                        ),
-                      )
-                    else
-                      ..._sortedDays.map((dayStr) {
-                        final orderCount = _ordersByDay[dayStr] ?? 0;
-                        DateTime dayDate;
-                        try {
-                          final parts = dayStr.split('-');
-                          dayDate = DateTime(
-                            int.parse(parts[0]),
-                            int.parse(parts[1]),
-                            int.parse(parts[2]),
-                          );
-                        } catch (e) {
-                          dayDate = DateTime.now();
-                        }
-
-                        return Card(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          elevation: 2,
-                          child: InkWell(
-                            onTap: () => _navigateToDay(dayDate),
-                            borderRadius: BorderRadius.circular(12),
-                            child: Padding(
-                              padding: const EdgeInsets.all(16.0),
-                              child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 6,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Theme.of(context).primaryColor,
-                                      borderRadius: BorderRadius.circular(20),
-                                    ),
-                                    child: Text(
-                                      '$orderCount طلبية',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 14,
-                                      ),
-                                      textDirection: TextDirection.rtl,
-                                    ),
+                                const SizedBox(width: 12),
+                                Text(
+                                  'اختر تاريخ',
+                                  style: theme.textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: theme.colorScheme.primary,
                                   ),
-                                  Text(
-                                    _formatDisplayDate(dayStr),
-                                    style: const TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                    textDirection: TextDirection.rtl,
-                                  ),
-                                  const Icon(
-                                    Icons.arrow_back_ios,
-                                    size: 20,
-                                    textDirection: TextDirection.rtl,
-                                  ),
-                                ],
-                              ),
+                                  textDirection: TextDirection.rtl,
+                                ),
+                              ],
                             ),
                           ),
-                        );
-                      }).toList(),
-                  ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+
+                      // Quick Navigation Buttons
+                      Text(
+                        'أيام سريعة',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textDirection: TextDirection.rtl,
+                      ),
+                      const SizedBox(height: 12),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            _buildQuickDayButton(
+                              'اليوم',
+                              DateTime.now(),
+                              theme,
+                            ),
+                            const SizedBox(width: 8),
+                            _buildQuickDayButton(
+                              'أمس',
+                              DateTime.now().subtract(const Duration(days: 1)),
+                              theme,
+                            ),
+                            const SizedBox(width: 8),
+                            _buildQuickDayButton(
+                              'قبل يومين',
+                              DateTime.now().subtract(const Duration(days: 2)),
+                              theme,
+                            ),
+                            const SizedBox(width: 8),
+                            _buildQuickDayButton(
+                              'قبل ٣ أيام',
+                              DateTime.now().subtract(const Duration(days: 3)),
+                              theme,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Grouped Orders by Day
+                      if (_sortedDays.isEmpty)
+                        const EmptyState(
+                          icon: Icons.receipt_long,
+                          title: 'لا توجد طلبيات',
+                          message: 'لم يتم إنشاء أي طلبيات بعد',
+                        )
+                      else
+                        ..._sortedDays.map((dayStr) {
+                          final orderCount = _ordersByDay[dayStr] ?? 0;
+                          DateTime dayDate;
+                          try {
+                            final parts = dayStr.split('-');
+                            dayDate = DateTime(
+                              int.parse(parts[0]),
+                              int.parse(parts[1]),
+                              int.parse(parts[2]),
+                            );
+                          } catch (e) {
+                            dayDate = DateTime.now();
+                          }
+
+                          return Card(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            child: InkWell(
+                              onTap: () => _navigateToDay(dayDate),
+                              borderRadius: BorderRadius.circular(16),
+                              child: Padding(
+                                padding: const EdgeInsets.all(16.0),
+                                child: Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 8,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: theme.colorScheme.primary,
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                      child: Text(
+                                        '$orderCount طلبية',
+                                        style: TextStyle(
+                                          color: theme.colorScheme.onPrimary,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 14,
+                                        ),
+                                        textDirection: TextDirection.rtl,
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: Text(
+                                        _formatDisplayDate(dayStr),
+                                        style: theme.textTheme.titleLarge
+                                            ?.copyWith(
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                        textAlign: TextAlign.center,
+                                        textDirection: TextDirection.rtl,
+                                      ),
+                                    ),
+                                    Icon(
+                                      Icons.arrow_back_ios_new_rounded,
+                                      size: 20,
+                                      color: theme.colorScheme.onSurface
+                                          .withValues(alpha: 0.6),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                    ],
+                  ),
                 ),
               ),
             ),
     );
   }
 
-  Widget _buildQuickDayButton(String label, DateTime date) {
-    return ElevatedButton(
+  Widget _buildQuickDayButton(String label, DateTime date, ThemeData theme) {
+    return OutlinedButton(
       onPressed: () => _navigateToDay(date),
-      style: ElevatedButton.styleFrom(
+      style: OutlinedButton.styleFrom(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
@@ -300,7 +304,7 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
       ),
       child: Text(
         label,
-        style: const TextStyle(fontSize: 14),
+        style: TextStyle(fontSize: 14, color: theme.colorScheme.primary),
         textDirection: TextDirection.rtl,
       ),
     );

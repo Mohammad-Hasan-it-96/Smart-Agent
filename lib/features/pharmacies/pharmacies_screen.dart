@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../../core/db/database_helper.dart';
 import '../../core/models/pharmacy.dart';
 import '../../core/utils/slide_page_route.dart';
+import '../../core/widgets/custom_app_bar.dart';
+import '../../core/widgets/empty_state.dart';
 import 'pharmacy_form.dart';
 
 class PharmaciesScreen extends StatefulWidget {
@@ -124,96 +126,156 @@ class _PharmaciesScreenState extends State<PharmaciesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('الصيدليات'),
-        centerTitle: true,
-      ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'بحث...',
-                prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+      appBar: const CustomAppBar(title: 'الصيدليات'),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  hintText: 'بحث عن صيدلية...',
+                  prefixIcon: const Icon(Icons.search),
                 ),
+                textDirection: TextDirection.rtl,
               ),
-              textDirection: TextDirection.rtl,
             ),
-          ),
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _filteredPharmacies.isEmpty
-                    ? Center(
-                        child: Text(
-                          _searchController.text.isEmpty
+            Expanded(
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _filteredPharmacies.isEmpty
+                      ? EmptyState(
+                          icon: _searchController.text.isEmpty
+                              ? Icons.local_pharmacy
+                              : Icons.search_off,
+                          title: _searchController.text.isEmpty
                               ? 'لا توجد صيدليات'
                               : 'لا توجد نتائج',
-                          style: const TextStyle(fontSize: 18),
-                        ),
-                      )
-                    : ListView.builder(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        itemCount: _filteredPharmacies.length,
-                        itemBuilder: (context, index) {
-                          final pharmacy = _filteredPharmacies[index];
-                          return Card(
-                            margin: const EdgeInsets.only(bottom: 8),
-                            child: ListTile(
-                              title: Text(
-                                pharmacy.name,
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
+                          message: _searchController.text.isEmpty
+                              ? 'ابدأ بإضافة صيدلية جديدة'
+                              : 'لم يتم العثور على صيدليات تطابق البحث',
+                        )
+                      : ListView.builder(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          itemCount: _filteredPharmacies.length,
+                          itemBuilder: (context, index) {
+                            final pharmacy = _filteredPharmacies[index];
+                            return Card(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              child: ListTile(
+                                leading: Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: theme.colorScheme.secondary
+                                        .withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Icon(
+                                    Icons.local_pharmacy,
+                                    color: theme.colorScheme.secondary,
+                                  ),
                                 ),
-                                textDirection: TextDirection.rtl,
+                                title: Text(
+                                  pharmacy.name,
+                                  style: theme.textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  textDirection: TextDirection.rtl,
+                                ),
+                                subtitle: Padding(
+                                  padding: const EdgeInsets.only(top: 4),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Icon(
+                                            Icons.location_on,
+                                            size: 14,
+                                            color: theme.colorScheme.onSurface
+                                                .withValues(alpha: 0.6),
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Expanded(
+                                            child: Text(
+                                              pharmacy.address,
+                                              style: theme.textTheme.bodyMedium,
+                                              textDirection: TextDirection.rtl,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Row(
+                                        children: [
+                                          Icon(
+                                            Icons.phone,
+                                            size: 14,
+                                            color: theme.colorScheme.onSurface
+                                                .withValues(alpha: 0.6),
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            pharmacy.phone,
+                                            style: theme.textTheme.bodyMedium,
+                                            textDirection: TextDirection.rtl,
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Material(
+                                      color: Colors.transparent,
+                                      child: InkWell(
+                                        onTap: () => _navigateToForm(pharmacy),
+                                        borderRadius: BorderRadius.circular(20),
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(8.0),
+                                          child: Icon(
+                                            Icons.edit,
+                                            color: theme.colorScheme.primary,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    Material(
+                                      color: Colors.transparent,
+                                      child: InkWell(
+                                        onTap: () => _deletePharmacy(pharmacy),
+                                        borderRadius: BorderRadius.circular(20),
+                                        child: const Padding(
+                                          padding: EdgeInsets.all(8.0),
+                                          child: Icon(
+                                            Icons.delete,
+                                            color: Colors.red,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                              subtitle: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    pharmacy.address,
-                                    style: const TextStyle(fontSize: 14),
-                                    textDirection: TextDirection.rtl,
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    pharmacy.phone,
-                                    style: const TextStyle(fontSize: 14),
-                                    textDirection: TextDirection.rtl,
-                                  ),
-                                ],
-                              ),
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  IconButton(
-                                    icon: const Icon(Icons.edit),
-                                    onPressed: () => _navigateToForm(pharmacy),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.delete,
-                                        color: Colors.red),
-                                    onPressed: () => _deletePharmacy(pharmacy),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-          ),
-        ],
+                            );
+                          },
+                        ),
+            ),
+          ],
+        ),
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _navigateToForm(null),
-        child: const Icon(Icons.add),
+        icon: const Icon(Icons.add),
+        label: const Text('إضافة صيدلية'),
       ),
     );
   }

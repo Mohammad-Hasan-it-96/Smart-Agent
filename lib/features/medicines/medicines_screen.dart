@@ -5,6 +5,8 @@ import '../../core/models/medicine.dart';
 import '../../core/models/company.dart';
 import '../../core/services/settings_service.dart';
 import '../../core/utils/slide_page_route.dart';
+import '../../core/widgets/custom_app_bar.dart';
+import '../../core/widgets/empty_state.dart';
 import 'medicine_form.dart';
 
 class MedicinesScreen extends StatefulWidget {
@@ -333,72 +335,69 @@ class _MedicinesScreenState extends State<MedicinesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('الأدوية'),
-        centerTitle: true,
-      ),
-      body: Column(
-        children: [
-          // Search bar
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'بحث عن دواء...',
-                prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+      appBar: const CustomAppBar(title: 'الأدوية'),
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Search bar
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  hintText: 'بحث عن دواء...',
+                  prefixIcon: const Icon(Icons.search),
                 ),
+                textDirection: TextDirection.rtl,
               ),
-              textDirection: TextDirection.rtl,
             ),
-          ),
 
-          // Company filter dropdown
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: DropdownButtonFormField<int>(
-              value: _selectedCompanyId,
-              decoration: InputDecoration(
-                labelText: 'تصفية حسب الشركة',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+            // Company filter dropdown
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: DropdownButtonFormField<int>(
+                value: _selectedCompanyId,
+                decoration: InputDecoration(
+                  labelText: 'تصفية حسب الشركة',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  prefixIcon: const Icon(Icons.filter_list),
                 ),
-                prefixIcon: const Icon(Icons.filter_list),
+                items: [
+                  const DropdownMenuItem<int>(
+                    value: null,
+                    child: Text('جميع الشركات'),
+                  ),
+                  ..._companies.map((company) {
+                    return DropdownMenuItem<int>(
+                      value: company.id,
+                      child: Text(
+                        company.name,
+                        textDirection: TextDirection.rtl,
+                      ),
+                    );
+                  }),
+                ],
+                onChanged: _onCompanyFilterChanged,
               ),
-              items: [
-                const DropdownMenuItem<int>(
-                  value: null,
-                  child: Text('جميع الشركات'),
-                ),
-                ..._companies.map((company) {
-                  return DropdownMenuItem<int>(
-                    value: company.id,
-                    child: Text(
-                      company.name,
-                      textDirection: TextDirection.rtl,
-                    ),
-                  );
-                }),
-              ],
-              onChanged: _onCompanyFilterChanged,
             ),
-          ),
 
-          const SizedBox(height: 8),
+            const SizedBox(height: 8),
 
-          // Content
-          Expanded(
-            child: _isInitialLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _buildContent(),
-          ),
-        ],
+            // Content
+            Expanded(
+              child: _isInitialLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _buildContent(),
+            ),
+          ],
+        ),
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _navigateToForm(null),
-        child: const Icon(Icons.add),
+        icon: const Icon(Icons.add),
+        label: const Text('إضافة دواء'),
       ),
     );
   }
@@ -407,11 +406,10 @@ class _MedicinesScreenState extends State<MedicinesScreen> {
     // If searching, show flat list
     if (_searchQuery.isNotEmpty) {
       if (_filteredMedicines.isEmpty && !_isLoading) {
-        return const Center(
-          child: Text(
-            'لا توجد نتائج',
-            style: TextStyle(fontSize: 18),
-          ),
+        return const EmptyState(
+          icon: Icons.search_off,
+          title: 'لا توجد نتائج',
+          message: 'لم يتم العثور على أدوية تطابق البحث',
         );
       }
 
@@ -441,11 +439,10 @@ class _MedicinesScreenState extends State<MedicinesScreen> {
     if (_selectedCompanyId != null) {
       final companyMedicines = _medicinesByCompany[_selectedCompanyId] ?? [];
       if (companyMedicines.isEmpty && !_isLoading) {
-        return const Center(
-          child: Text(
-            'لا توجد أدوية لهذه الشركة',
-            style: TextStyle(fontSize: 18),
-          ),
+        return const EmptyState(
+          icon: Icons.medication_liquid,
+          title: 'لا توجد أدوية',
+          message: 'لا توجد أدوية مسجلة لهذه الشركة',
         );
       }
 
@@ -471,11 +468,11 @@ class _MedicinesScreenState extends State<MedicinesScreen> {
 
     // Default: show grouped by company with expandable tiles
     if (_medicinesByCompany.isEmpty && !_isLoading) {
-      return const Center(
-        child: Text(
-          'لا توجد أدوية',
-          style: TextStyle(fontSize: 18),
-        ),
+      return const EmptyState(
+        icon: Icons.medication_liquid,
+        title: 'لا توجد أدوية',
+        message: 'ابدأ بإضافة أدوية جديدة',
+        action: SizedBox.shrink(),
       );
     }
 

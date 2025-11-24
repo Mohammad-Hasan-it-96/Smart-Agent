@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/db/database_helper.dart';
 import '../../core/models/company.dart';
+import '../../core/widgets/custom_app_bar.dart';
 
 class CompanyForm extends StatefulWidget {
   final Company? company;
@@ -86,56 +87,54 @@ class _CompanyFormState extends State<CompanyForm> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.company == null ? 'إضافة شركة' : 'تعديل شركة'),
-        centerTitle: true,
+      appBar: CustomAppBar(
+        title: widget.company == null ? 'إضافة شركة' : 'تعديل شركة',
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              TextFormField(
-                controller: _nameController,
-                decoration: InputDecoration(
-                  labelText: 'اسم الشركة',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20.0),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                TextFormField(
+                  controller: _nameController,
+                  decoration: const InputDecoration(
+                    labelText: 'اسم الشركة',
+                    prefixIcon: Icon(Icons.business),
                   ),
-                  prefixIcon: const Icon(Icons.business),
+                  textDirection: TextDirection.rtl,
+                  textAlign: TextAlign.right,
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'يرجى إدخال اسم الشركة';
+                    }
+                    return null;
+                  },
                 ),
-                textDirection: TextDirection.rtl,
-                textAlign: TextAlign.right,
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'يرجى إدخال اسم الشركة';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: _isLoading ? null : _saveCompany,
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                const SizedBox(height: 32),
+                FilledButton(
+                  onPressed: _isLoading ? null : _saveCompany,
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : Text(
+                          widget.company == null ? 'إضافة' : 'تحديث',
+                          style: const TextStyle(fontSize: 18),
+                        ),
                 ),
-                child: _isLoading
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Text(
-                        widget.company == null ? 'إضافة' : 'تحديث',
-                        style: const TextStyle(fontSize: 18),
-                      ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

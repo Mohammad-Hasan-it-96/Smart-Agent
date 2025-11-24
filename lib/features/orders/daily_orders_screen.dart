@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../core/db/database_helper.dart';
 import '../../core/utils/slide_page_route.dart';
+import '../../core/widgets/custom_app_bar.dart';
+import '../../core/widgets/empty_state.dart';
 import 'order_details_screen.dart';
 
 class DailyOrdersScreen extends StatefulWidget {
@@ -124,139 +126,130 @@ class _DailyOrdersScreenState extends State<DailyOrdersScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final dateStr = _formatDayDate(widget.date);
     return Scaffold(
-      appBar: AppBar(
-        title: Text('طلبيات ${_formatDayDate(widget.date)}'),
-        centerTitle: true,
+      appBar: CustomAppBar(
+        title: 'طلبيات ${dateStr.replaceAll('-', '/')}',
       ),
       body: _isInitialLoading
           ? const Center(child: CircularProgressIndicator())
           : _orders.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.receipt_long_outlined,
-                        size: 64,
-                        color: Colors.grey[400],
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'لا توجد طلبيات في هذا التاريخ',
-                        style: TextStyle(
-                          fontSize: 18,
-                          color: Colors.grey[600],
-                        ),
-                        textDirection: TextDirection.rtl,
-                      ),
-                    ],
-                  ),
+              ? const EmptyState(
+                  icon: Icons.receipt_long_outlined,
+                  title: 'لا توجد طلبيات',
+                  message: 'لا توجد طلبيات في هذا التاريخ',
                 )
               : RefreshIndicator(
                   onRefresh: () => _loadOrders(isInitialLoad: true),
-                  child: ListView.builder(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _orders.length + (_hasMoreData ? 1 : 0),
-                    itemBuilder: (context, index) {
-                      if (index == _orders.length) {
-                        return const Padding(
-                          padding: EdgeInsets.all(16.0),
-                          child: Center(child: CircularProgressIndicator()),
-                        );
-                      }
+                  child: SafeArea(
+                    child: ListView.builder(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.all(16),
+                      itemCount: _orders.length + (_hasMoreData ? 1 : 0),
+                      itemBuilder: (context, index) {
+                        if (index == _orders.length) {
+                          return const Padding(
+                            padding: EdgeInsets.all(16.0),
+                            child: Center(child: CircularProgressIndicator()),
+                          );
+                        }
 
-                      final order = _orders[index];
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        elevation: 2,
-                        child: InkWell(
-                          onTap: () async {
-                            await Navigator.push(
-                              context,
-                              SlidePageRoute(
-                                page: OrderDetailsScreen(
-                                  orderId: order['id'] as int,
-                                ),
-                                direction: SlideDirection.rightToLeft,
-                              ),
-                            );
-                          },
-                          borderRadius: BorderRadius.circular(12),
-                          child: Padding(
-                            padding: const EdgeInsets.all(16.0),
-                            child: Row(
-                              children: [
-                                const Icon(
-                                  Icons.receipt_long,
-                                  size: 32,
-                                  color: Colors.blue,
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        order['pharmacy_name'] ??
-                                            'صيدلية غير معروفة',
-                                        style: const TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                        textDirection: TextDirection.rtl,
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Row(
-                                        children: [
-                                          Icon(
-                                            Icons.access_time,
-                                            size: 16,
-                                            color: Colors.grey[600],
-                                          ),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            _formatDate(
-                                                order['created_at'] as String),
-                                            style: TextStyle(
-                                              fontSize: 14,
-                                              color: Colors.grey[600],
-                                            ),
-                                            textDirection: TextDirection.rtl,
-                                          ),
-                                          const SizedBox(width: 16),
-                                          Icon(
-                                            Icons.shopping_cart,
-                                            size: 16,
-                                            color: Colors.grey[600],
-                                          ),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            '${order['item_count'] ?? 0} عنصر',
-                                            style: TextStyle(
-                                              fontSize: 14,
-                                              color: Colors.grey[600],
-                                            ),
-                                            textDirection: TextDirection.rtl,
-                                          ),
-                                        ],
-                                      ),
-                                    ],
+                        final order = _orders[index];
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          child: InkWell(
+                            onTap: () async {
+                              await Navigator.push(
+                                context,
+                                SlidePageRoute(
+                                  page: OrderDetailsScreen(
+                                    orderId: order['id'] as int,
                                   ),
+                                  direction: SlideDirection.rightToLeft,
                                 ),
-                                const Icon(
-                                  Icons.arrow_back_ios,
-                                  size: 20,
-                                  textDirection: TextDirection.rtl,
-                                ),
-                              ],
+                              );
+                            },
+                            borderRadius: BorderRadius.circular(16),
+                            child: Padding(
+                              padding: const EdgeInsets.all(16.0),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: theme.colorScheme.primary
+                                          .withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Icon(
+                                      Icons.receipt_long,
+                                      size: 28,
+                                      color: theme.colorScheme.primary,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          order['pharmacy_name'] ??
+                                              'صيدلية غير معروفة',
+                                          style: theme.textTheme.titleLarge
+                                              ?.copyWith(
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                          textDirection: TextDirection.rtl,
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Row(
+                                          children: [
+                                            Icon(
+                                              Icons.access_time,
+                                              size: 16,
+                                              color: theme.colorScheme.onSurface
+                                                  .withValues(alpha: 0.6),
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              _formatDate(order['created_at']
+                                                  as String),
+                                              style: theme.textTheme.bodyMedium,
+                                              textDirection: TextDirection.rtl,
+                                            ),
+                                            const SizedBox(width: 16),
+                                            Icon(
+                                              Icons.shopping_cart,
+                                              size: 16,
+                                              color: theme.colorScheme.onSurface
+                                                  .withValues(alpha: 0.6),
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              '${order['item_count'] ?? 0} عنصر',
+                                              style: theme.textTheme.bodyMedium,
+                                              textDirection: TextDirection.rtl,
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Icon(
+                                    Icons.arrow_back_ios_new_rounded,
+                                    size: 20,
+                                    color: theme.colorScheme.onSurface
+                                        .withValues(alpha: 0.6),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
-                        ),
-                      );
-                    },
+                        );
+                      },
+                    ),
                   ),
                 ),
     );

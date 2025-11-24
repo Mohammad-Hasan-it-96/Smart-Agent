@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/db/database_helper.dart';
 import '../../core/models/pharmacy.dart';
+import '../../core/widgets/custom_app_bar.dart';
 
 class PharmacyForm extends StatefulWidget {
   final Pharmacy? pharmacy;
@@ -94,95 +95,89 @@ class _PharmacyFormState extends State<PharmacyForm> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.pharmacy == null ? 'إضافة صيدلية' : 'تعديل صيدلية'),
-        centerTitle: true,
+      appBar: CustomAppBar(
+        title: widget.pharmacy == null ? 'إضافة صيدلية' : 'تعديل صيدلية',
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              TextFormField(
-                controller: _nameController,
-                decoration: InputDecoration(
-                  labelText: 'اسم الصيدلية',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20.0),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                TextFormField(
+                  controller: _nameController,
+                  decoration: const InputDecoration(
+                    labelText: 'اسم الصيدلية',
+                    prefixIcon: Icon(Icons.local_pharmacy),
                   ),
-                  prefixIcon: const Icon(Icons.local_pharmacy),
+                  textDirection: TextDirection.rtl,
+                  textAlign: TextAlign.right,
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'يرجى إدخال اسم الصيدلية';
+                    }
+                    return null;
+                  },
                 ),
-                textDirection: TextDirection.rtl,
-                textAlign: TextAlign.right,
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'يرجى إدخال اسم الصيدلية';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _addressController,
-                decoration: InputDecoration(
-                  labelText: 'العنوان',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+                const SizedBox(height: 20),
+                TextFormField(
+                  controller: _addressController,
+                  decoration: const InputDecoration(
+                    labelText: 'العنوان',
+                    prefixIcon: Icon(Icons.location_on),
                   ),
-                  prefixIcon: const Icon(Icons.location_on),
+                  textDirection: TextDirection.rtl,
+                  textAlign: TextAlign.right,
+                  maxLines: 2,
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'يرجى إدخال العنوان';
+                    }
+                    return null;
+                  },
                 ),
-                textDirection: TextDirection.rtl,
-                textAlign: TextAlign.right,
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'يرجى إدخال العنوان';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _phoneController,
-                decoration: InputDecoration(
-                  labelText: 'رقم الهاتف',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+                const SizedBox(height: 20),
+                TextFormField(
+                  controller: _phoneController,
+                  decoration: const InputDecoration(
+                    labelText: 'رقم الهاتف',
+                    prefixIcon: Icon(Icons.phone),
                   ),
-                  prefixIcon: const Icon(Icons.phone),
+                  keyboardType: TextInputType.phone,
+                  textDirection: TextDirection.rtl,
+                  textAlign: TextAlign.right,
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'يرجى إدخال رقم الهاتف';
+                    }
+                    return null;
+                  },
                 ),
-                keyboardType: TextInputType.phone,
-                textDirection: TextDirection.rtl,
-                textAlign: TextAlign.right,
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'يرجى إدخال رقم الهاتف';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: _isLoading ? null : _savePharmacy,
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                const SizedBox(height: 32),
+                FilledButton(
+                  onPressed: _isLoading ? null : _savePharmacy,
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : Text(
+                          widget.pharmacy == null ? 'إضافة' : 'تحديث',
+                          style: const TextStyle(fontSize: 18),
+                        ),
                 ),
-                child: _isLoading
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Text(
-                        widget.pharmacy == null ? 'إضافة' : 'تحديث',
-                        style: const TextStyle(fontSize: 18),
-                      ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

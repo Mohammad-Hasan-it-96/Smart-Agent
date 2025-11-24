@@ -40,6 +40,12 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   
+  # Fonts
+  fonts:
+    - family: Cairo
+      fonts:
+        - asset: assets/fonts/Cairo-Regular.ttf
+  
   # Assets (for PDF font loading)
   assets:
     - assets/fonts/Cairo-Regular.ttf

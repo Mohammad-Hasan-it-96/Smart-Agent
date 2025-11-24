@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/db/database_helper.dart';
 import '../../core/models/medicine.dart';
 import '../../core/models/company.dart';
+import '../../core/widgets/custom_app_bar.dart';
 
 class MedicineForm extends StatefulWidget {
   final Medicine? medicine;
@@ -131,114 +132,107 @@ class _MedicineFormState extends State<MedicineForm> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.medicine == null ? 'إضافة دواء' : 'تعديل دواء'),
-        centerTitle: true,
+      appBar: CustomAppBar(
+        title: widget.medicine == null ? 'إضافة دواء' : 'تعديل دواء',
       ),
       body: _isLoadingCompanies
           ? const Center(child: CircularProgressIndicator())
-          : Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    TextFormField(
-                      controller: _nameController,
-                      decoration: InputDecoration(
-                        labelText: 'اسم الدواء',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
+          : SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20.0),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      TextFormField(
+                        controller: _nameController,
+                        decoration: const InputDecoration(
+                          labelText: 'اسم الدواء',
+                          prefixIcon: Icon(Icons.medication),
                         ),
-                        prefixIcon: const Icon(Icons.medication),
-                      ),
-                      textDirection: TextDirection.rtl,
-                      textAlign: TextAlign.right,
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'يرجى إدخال اسم الدواء';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 24),
-                    DropdownButtonFormField<int>(
-                      value: _selectedCompanyId,
-                      decoration: InputDecoration(
-                        labelText: 'الشركة',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        prefixIcon: const Icon(Icons.business),
-                      ),
-                      items: _companies.map((company) {
-                        return DropdownMenuItem<int>(
-                          value: company.id,
-                          child: Text(
-                            company.name,
-                            textDirection: TextDirection.rtl,
-                          ),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          _selectedCompanyId = value;
-                        });
-                      },
-                      validator: (value) {
-                        if (value == null) {
-                          return 'يرجى اختيار الشركة';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 24),
-                    TextFormField(
-                      controller: _priceController,
-                      decoration: InputDecoration(
-                        labelText: 'سعر الدواء (بالدولار \$)',
-                        hintText: '0.00',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        prefixIcon: const Icon(Icons.attach_money),
-                      ),
-                      keyboardType:
-                          const TextInputType.numberWithOptions(decimal: true),
-                      textDirection: TextDirection.rtl,
-                      textAlign: TextAlign.right,
-                      validator: (value) {
-                        if (value != null && value.trim().isNotEmpty) {
-                          final price = double.tryParse(value.trim());
-                          if (price == null || price < 0) {
-                            return 'يرجى إدخال سعر صحيح';
+                        textDirection: TextDirection.rtl,
+                        textAlign: TextAlign.right,
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'يرجى إدخال اسم الدواء';
                           }
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 24),
-                    ElevatedButton(
-                      onPressed: _isLoading ? null : _saveMedicine,
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+                          return null;
+                        },
                       ),
-                      child: _isLoading
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : Text(
-                              widget.medicine == null ? 'إضافة' : 'تحديث',
-                              style: const TextStyle(fontSize: 18),
+                      const SizedBox(height: 20),
+                      DropdownButtonFormField<int>(
+                        value: _selectedCompanyId,
+                        decoration: const InputDecoration(
+                          labelText: 'الشركة',
+                          prefixIcon: Icon(Icons.business),
+                        ),
+                        items: _companies.map((company) {
+                          return DropdownMenuItem<int>(
+                            value: company.id,
+                            child: Text(
+                              company.name,
+                              textDirection: TextDirection.rtl,
                             ),
-                    ),
-                  ],
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedCompanyId = value;
+                          });
+                        },
+                        validator: (value) {
+                          if (value == null) {
+                            return 'يرجى اختيار الشركة';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 20),
+                      TextFormField(
+                        controller: _priceController,
+                        decoration: const InputDecoration(
+                          labelText: 'سعر الدواء (بالدولار \$)',
+                          hintText: '0.00',
+                          prefixIcon: Icon(Icons.attach_money),
+                        ),
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
+                        textDirection: TextDirection.rtl,
+                        textAlign: TextAlign.right,
+                        validator: (value) {
+                          if (value != null && value.trim().isNotEmpty) {
+                            final price = double.tryParse(value.trim());
+                            if (price == null || price < 0) {
+                              return 'يرجى إدخال سعر صحيح';
+                            }
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 32),
+                      FilledButton(
+                        onPressed: _isLoading ? null : _saveMedicine,
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                        ),
+                        child: _isLoading
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.white),
+                                ),
+                              )
+                            : Text(
+                                widget.medicine == null ? 'إضافة' : 'تحديث',
+                                style: const TextStyle(fontSize: 18),
+                              ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),

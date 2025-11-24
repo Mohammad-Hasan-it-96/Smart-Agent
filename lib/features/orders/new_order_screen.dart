@@ -3,6 +3,7 @@ import '../../core/db/database_helper.dart';
 import '../../core/models/pharmacy.dart';
 import '../../core/models/company.dart';
 import '../../core/utils/slide_page_route.dart';
+import '../../core/widgets/custom_app_bar.dart';
 import 'order_details_screen.dart';
 
 class OrderItemData {
@@ -667,478 +668,492 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('إنشاء طلبية جديدة'),
-        centerTitle: true,
-      ),
+      appBar: const CustomAppBar(title: 'إنشاء طلبية جديدة'),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : Column(
-              children: [
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // Section 1: Pharmacy Selection
-                        _buildSectionHeader(
-                            '1', 'اختيار الصيدلية', Icons.local_pharmacy),
-                        const SizedBox(height: 12),
-                        Card(
-                          elevation: 2,
-                          child: Padding(
-                            padding: const EdgeInsets.all(16.0),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: DropdownButtonFormField<int>(
-                                    value: _selectedPharmacyId,
-                                    decoration: InputDecoration(
-                                      labelText: 'اختر الصيدلية',
-                                      border: OutlineInputBorder(
+          : SafeArea(
+              child: Column(
+                children: [
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(20.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // Section 1: Pharmacy Selection
+                          _buildSectionHeader(
+                              '1', 'اختيار الصيدلية', Icons.local_pharmacy),
+                          const SizedBox(height: 12),
+                          Card(
+                            child: Padding(
+                              padding: const EdgeInsets.all(16.0),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: DropdownButtonFormField<int>(
+                                      value: _selectedPharmacyId,
+                                      decoration: const InputDecoration(
+                                        labelText: 'اختر الصيدلية',
+                                        prefixIcon: Icon(Icons.local_pharmacy),
+                                      ),
+                                      items: _pharmacies.map((pharmacy) {
+                                        return DropdownMenuItem<int>(
+                                          value: pharmacy.id,
+                                          child: Text(
+                                            pharmacy.name,
+                                            textDirection: TextDirection.rtl,
+                                          ),
+                                        );
+                                      }).toList(),
+                                      onChanged: (value) {
+                                        setState(() {
+                                          _selectedPharmacyId = value;
+                                        });
+                                      },
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  FilledButton(
+                                    onPressed: _showAddPharmacyDialog,
+                                    style: FilledButton.styleFrom(
+                                      padding: const EdgeInsets.all(12),
+                                      shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(12),
                                       ),
-                                      prefixIcon:
-                                          const Icon(Icons.local_pharmacy),
                                     ),
-                                    items: _pharmacies.map((pharmacy) {
-                                      return DropdownMenuItem<int>(
-                                        value: pharmacy.id,
-                                        child: Text(
-                                          pharmacy.name,
-                                          textDirection: TextDirection.rtl,
-                                        ),
-                                      );
-                                    }).toList(),
-                                    onChanged: (value) {
-                                      setState(() {
-                                        _selectedPharmacyId = value;
-                                      });
-                                    },
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Container(
-                                  decoration: BoxDecoration(
-                                    color: Theme.of(context).primaryColor,
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: IconButton(
-                                    icon: const Icon(Icons.add,
-                                        color: Colors.white),
-                                    onPressed: _showAddPharmacyDialog,
-                                    tooltip: 'إضافة صيدلية جديدة',
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        const Divider(thickness: 2),
-                        const SizedBox(height: 24),
-
-                        // Section 2: Medicine Search + Selection
-                        _buildSectionHeader(
-                            '2', 'بحث وإضافة الأدوية', Icons.medication),
-                        const SizedBox(height: 12),
-                        Card(
-                          elevation: 2,
-                          child: Padding(
-                            padding: const EdgeInsets.all(16.0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                TextField(
-                                  controller: _medicineSearchController,
-                                  decoration: InputDecoration(
-                                    labelText: 'بحث عن دواء',
-                                    hintText: 'أدخل اسم الدواء',
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    prefixIcon: const Icon(Icons.search),
-                                  ),
-                                  textDirection: TextDirection.rtl,
-                                ),
-                                // Medicine search results
-                                if (_medicinesWithCompanies.isNotEmpty) ...[
-                                  const SizedBox(height: 12),
-                                  Container(
-                                    decoration: BoxDecoration(
-                                      border: Border.all(
-                                          color: Colors.grey.shade300),
-                                      borderRadius: BorderRadius.circular(12),
-                                      color: Colors.grey.shade50,
-                                    ),
-                                    constraints:
-                                        const BoxConstraints(maxHeight: 200),
-                                    child: Material(
-                                      color: Colors.transparent,
-                                      child: ListView.separated(
-                                        shrinkWrap: true,
-                                        physics:
-                                            const AlwaysScrollableScrollPhysics(),
-                                        padding: EdgeInsets.zero,
-                                        itemCount:
-                                            _medicinesWithCompanies.length,
-                                        separatorBuilder: (context, index) =>
-                                            const Divider(height: 1),
-                                        itemBuilder: (context, index) {
-                                          final medicine =
-                                              _medicinesWithCompanies[index];
-                                          return InkWell(
-                                            onTap: () {
-                                              _onMedicineSelected(medicine);
-                                            },
-                                            child: Padding(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                      horizontal: 16.0,
-                                                      vertical: 12.0),
-                                              child: Row(
-                                                mainAxisAlignment:
-                                                    MainAxisAlignment
-                                                        .spaceBetween,
-                                                children: [
-                                                  Expanded(
-                                                    child: Column(
-                                                      crossAxisAlignment:
-                                                          CrossAxisAlignment
-                                                              .start,
-                                                      children: [
-                                                        Text(
-                                                          medicine.name,
-                                                          style:
-                                                              const TextStyle(
-                                                            fontSize: 16,
-                                                            fontWeight:
-                                                                FontWeight.bold,
-                                                          ),
-                                                          textDirection:
-                                                              TextDirection.rtl,
-                                                        ),
-                                                        const SizedBox(
-                                                            height: 6),
-                                                        Text(
-                                                          'الشركات: ${medicine.companyNames.join(' | ')}',
-                                                          style: TextStyle(
-                                                            fontSize: 13,
-                                                            color: Colors
-                                                                .grey[600],
-                                                          ),
-                                                          textDirection:
-                                                              TextDirection.rtl,
-                                                          maxLines: 2,
-                                                          overflow: TextOverflow
-                                                              .ellipsis,
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                  const Icon(
-                                                      Icons.arrow_back_ios,
-                                                      size: 16),
-                                                ],
-                                              ),
-                                            ),
-                                          );
-                                        },
-                                      ),
-                                    ),
+                                    child: const Icon(Icons.add),
                                   ),
                                 ],
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        const Divider(thickness: 2),
-                        const SizedBox(height: 24),
-
-                        // Section 3: Current Order Items
-                        _buildSectionHeader(
-                            '3', 'عناصر الطلبية', Icons.shopping_cart),
-                        const SizedBox(height: 12),
-                        if (_orderItems.isEmpty)
-                          Card(
-                            elevation: 2,
-                            child: Padding(
-                              padding: const EdgeInsets.all(32.0),
-                              child: Center(
-                                child: Column(
-                                  children: [
-                                    Icon(
-                                      Icons.shopping_cart_outlined,
-                                      size: 64,
-                                      color: Colors.grey[400],
-                                    ),
-                                    const SizedBox(height: 16),
-                                    Text(
-                                      'لا توجد عناصر في الطلبية',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        color: Colors.grey[600],
-                                      ),
-                                      textDirection: TextDirection.rtl,
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      'ابحث عن دواء وأضفه للطلبية',
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        color: Colors.grey[500],
-                                      ),
-                                      textDirection: TextDirection.rtl,
-                                    ),
-                                  ],
-                                ),
                               ),
                             ),
-                          )
-                        else
+                          ),
+                          const SizedBox(height: 24),
+                          const Divider(thickness: 2),
+                          const SizedBox(height: 24),
+
+                          // Section 2: Medicine Search + Selection
+                          _buildSectionHeader(
+                              '2', 'بحث وإضافة الأدوية', Icons.medication),
+                          const SizedBox(height: 12),
                           Card(
-                            elevation: 2,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Padding(
-                                  padding: const EdgeInsets.all(16.0),
-                                  child: Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 12,
-                                          vertical: 6,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: Theme.of(context).primaryColor,
-                                          borderRadius:
-                                              BorderRadius.circular(20),
-                                        ),
-                                        child: Text(
-                                          '${_orderItems.length} عنصر',
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.bold,
+                            child: Padding(
+                              padding: const EdgeInsets.all(16.0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  TextField(
+                                    controller: _medicineSearchController,
+                                    decoration: const InputDecoration(
+                                      labelText: 'بحث عن دواء',
+                                      hintText: 'أدخل اسم الدواء',
+                                      prefixIcon: Icon(Icons.search),
+                                    ),
+                                    textDirection: TextDirection.rtl,
+                                  ),
+                                  // Medicine search results
+                                  if (_medicinesWithCompanies.isNotEmpty) ...[
+                                    const SizedBox(height: 12),
+                                    Container(
+                                      decoration: BoxDecoration(
+                                        border: Border.all(
+                                            color: theme.colorScheme.outline
+                                                .withValues(alpha: 0.3)),
+                                        borderRadius: BorderRadius.circular(12),
+                                        color: theme.colorScheme.surfaceVariant,
+                                      ),
+                                      constraints:
+                                          const BoxConstraints(maxHeight: 200),
+                                      child: Material(
+                                        color: Colors.transparent,
+                                        child: ListView.separated(
+                                          shrinkWrap: true,
+                                          physics:
+                                              const AlwaysScrollableScrollPhysics(),
+                                          padding: EdgeInsets.zero,
+                                          itemCount:
+                                              _medicinesWithCompanies.length,
+                                          separatorBuilder: (context, index) =>
+                                              Divider(
+                                            height: 1,
+                                            color: theme.colorScheme.outline
+                                                .withValues(alpha: 0.2),
                                           ),
-                                          textDirection: TextDirection.rtl,
+                                          itemBuilder: (context, index) {
+                                            final medicine =
+                                                _medicinesWithCompanies[index];
+                                            return InkWell(
+                                              onTap: () {
+                                                _onMedicineSelected(medicine);
+                                              },
+                                              child: Padding(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                        horizontal: 16.0,
+                                                        vertical: 12.0),
+                                                child: Row(
+                                                  mainAxisAlignment:
+                                                      MainAxisAlignment
+                                                          .spaceBetween,
+                                                  children: [
+                                                    Expanded(
+                                                      child: Column(
+                                                        crossAxisAlignment:
+                                                            CrossAxisAlignment
+                                                                .start,
+                                                        children: [
+                                                          Text(
+                                                            medicine.name,
+                                                            style: theme
+                                                                .textTheme
+                                                                .bodyLarge
+                                                                ?.copyWith(
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .bold,
+                                                              color: theme
+                                                                  .colorScheme
+                                                                  .onSurface,
+                                                            ),
+                                                            textDirection:
+                                                                TextDirection
+                                                                    .rtl,
+                                                          ),
+                                                          const SizedBox(
+                                                              height: 6),
+                                                          Text(
+                                                            'الشركات: ${medicine.companyNames.join(' | ')}',
+                                                            style: theme
+                                                                .textTheme
+                                                                .bodySmall
+                                                                ?.copyWith(
+                                                              color: theme
+                                                                  .colorScheme
+                                                                  .onSurface
+                                                                  .withValues(
+                                                                      alpha:
+                                                                          0.7),
+                                                            ),
+                                                            textDirection:
+                                                                TextDirection
+                                                                    .rtl,
+                                                            maxLines: 2,
+                                                            overflow:
+                                                                TextOverflow
+                                                                    .ellipsis,
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                    Icon(
+                                                      Icons
+                                                          .arrow_back_ios_new_rounded,
+                                                      size: 16,
+                                                      color: theme
+                                                          .colorScheme.onSurface
+                                                          .withValues(
+                                                              alpha: 0.6),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            );
+                                          },
                                         ),
                                       ),
-                                      const Text(
-                                        'اسحب لحذف العنصر',
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          const Divider(thickness: 2),
+                          const SizedBox(height: 24),
+
+                          // Section 3: Current Order Items
+                          _buildSectionHeader(
+                              '3', 'عناصر الطلبية', Icons.shopping_cart),
+                          const SizedBox(height: 12),
+                          if (_orderItems.isEmpty)
+                            Card(
+                              child: Padding(
+                                padding: const EdgeInsets.all(32.0),
+                                child: Center(
+                                  child: Column(
+                                    children: [
+                                      Icon(
+                                        Icons.shopping_cart_outlined,
+                                        size: 64,
+                                        color: Colors.grey[400],
+                                      ),
+                                      const SizedBox(height: 16),
+                                      Text(
+                                        'لا توجد عناصر في الطلبية',
                                         style: TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.grey,
+                                          fontSize: 16,
+                                          color: Colors.grey[600],
+                                        ),
+                                        textDirection: TextDirection.rtl,
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        'ابحث عن دواء وأضفه للطلبية',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          color: Colors.grey[500],
                                         ),
                                         textDirection: TextDirection.rtl,
                                       ),
                                     ],
                                   ),
                                 ),
-                                const Divider(height: 1),
-                                ListView.separated(
-                                  shrinkWrap: true,
-                                  physics: const NeverScrollableScrollPhysics(),
-                                  itemCount: _orderItems.length,
-                                  separatorBuilder: (context, index) =>
-                                      const Divider(height: 1),
-                                  itemBuilder: (context, index) {
-                                    final item = _orderItems[index];
-                                    return Dismissible(
-                                      key: Key('order_item_$index'),
-                                      direction: DismissDirection.endToStart,
-                                      background: Container(
-                                        alignment: Alignment.centerRight,
-                                        padding:
-                                            const EdgeInsets.only(right: 20),
-                                        decoration: BoxDecoration(
-                                          color: Colors.red,
-                                          borderRadius:
-                                              BorderRadius.circular(12),
-                                        ),
-                                        child: const Icon(
-                                          Icons.delete,
-                                          color: Colors.white,
-                                          size: 32,
-                                        ),
-                                      ),
-                                      onDismissed: (direction) {
-                                        _removeItem(index);
-                                        ScaffoldMessenger.of(context)
-                                            .showSnackBar(
-                                          SnackBar(
-                                            content: Text(
-                                                'تم حذف ${item.medicineName}'),
-                                            action: SnackBarAction(
-                                              label: 'تراجع',
-                                              onPressed: () {
-                                                setState(() {
-                                                  _orderItems.insert(
-                                                      index, item);
-                                                });
-                                              },
-                                            ),
+                              ),
+                            )
+                          else
+                            Card(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Padding(
+                                    padding: const EdgeInsets.all(16.0),
+                                    child: Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 6,
                                           ),
-                                        );
-                                      },
-                                      child: ListTile(
-                                        contentPadding:
-                                            const EdgeInsets.symmetric(
-                                          horizontal: 16,
-                                          vertical: 8,
-                                        ),
-                                        leading: Container(
-                                          width: 40,
-                                          height: 40,
                                           decoration: BoxDecoration(
-                                            color: Theme.of(context)
-                                                .primaryColor
-                                                .withOpacity(0.1),
+                                            color:
+                                                Theme.of(context).primaryColor,
                                             borderRadius:
-                                                BorderRadius.circular(8),
+                                                BorderRadius.circular(20),
                                           ),
-                                          child: Center(
-                                            child: Text(
-                                              item.qty.toString(),
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                color: Theme.of(context)
-                                                    .primaryColor,
+                                          child: Text(
+                                            '${_orderItems.length} عنصر',
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                            textDirection: TextDirection.rtl,
+                                          ),
+                                        ),
+                                        const Text(
+                                          'اسحب لحذف العنصر',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.grey,
+                                          ),
+                                          textDirection: TextDirection.rtl,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const Divider(height: 1),
+                                  ListView.separated(
+                                    shrinkWrap: true,
+                                    physics:
+                                        const NeverScrollableScrollPhysics(),
+                                    itemCount: _orderItems.length,
+                                    separatorBuilder: (context, index) =>
+                                        const Divider(height: 1),
+                                    itemBuilder: (context, index) {
+                                      final item = _orderItems[index];
+                                      return Dismissible(
+                                        key: Key('order_item_$index'),
+                                        direction: DismissDirection.endToStart,
+                                        background: Container(
+                                          alignment: Alignment.centerRight,
+                                          padding:
+                                              const EdgeInsets.only(right: 20),
+                                          decoration: BoxDecoration(
+                                            color: Colors.red,
+                                            borderRadius:
+                                                BorderRadius.circular(12),
+                                          ),
+                                          child: const Icon(
+                                            Icons.delete,
+                                            color: Colors.white,
+                                            size: 32,
+                                          ),
+                                        ),
+                                        onDismissed: (direction) {
+                                          _removeItem(index);
+                                          ScaffoldMessenger.of(context)
+                                              .showSnackBar(
+                                            SnackBar(
+                                              content: Text(
+                                                  'تم حذف ${item.medicineName}'),
+                                              action: SnackBarAction(
+                                                label: 'تراجع',
+                                                onPressed: () {
+                                                  setState(() {
+                                                    _orderItems.insert(
+                                                        index, item);
+                                                  });
+                                                },
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                        child: ListTile(
+                                          contentPadding:
+                                              const EdgeInsets.symmetric(
+                                            horizontal: 16,
+                                            vertical: 8,
+                                          ),
+                                          leading: Container(
+                                            width: 40,
+                                            height: 40,
+                                            decoration: BoxDecoration(
+                                              color: Theme.of(context)
+                                                  .primaryColor
+                                                  .withOpacity(0.1),
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
+                                            child: Center(
+                                              child: Text(
+                                                item.qty.toString(),
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Theme.of(context)
+                                                      .primaryColor,
+                                                ),
                                               ),
                                             ),
                                           ),
-                                        ),
-                                        title: Text(
-                                          item.medicineName,
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 16,
+                                          title: Text(
+                                            item.medicineName,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 16,
+                                            ),
+                                            textDirection: TextDirection.rtl,
                                           ),
-                                          textDirection: TextDirection.rtl,
-                                        ),
-                                        subtitle: Text(
-                                          item.companyName,
-                                          style: TextStyle(
-                                            color: Colors.grey[600],
-                                            fontSize: 14,
+                                          subtitle: Text(
+                                            item.companyName,
+                                            style: TextStyle(
+                                              color: Colors.grey[600],
+                                              fontSize: 14,
+                                            ),
+                                            textDirection: TextDirection.rtl,
                                           ),
-                                          textDirection: TextDirection.rtl,
+                                          trailing: IconButton(
+                                            icon: const Icon(
+                                                Icons.delete_outline,
+                                                color: Colors.red),
+                                            onPressed: () => _removeItem(index),
+                                          ),
                                         ),
-                                        trailing: IconButton(
-                                          icon: const Icon(Icons.delete_outline,
-                                              color: Colors.red),
-                                          onPressed: () => _removeItem(index),
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ],
+                                      );
+                                    },
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                        const SizedBox(height: 24),
+                          const SizedBox(height: 24),
+                        ],
+                      ),
+                    ),
+                  ),
+                  // Section 4: Save Button (Fixed at bottom)
+                  Container(
+                    padding: const EdgeInsets.all(16.0),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surface,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 4,
+                          offset: const Offset(0, -2),
+                        ),
                       ],
                     ),
-                  ),
-                ),
-
-                // Section 4: Save Button (Fixed at bottom)
-                Container(
-                  padding: const EdgeInsets.all(16.0),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 4,
-                        offset: const Offset(0, -2),
-                      ),
-                    ],
-                  ),
-                  child: SafeArea(
-                    child: ElevatedButton(
-                      onPressed:
-                          _isSaving || _orderItems.isEmpty ? null : _saveOrder,
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                    child: SafeArea(
+                      top: false,
+                      child: FilledButton(
+                        onPressed: _isSaving || _orderItems.isEmpty
+                            ? null
+                            : _saveOrder,
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          disabledBackgroundColor:
+                              theme.colorScheme.surfaceVariant,
                         ),
-                        backgroundColor: _orderItems.isEmpty
-                            ? Colors.grey
-                            : Theme.of(context).primaryColor,
-                      ),
-                      child: _isSaving
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor:
-                                    AlwaysStoppedAnimation<Color>(Colors.white),
-                              ),
-                            )
-                          : Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(Icons.save, color: Colors.white),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'حفظ الطلبية ${_orderItems.isEmpty ? '' : '(${_orderItems.length})'}',
-                                  style: const TextStyle(
-                                    fontSize: 18,
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                  ),
+                        child: _isSaving
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.white),
                                 ),
-                              ],
-                            ),
+                              )
+                            : Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(Icons.save),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'حفظ الطلبية ${_orderItems.isEmpty ? '' : '(${_orderItems.length})'}',
+                                    style: const TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
     );
   }
 
   Widget _buildSectionHeader(String number, String title, IconData icon) {
-    return Row(
-      children: [
-        Container(
-          width: 32,
-          height: 32,
-          decoration: BoxDecoration(
-            color: Theme.of(context).primaryColor,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Center(
-            child: Text(
-              number,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12.0),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Center(
+              child: Text(
+                number,
+                style: TextStyle(
+                  color: theme.colorScheme.onPrimary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                ),
               ),
             ),
           ),
-        ),
-        const SizedBox(width: 12),
-        Icon(icon, color: Theme.of(context).primaryColor),
-        const SizedBox(width: 8),
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
+          const SizedBox(width: 12),
+          Icon(icon, color: theme.colorScheme.primary, size: 24),
+          const SizedBox(width: 8),
+          Text(
+            title,
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+            textDirection: TextDirection.rtl,
           ),
-          textDirection: TextDirection.rtl,
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
