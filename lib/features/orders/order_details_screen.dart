@@ -68,13 +68,14 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
       }
 
       // Get order items with medicine and company details
+      // Use price from medicines table (fallback to order_items.price for backward compatibility)
       final itemMaps = await db.rawQuery('''
         SELECT 
           order_items.id,
           order_items.order_id,
           order_items.medicine_id,
           order_items.qty,
-          order_items.price,
+          COALESCE(medicines.price_usd, order_items.price, 0) as price_usd,
           medicines.name as medicine_name,
           companies.name as company_name
         FROM order_items
@@ -314,15 +315,22 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                                   // Data rows
                                   ...List.generate(_orderItems.length, (index) {
                                     final item = _orderItems[index];
-                                    final priceUsd = (item['price'] as num?)?.toDouble() ?? 0.0;
+                                    // Use price_usd from medicine record (fallback to order_items.price for backward compatibility)
+                                    final priceUsd = (item['price_usd'] as num?)
+                                            ?.toDouble() ??
+                                        (item['price'] as num?)?.toDouble() ??
+                                        0.0;
                                     double displayPrice = priceUsd;
-                                    if (_pricingEnabled && _currencyMode == 'syp') {
+                                    if (_pricingEnabled &&
+                                        _currencyMode == 'syp') {
                                       displayPrice = priceUsd * _exchangeRate;
                                     }
-                                    final qty = (item['qty'] as num?)?.toInt() ?? 0;
+                                    final qty =
+                                        (item['qty'] as num?)?.toInt() ?? 0;
                                     final total = displayPrice * qty;
-                                    final currencySymbol = _currencyMode == 'syp' ? 'ل.س' : '\$';
-                                    
+                                    final currencySymbol =
+                                        _currencyMode == 'syp' ? 'ل.س' : '\$';
+
                                     return TableRow(
                                       children: [
                                         TableCell(
@@ -357,19 +365,23 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                                         if (_pricingEnabled) ...[
                                           TableCell(
                                             child: Padding(
-                                              padding: const EdgeInsets.all(8.0),
+                                              padding:
+                                                  const EdgeInsets.all(8.0),
                                               child: Text(
                                                 '${displayPrice.toStringAsFixed(2)} $currencySymbol',
-                                                textDirection: TextDirection.rtl,
+                                                textDirection:
+                                                    TextDirection.rtl,
                                               ),
                                             ),
                                           ),
                                           TableCell(
                                             child: Padding(
-                                              padding: const EdgeInsets.all(8.0),
+                                              padding:
+                                                  const EdgeInsets.all(8.0),
                                               child: Text(
                                                 '${total.toStringAsFixed(2)} $currencySymbol',
-                                                textDirection: TextDirection.rtl,
+                                                textDirection:
+                                                    TextDirection.rtl,
                                                 style: const TextStyle(
                                                   fontWeight: FontWeight.bold,
                                                 ),
@@ -383,7 +395,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                                 ],
                               ),
                             ),
-                      
+
                       // Total (if pricing enabled)
                       if (_pricingEnabled && _orderItems.isNotEmpty) ...[
                         const SizedBox(height: 16),
@@ -442,16 +454,19 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
   String _calculateTotal() {
     double totalUsd = 0.0;
     for (final item in _orderItems) {
-      final priceUsd = (item['price'] as num?)?.toDouble() ?? 0.0;
+      // Use price_usd from medicine record (fallback to order_items.price for backward compatibility)
+      final priceUsd = (item['price_usd'] as num?)?.toDouble() ??
+          (item['price'] as num?)?.toDouble() ??
+          0.0;
       final qty = (item['qty'] as num?)?.toInt() ?? 0;
       totalUsd += priceUsd * qty;
     }
-    
+
     double displayTotal = totalUsd;
     if (_currencyMode == 'syp') {
       displayTotal = totalUsd * _exchangeRate;
     }
-    
+
     final currencySymbol = _currencyMode == 'syp' ? 'ل.س' : '\$';
     return '${displayTotal.toStringAsFixed(2)} $currencySymbol';
   }

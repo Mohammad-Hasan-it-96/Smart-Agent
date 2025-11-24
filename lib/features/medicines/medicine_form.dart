@@ -197,14 +197,15 @@ class _MedicineFormState extends State<MedicineForm> {
                     TextFormField(
                       controller: _priceController,
                       decoration: InputDecoration(
-                        labelText: 'سعر الدواء بالدولار (اختياري)',
+                        labelText: 'سعر الدواء (بالدولار \$)',
                         hintText: '0.00',
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
                         prefixIcon: const Icon(Icons.attach_money),
                       ),
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
                       textDirection: TextDirection.rtl,
                       textAlign: TextAlign.right,
                       validator: (value) {

@@ -265,14 +265,18 @@ Future<Uint8List> generateOrderPdf(
                         ),
                         // Data rows
                         ...items.map((item) {
-                          final priceUsd = (item['price'] as num?)?.toDouble() ?? 0.0;
+                          // Use price_usd from medicine record (fallback to order_items.price for backward compatibility)
+                          final priceUsd =
+                              (item['price_usd'] as num?)?.toDouble() ??
+                                  (item['price'] as num?)?.toDouble() ??
+                                  0.0;
                           double displayPrice = priceUsd;
                           if (pricingEnabled && currencyMode == 'syp') {
                             displayPrice = priceUsd * exchangeRate;
                           }
                           final qty = (item['qty'] as num?)?.toInt() ?? 0;
                           final total = displayPrice * qty;
-                          
+
                           return pw.TableRow(
                             children: [
                               pw.Padding(
@@ -347,10 +351,12 @@ Future<Uint8List> generateOrderPdf(
                         child: pw.Directionality(
                           textDirection: pw.TextDirection.rtl,
                           child: pw.Row(
-                            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                            mainAxisAlignment:
+                                pw.MainAxisAlignment.spaceBetween,
                             children: [
                               pw.Text(
-                                _calculateTotal(items, currencyMode, exchangeRate, currencySymbol),
+                                _calculateTotal(items, currencyMode,
+                                    exchangeRate, currencySymbol),
                                 style: getArabicStyle(
                                   fontSize: 18,
                                   fontWeight: pw.FontWeight.bold,
@@ -398,15 +404,18 @@ String _calculateTotal(
 ) {
   double totalUsd = 0.0;
   for (final item in items) {
-    final priceUsd = (item['price'] as num?)?.toDouble() ?? 0.0;
+    // Use price_usd from medicine record (fallback to order_items.price for backward compatibility)
+    final priceUsd = (item['price_usd'] as num?)?.toDouble() ??
+        (item['price'] as num?)?.toDouble() ??
+        0.0;
     final qty = (item['qty'] as num?)?.toInt() ?? 0;
     totalUsd += priceUsd * qty;
   }
-  
+
   double displayTotal = totalUsd;
   if (currencyMode == 'syp') {
     displayTotal = totalUsd * exchangeRate;
   }
-  
+
   return '${displayTotal.toStringAsFixed(2)} $currencySymbol';
 }
