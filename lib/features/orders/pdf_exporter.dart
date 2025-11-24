@@ -2,6 +2,7 @@ import 'dart:typed_data';
 import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
+import '../../core/services/activation_service.dart';
 
 Future<Uint8List> generateOrderPdf(
   Map<String, dynamic> order,
@@ -32,6 +33,11 @@ Future<Uint8List> generateOrderPdf(
     );
   }
 
+  // Get agent data from SharedPreferences
+  final activationService = ActivationService();
+  final agentName = await activationService.getAgentName();
+  final agentPhone = await activationService.getAgentPhone();
+
   final pdf = pw.Document();
 
   pdf.addPage(
@@ -54,6 +60,47 @@ Future<Uint8List> generateOrderPdf(
                 ),
               ),
               pw.SizedBox(height: 20),
+
+              // Agent Info (if available)
+              if (agentName.isNotEmpty || agentPhone.isNotEmpty) ...[
+                pw.Container(
+                  padding: const pw.EdgeInsets.all(12),
+                  decoration: pw.BoxDecoration(
+                    border: pw.Border.all(color: PdfColors.blue),
+                    borderRadius:
+                        const pw.BorderRadius.all(pw.Radius.circular(4)),
+                  ),
+                  child: pw.Directionality(
+                    textDirection: pw.TextDirection.rtl,
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text(
+                          'معلومات المندوب',
+                          style: getArabicStyle(
+                            fontSize: 16,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
+                        pw.SizedBox(height: 8),
+                        if (agentName.isNotEmpty)
+                          pw.Text(
+                            'اسم المندوب: $agentName',
+                            style: getArabicStyle(fontSize: 12),
+                          ),
+                        if (agentName.isNotEmpty && agentPhone.isNotEmpty)
+                          pw.SizedBox(height: 4),
+                        if (agentPhone.isNotEmpty)
+                          pw.Text(
+                            'رقم المندوب: $agentPhone',
+                            style: getArabicStyle(fontSize: 12),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+                pw.SizedBox(height: 20),
+              ],
 
               // Pharmacy Info
               pw.Container(

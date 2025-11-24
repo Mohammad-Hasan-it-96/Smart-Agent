@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import '../../core/services/activation_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -11,11 +12,81 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   String _appVersion = '1.0.0';
   bool _isLoadingVersion = true;
+  final _activationService = ActivationService();
+  final _nameController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+  bool _isLoadingAgentData = true;
+  bool _isSaving = false;
 
   @override
   void initState() {
     super.initState();
     _loadAppVersion();
+    _loadAgentData();
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _phoneController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadAgentData() async {
+    try {
+      final name = await _activationService.getAgentName();
+      final phone = await _activationService.getAgentPhone();
+      setState(() {
+        _nameController.text = name;
+        _phoneController.text = phone;
+        _isLoadingAgentData = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoadingAgentData = false;
+      });
+    }
+  }
+
+  Future<void> _saveAgentData() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    setState(() {
+      _isSaving = true;
+    });
+
+    try {
+      await _activationService.saveAgentName(_nameController.text.trim());
+      await _activationService.saveAgentPhone(_phoneController.text.trim());
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('تم حفظ البيانات بنجاح'),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('حدث خطأ أثناء الحفظ: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+      }
+    }
   }
 
   Future<void> _loadAppVersion() async {
@@ -163,6 +234,126 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     textDirection: TextDirection.rtl,
                   ),
                 ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Agent Profile Section
+          Card(
+            elevation: 2,
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'بيانات المندوب',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textDirection: TextDirection.rtl,
+                    ),
+                    const SizedBox(height: 16),
+                    if (_isLoadingAgentData)
+                      const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(16.0),
+                          child: CircularProgressIndicator(),
+                        ),
+                      )
+                    else ...[
+                      // Full Name Field
+                      TextFormField(
+                        controller: _nameController,
+                        decoration: InputDecoration(
+                          labelText: 'الاسم الكامل',
+                          hintText: 'أدخل اسمك الكامل',
+                          prefixIcon: const Icon(Icons.person),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        textDirection: TextDirection.rtl,
+                        textInputAction: TextInputAction.next,
+                        enabled: !_isSaving,
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'يرجى إدخال الاسم الكامل';
+                          }
+                          if (value.trim().length < 3) {
+                            return 'الاسم يجب أن يكون 3 أحرف على الأقل';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      // Phone Number Field
+                      TextFormField(
+                        controller: _phoneController,
+                        decoration: InputDecoration(
+                          labelText: 'رقم الهاتف',
+                          hintText: 'أدخل رقم هاتفك',
+                          prefixIcon: const Icon(Icons.phone),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        keyboardType: TextInputType.phone,
+                        textDirection: TextDirection.rtl,
+                        textInputAction: TextInputAction.done,
+                        enabled: !_isSaving,
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'يرجى إدخال رقم الهاتف';
+                          }
+                          // Basic phone validation (at least 8 digits)
+                          final phoneRegex = RegExp(r'^[0-9]{8,}$');
+                          if (!phoneRegex.hasMatch(
+                              value.trim().replaceAll(RegExp(r'[\s\-\(\)]'), ''))) {
+                            return 'يرجى إدخال رقم هاتف صحيح (8 أرقام على الأقل)';
+                          }
+                          return null;
+                        },
+                        onFieldSubmitted: (_) => _saveAgentData(),
+                      ),
+                      const SizedBox(height: 16),
+                      // Save Button
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: _isSaving ? null : _saveAgentData,
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: _isSaving
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor:
+                                        AlwaysStoppedAnimation<Color>(Colors.white),
+                                  ),
+                                )
+                              : const Text(
+                                  'حفظ التعديلات',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ),
             ),
           ),

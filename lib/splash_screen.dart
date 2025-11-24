@@ -23,6 +23,17 @@ class _SplashScreenState extends State<SplashScreen> {
 
     if (!mounted) return;
 
+    // Check if agent data exists
+    final hasAgentData = await _activationService.hasAgentData();
+
+    if (!mounted) return;
+
+    // If no agent data, navigate to registration screen
+    if (!hasAgentData) {
+      Navigator.of(context).pushReplacementNamed('/agent-registration');
+      return;
+    }
+
     // Check activation status
     final isActivated = await _activationService.isActivated();
 

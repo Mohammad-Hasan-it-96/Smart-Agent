@@ -13,6 +13,7 @@ import 'features/pharmacies/pharmacies_screen.dart';
 import 'features/orders/new_order_screen.dart';
 import 'features/orders/orders_list_screen.dart';
 import 'features/settings/settings_screen.dart';
+import 'features/activation/agent_registration_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -76,6 +77,9 @@ class MyApp extends StatelessWidget {
             return MaterialPageRoute(builder: (_) => const SplashScreen());
           case '/home':
             page = const HomeScreen();
+            break;
+          case '/agent-registration':
+            page = const AgentRegistrationScreen();
             break;
           case '/activation':
             page = const ActivationScreen();
