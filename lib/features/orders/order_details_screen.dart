@@ -78,6 +78,9 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
           order_items.qty,
           COALESCE(medicines.price_usd, order_items.price, 0) as price_usd,
           medicines.name as medicine_name,
+          medicines.source as medicine_source,
+          medicines.form as medicine_form,
+          medicines.notes as medicine_notes,
           companies.name as company_name
         FROM order_items
         LEFT JOIN medicines ON order_items.medicine_id = medicines.id
@@ -229,186 +232,145 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                                   ),
                                 ),
                               )
-                            : Card(
-                                child: Table(
-                                  columnWidths: _pricingEnabled
-                                      ? const {
-                                          0: FlexColumnWidth(2),
-                                          1: FlexColumnWidth(2),
-                                          2: FlexColumnWidth(1),
-                                          3: FlexColumnWidth(1.5),
-                                          4: FlexColumnWidth(1.5),
-                                        }
-                                      : const {
-                                          0: FlexColumnWidth(2),
-                                          1: FlexColumnWidth(2),
-                                          2: FlexColumnWidth(1),
-                                        },
-                                  children: [
-                                    // Header
-                                    TableRow(
-                                      decoration: BoxDecoration(
-                                        color: theme.colorScheme.surfaceVariant,
-                                      ),
-                                      children: [
-                                        const TableCell(
-                                          child: Padding(
-                                            padding: EdgeInsets.all(8.0),
-                                            child: Text(
-                                              'الدواء',
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                              textDirection: TextDirection.rtl,
-                                            ),
-                                          ),
-                                        ),
-                                        const TableCell(
-                                          child: Padding(
-                                            padding: EdgeInsets.all(8.0),
-                                            child: Text(
-                                              'الشركة',
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                              textDirection: TextDirection.rtl,
-                                            ),
-                                          ),
-                                        ),
-                                        const TableCell(
-                                          child: Padding(
-                                            padding: EdgeInsets.all(8.0),
-                                            child: Text(
-                                              'الكمية',
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                              textDirection: TextDirection.rtl,
-                                            ),
-                                          ),
-                                        ),
-                                        if (_pricingEnabled) ...[
-                                          TableCell(
-                                            child: Padding(
-                                              padding:
-                                                  const EdgeInsets.all(8.0),
-                                              child: Text(
-                                                'السعر',
-                                                style: const TextStyle(
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                                textDirection:
-                                                    TextDirection.rtl,
-                                              ),
-                                            ),
-                                          ),
-                                          TableCell(
-                                            child: Padding(
-                                              padding:
-                                                  const EdgeInsets.all(8.0),
-                                              child: Text(
-                                                'المجموع',
-                                                style: const TextStyle(
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                                textDirection:
-                                                    TextDirection.rtl,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ],
-                                    ),
-                                    // Data rows
-                                    ...List.generate(_orderItems.length,
-                                        (index) {
-                                      final item = _orderItems[index];
-                                      // Use price_usd from medicine record (fallback to order_items.price for backward compatibility)
-                                      final priceUsd = (item['price_usd']
-                                                  as num?)
-                                              ?.toDouble() ??
+                            : Column(
+                                children:
+                                    List.generate(_orderItems.length, (index) {
+                                  final item = _orderItems[index];
+                                  // Use price_usd from medicine record (fallback to order_items.price for backward compatibility)
+                                  final priceUsd =
+                                      (item['price_usd'] as num?)?.toDouble() ??
                                           (item['price'] as num?)?.toDouble() ??
                                           0.0;
-                                      double displayPrice = priceUsd;
-                                      if (_pricingEnabled &&
-                                          _currencyMode == 'syp') {
-                                        displayPrice = priceUsd * _exchangeRate;
-                                      }
-                                      final qty =
-                                          (item['qty'] as num?)?.toInt() ?? 0;
-                                      final total = displayPrice * qty;
-                                      final currencySymbol =
-                                          _currencyMode == 'syp' ? 'ل.س' : '\$';
+                                  double displayPrice = priceUsd;
+                                  if (_pricingEnabled &&
+                                      _currencyMode == 'syp') {
+                                    displayPrice = priceUsd * _exchangeRate;
+                                  }
+                                  final qty =
+                                      (item['qty'] as num?)?.toInt() ?? 0;
+                                  final total = displayPrice * qty;
+                                  final currencySymbol =
+                                      _currencyMode == 'syp' ? 'ل.س' : '\$';
 
-                                      return TableRow(
+                                  final medicineName =
+                                      item['medicine_name'] ?? 'غير معروف';
+                                  final companyName =
+                                      item['company_name'] ?? 'غير معروف';
+                                  final source =
+                                      item['medicine_source'] as String?;
+                                  final form = item['medicine_form'] as String?;
+                                  final notes =
+                                      item['medicine_notes'] as String?;
+
+                                  return Card(
+                                    margin: const EdgeInsets.only(bottom: 12),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(16.0),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
-                                          TableCell(
-                                            child: Padding(
-                                              padding:
-                                                  const EdgeInsets.all(8.0),
-                                              child: Text(
-                                                item['medicine_name'] ??
-                                                    'غير معروف',
-                                                textDirection:
-                                                    TextDirection.rtl,
-                                              ),
+                                          // Medicine name (bold)
+                                          Text(
+                                            medicineName,
+                                            style: theme.textTheme.titleMedium
+                                                ?.copyWith(
+                                              fontWeight: FontWeight.bold,
                                             ),
+                                            textDirection: TextDirection.rtl,
                                           ),
-                                          TableCell(
-                                            child: Padding(
-                                              padding:
-                                                  const EdgeInsets.all(8.0),
-                                              child: Text(
-                                                item['company_name'] ??
-                                                    'غير معروف',
-                                                textDirection:
-                                                    TextDirection.rtl,
-                                              ),
+                                          const SizedBox(height: 8),
+                                          // Company name
+                                          Text(
+                                            'الشركة: $companyName',
+                                            style: theme.textTheme.bodyMedium
+                                                ?.copyWith(
+                                              color: theme.colorScheme.onSurface
+                                                  .withValues(alpha: 0.7),
                                             ),
+                                            textDirection: TextDirection.rtl,
                                           ),
-                                          TableCell(
-                                            child: Padding(
-                                              padding:
-                                                  const EdgeInsets.all(8.0),
-                                              child: Text(
-                                                qty.toString(),
-                                                textDirection:
-                                                    TextDirection.rtl,
+                                          // Source (if available)
+                                          if (source != null &&
+                                              source.isNotEmpty) ...[
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              'المصدر: $source',
+                                              style: theme.textTheme.bodySmall
+                                                  ?.copyWith(
+                                                color: theme
+                                                    .colorScheme.onSurface
+                                                    .withValues(alpha: 0.6),
                                               ),
-                                            ),
-                                          ),
-                                          if (_pricingEnabled) ...[
-                                            TableCell(
-                                              child: Padding(
-                                                padding:
-                                                    const EdgeInsets.all(8.0),
-                                                child: Text(
-                                                  '${displayPrice.toStringAsFixed(2)} $currencySymbol',
-                                                  textDirection:
-                                                      TextDirection.rtl,
-                                                ),
-                                              ),
-                                            ),
-                                            TableCell(
-                                              child: Padding(
-                                                padding:
-                                                    const EdgeInsets.all(8.0),
-                                                child: Text(
-                                                  '${total.toStringAsFixed(2)} $currencySymbol',
-                                                  textDirection:
-                                                      TextDirection.rtl,
-                                                  style: const TextStyle(
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                ),
-                                              ),
+                                              textDirection: TextDirection.rtl,
                                             ),
                                           ],
+                                          // Form (if available)
+                                          if (form != null &&
+                                              form.isNotEmpty) ...[
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              'النوع: $form',
+                                              style: theme.textTheme.bodySmall
+                                                  ?.copyWith(
+                                                color: theme
+                                                    .colorScheme.onSurface
+                                                    .withValues(alpha: 0.6),
+                                              ),
+                                              textDirection: TextDirection.rtl,
+                                            ),
+                                          ],
+                                          // Notes (if available)
+                                          if (notes != null &&
+                                              notes.isNotEmpty) ...[
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              'ملاحظات: $notes',
+                                              style: theme.textTheme.bodySmall
+                                                  ?.copyWith(
+                                                color: theme
+                                                    .colorScheme.onSurface
+                                                    .withValues(alpha: 0.6),
+                                              ),
+                                              textDirection: TextDirection.rtl,
+                                            ),
+                                          ],
+                                          const SizedBox(height: 8),
+                                          // Quantity and price
+                                          Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Text(
+                                                'الكمية: $qty',
+                                                style: theme
+                                                    .textTheme.bodyMedium
+                                                    ?.copyWith(
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                                textDirection:
+                                                    TextDirection.rtl,
+                                              ),
+                                              if (_pricingEnabled)
+                                                Text(
+                                                  '${displayPrice.toStringAsFixed(2)} $currencySymbol × $qty = ${total.toStringAsFixed(2)} $currencySymbol',
+                                                  style: theme
+                                                      .textTheme.bodyMedium
+                                                      ?.copyWith(
+                                                    fontWeight: FontWeight.bold,
+                                                    color: theme
+                                                        .colorScheme.primary,
+                                                  ),
+                                                  textDirection:
+                                                      TextDirection.rtl,
+                                                ),
+                                            ],
+                                          ),
                                         ],
-                                      );
-                                    }),
-                                  ],
-                                ),
+                                      ),
+                                    ),
+                                  );
+                                }),
                               ),
 
                         // Total (if pricing enabled)

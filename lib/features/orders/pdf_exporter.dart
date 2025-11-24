@@ -212,19 +212,6 @@ Future<Uint8List> generateOrderPdf(
                               child: pw.Directionality(
                                 textDirection: pw.TextDirection.rtl,
                                 child: pw.Text(
-                                  'الشركة',
-                                  style: getArabicStyle(
-                                    fontWeight: pw.FontWeight.bold,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            pw.Padding(
-                              padding: const pw.EdgeInsets.all(8),
-                              child: pw.Directionality(
-                                textDirection: pw.TextDirection.rtl,
-                                child: pw.Text(
                                   'الكمية',
                                   style: getArabicStyle(
                                     fontWeight: pw.FontWeight.bold,
@@ -277,25 +264,52 @@ Future<Uint8List> generateOrderPdf(
                           final qty = (item['qty'] as num?)?.toInt() ?? 0;
                           final total = displayPrice * qty;
 
+                          final medicineName =
+                              item['medicine_name'] ?? 'غير معروف';
+                          final companyName =
+                              item['company_name'] ?? 'غير معروف';
+                          final source = item['medicine_source'] as String?;
+                          final form = item['medicine_form'] as String?;
+                          final notes = item['medicine_notes'] as String?;
+
+                          // Build description string with optional fields
+                          final List<String> descriptionParts = [companyName];
+                          if (source != null && source.isNotEmpty) {
+                            descriptionParts.add('المصدر: $source');
+                          }
+                          if (form != null && form.isNotEmpty) {
+                            descriptionParts.add('النوع: $form');
+                          }
+                          if (notes != null && notes.isNotEmpty) {
+                            descriptionParts.add('ملاحظات: $notes');
+                          }
+                          final description = descriptionParts.join(' — ');
+
                           return pw.TableRow(
                             children: [
                               pw.Padding(
                                 padding: const pw.EdgeInsets.all(8),
                                 child: pw.Directionality(
                                   textDirection: pw.TextDirection.rtl,
-                                  child: pw.Text(
-                                    item['medicine_name'] ?? 'غير معروف',
-                                    style: getArabicStyle(fontSize: 11),
-                                  ),
-                                ),
-                              ),
-                              pw.Padding(
-                                padding: const pw.EdgeInsets.all(8),
-                                child: pw.Directionality(
-                                  textDirection: pw.TextDirection.rtl,
-                                  child: pw.Text(
-                                    item['company_name'] ?? 'غير معروف',
-                                    style: getArabicStyle(fontSize: 11),
+                                  child: pw.Column(
+                                    crossAxisAlignment:
+                                        pw.CrossAxisAlignment.start,
+                                    children: [
+                                      pw.Text(
+                                        medicineName,
+                                        style: getArabicStyle(
+                                          fontSize: 11,
+                                          fontWeight: pw.FontWeight.bold,
+                                        ),
+                                      ),
+                                      pw.SizedBox(height: 2),
+                                      pw.Text(
+                                        '($description)',
+                                        style: getArabicStyle(
+                                          fontSize: 9,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ),
