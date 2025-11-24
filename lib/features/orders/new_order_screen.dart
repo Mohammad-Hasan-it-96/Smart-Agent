@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/db/database_helper.dart';
 import '../../core/models/pharmacy.dart';
 import '../../core/models/company.dart';
+import '../../core/services/settings_service.dart';
 import '../../core/utils/slide_page_route.dart';
 import 'order_details_screen.dart';
 
@@ -11,6 +12,7 @@ class OrderItemData {
   final int companyId;
   final String companyName;
   final int qty;
+  final double price;
 
   OrderItemData({
     required this.medicineId,
@@ -18,6 +20,7 @@ class OrderItemData {
     required this.companyId,
     required this.companyName,
     required this.qty,
+    this.price = 0.0,
   });
 }
 
@@ -42,6 +45,7 @@ class NewOrderScreen extends StatefulWidget {
 
 class _NewOrderScreenState extends State<NewOrderScreen> {
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
+  final SettingsService _settingsService = SettingsService();
 
   // Pharmacy selection
   List<Pharmacy> _pharmacies = [];
@@ -346,24 +350,38 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
       MedicineWithCompanies medicine) async {
     try {
       final db = await _dbHelper.database;
+
+      // Get medicine with price
+      final medicineData = await db.rawQuery('''
+        SELECT id, name, price_usd
+        FROM medicines
+        WHERE id = ?
+      ''', [medicine.medicineId]);
+
+      if (medicineData.isEmpty) return;
+
+      final medicineInfo = medicineData.first;
+
+      // Get companies for this medicine
       final maps = await db.rawQuery('''
         SELECT DISTINCT
           companies.id,
           companies.name
         FROM medicines
         JOIN companies ON medicines.company_id = companies.id
-        WHERE medicines.name = ?
+        WHERE medicines.name = ? AND medicines.id = ?
         ORDER BY companies.name
-      ''', [medicine.name]);
+      ''', [medicine.name, medicine.medicineId]);
 
       final companies = maps.map((map) => Company.fromMap(map)).toList();
 
       if (!mounted) return;
 
-      // Create medicine map for dialog
+      // Create medicine map for dialog with price
       final medicineMap = {
-        'id': medicine.medicineId,
-        'name': medicine.name,
+        'id': medicineInfo['id'] as int,
+        'name': medicineInfo['name'] as String,
+        'price_usd': medicineInfo['price_usd'] as num?,
       };
 
       // Show dialog with companies and quantity input
@@ -388,8 +406,23 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
       return;
     }
 
+    final pricingEnabled = await _settingsService.isPricingEnabled();
+    final currencyMode = await _settingsService.getCurrencyMode();
+    final exchangeRate = await _settingsService.getExchangeRate();
+
+    final medicinePriceUsd = (medicine['price_usd'] as num?)?.toDouble() ?? 0.0;
+    double displayPrice = medicinePriceUsd;
+    if (pricingEnabled && currencyMode == 'syp') {
+      displayPrice = medicinePriceUsd * exchangeRate;
+    }
+
     int? selectedCompanyId;
     final qtyController = TextEditingController();
+    final priceController = TextEditingController(
+      text: pricingEnabled && medicinePriceUsd > 0
+          ? displayPrice.toStringAsFixed(2)
+          : '',
+    );
     final formKey = GlobalKey<FormState>();
 
     await showDialog(
@@ -488,6 +521,43 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
                       return null;
                     },
                   ),
+                  if (pricingEnabled) ...[
+                    const SizedBox(height: 16),
+                    Text(
+                      'سعر الوحدة:',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textDirection: TextDirection.rtl,
+                    ),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: priceController,
+                      decoration: InputDecoration(
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        prefixIcon: const Icon(Icons.attach_money),
+                        suffixText: currencyMode == 'syp' ? 'ل.س' : '\$',
+                      ),
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      textDirection: TextDirection.rtl,
+                      validator: (value) {
+                        if (pricingEnabled) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'يرجى إدخال السعر';
+                          }
+                          final price = double.tryParse(value.trim());
+                          if (price == null || price < 0) {
+                            return 'يرجى إدخال سعر صحيح';
+                          }
+                        }
+                        return null;
+                      },
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -533,6 +603,23 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
                   (c) => c.id == selectedCompanyId,
                 );
 
+                // Get price (convert from display currency back to USD if needed)
+                double itemPrice = 0.0;
+                if (pricingEnabled) {
+                  final priceText = priceController.text.trim();
+                  if (priceText.isNotEmpty) {
+                    final displayPrice = double.tryParse(priceText);
+                    if (displayPrice != null && displayPrice >= 0) {
+                      // If SYP mode, convert back to USD for storage
+                      if (currencyMode == 'syp') {
+                        itemPrice = displayPrice / exchangeRate;
+                      } else {
+                        itemPrice = displayPrice;
+                      }
+                    }
+                  }
+                }
+
                 // Add to order list
                 setState(() {
                   _orderItems.add(OrderItemData(
@@ -541,6 +628,7 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
                     companyId: selectedCompanyId!,
                     companyName: company.name,
                     qty: qty,
+                    price: itemPrice,
                   ));
                 });
 
@@ -609,6 +697,7 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
           'order_id': orderId,
           'medicine_id': item.medicineId,
           'qty': item.qty,
+          'price': item.price,
         };
         await _dbHelper.insert('order_items', itemData);
       }

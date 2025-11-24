@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../../core/services/activation_service.dart';
+import '../../core/services/settings_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -13,23 +14,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _appVersion = '1.0.0';
   bool _isLoadingVersion = true;
   final _activationService = ActivationService();
+  final _settingsService = SettingsService();
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
+  final _exchangeRateController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
+  final _pricingFormKey = GlobalKey<FormState>();
   bool _isLoadingAgentData = true;
   bool _isSaving = false;
+  bool _pricingEnabled = false;
+  String _currencyMode = 'usd';
+  double _exchangeRate = 1.0;
+  bool _isLoadingPricingSettings = true;
+  bool _isSavingPricing = false;
 
   @override
   void initState() {
     super.initState();
     _loadAppVersion();
     _loadAgentData();
+    _loadPricingSettings();
   }
 
   @override
   void dispose() {
     _nameController.dispose();
     _phoneController.dispose();
+    _exchangeRateController.dispose();
     super.dispose();
   }
 
@@ -101,6 +112,88 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _appVersion = '1.0.0+1';
         _isLoadingVersion = false;
       });
+    }
+  }
+
+  Future<void> _loadPricingSettings() async {
+    try {
+      final enabled = await _settingsService.isPricingEnabled();
+      final mode = await _settingsService.getCurrencyMode();
+      final rate = await _settingsService.getExchangeRate();
+      setState(() {
+        _pricingEnabled = enabled;
+        _currencyMode = mode;
+        _exchangeRate = rate;
+        _exchangeRateController.text = rate.toString();
+        _isLoadingPricingSettings = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoadingPricingSettings = false;
+      });
+    }
+  }
+
+  Future<void> _savePricingSettings() async {
+    if (_pricingEnabled && _currencyMode == 'syp') {
+      if (_exchangeRateController.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('يرجى إدخال سعر الصرف'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+      final rate = double.tryParse(_exchangeRateController.text.trim());
+      if (rate == null || rate <= 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('يرجى إدخال سعر صرف صحيح'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+    }
+
+    setState(() {
+      _isSavingPricing = true;
+    });
+
+    try {
+      await _settingsService.setPricingEnabled(_pricingEnabled);
+      await _settingsService.setCurrencyMode(_currencyMode);
+      if (_pricingEnabled && _currencyMode == 'syp') {
+        final rate = double.parse(_exchangeRateController.text.trim());
+        await _settingsService.setExchangeRate(rate);
+        _exchangeRate = rate;
+      }
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('تم حفظ الإعدادات بنجاح'),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('حدث خطأ أثناء الحفظ: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSavingPricing = false;
+        });
+      }
     }
   }
 
@@ -312,8 +405,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           }
                           // Basic phone validation (at least 8 digits)
                           final phoneRegex = RegExp(r'^[0-9]{8,}$');
-                          if (!phoneRegex.hasMatch(
-                              value.trim().replaceAll(RegExp(r'[\s\-\(\)]'), ''))) {
+                          if (!phoneRegex.hasMatch(value
+                              .trim()
+                              .replaceAll(RegExp(r'[\s\-\(\)]'), ''))) {
                             return 'يرجى إدخال رقم هاتف صحيح (8 أرقام على الأقل)';
                           }
                           return null;
@@ -338,8 +432,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   width: 20,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
-                                    valueColor:
-                                        AlwaysStoppedAnimation<Color>(Colors.white),
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                        Colors.white),
                                   ),
                                 )
                               : const Text(
@@ -351,6 +445,138 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 ),
                         ),
                       ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Pricing Settings Section
+          Card(
+            elevation: 2,
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Form(
+                key: _pricingFormKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'إعدادات الأسعار والفواتير',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textDirection: TextDirection.rtl,
+                    ),
+                    const SizedBox(height: 16),
+                    if (_isLoadingPricingSettings)
+                      const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(16.0),
+                          child: CircularProgressIndicator(),
+                        ),
+                      )
+                    else ...[
+                      // Enable Pricing Toggle
+                      SwitchListTile(
+                        title: const Text(
+                          'تفعيل الأسعار',
+                          textDirection: TextDirection.rtl,
+                        ),
+                        value: _pricingEnabled,
+                        onChanged: (value) {
+                          setState(() {
+                            _pricingEnabled = value;
+                          });
+                          if (value) {
+                            _savePricingSettings();
+                          }
+                        },
+                      ),
+                      if (_pricingEnabled) ...[
+                        const SizedBox(height: 16),
+                        const Text(
+                          'العملة:',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          textDirection: TextDirection.rtl,
+                        ),
+                        const SizedBox(height: 8),
+                        RadioListTile<String>(
+                          title: const Text(
+                            'الدولار \$',
+                            textDirection: TextDirection.rtl,
+                          ),
+                          value: 'usd',
+                          groupValue: _currencyMode,
+                          onChanged: (value) {
+                            setState(() {
+                              _currencyMode = value!;
+                            });
+                            _savePricingSettings();
+                          },
+                        ),
+                        RadioListTile<String>(
+                          title: const Text(
+                            'الليرة السورية',
+                            textDirection: TextDirection.rtl,
+                          ),
+                          value: 'syp',
+                          groupValue: _currencyMode,
+                          onChanged: (value) {
+                            setState(() {
+                              _currencyMode = value!;
+                            });
+                            _savePricingSettings();
+                          },
+                        ),
+                        if (_currencyMode == 'syp') ...[
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            controller: _exchangeRateController,
+                            decoration: InputDecoration(
+                              labelText: 'سعر صرف الدولار',
+                              hintText: 'أدخل سعر الصرف',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              prefixIcon: const Icon(Icons.currency_exchange),
+                            ),
+                            keyboardType: const TextInputType.numberWithOptions(
+                                decimal: true),
+                            textDirection: TextDirection.rtl,
+                            enabled: !_isSavingPricing,
+                            validator: (value) {
+                              if (_currencyMode == 'syp' &&
+                                  (value == null || value.trim().isEmpty)) {
+                                return 'يرجى إدخال سعر الصرف';
+                              }
+                              if (value != null && value.trim().isNotEmpty) {
+                                final rate = double.tryParse(value.trim());
+                                if (rate == null || rate <= 0) {
+                                  return 'يرجى إدخال سعر صرف صحيح';
+                                }
+                              }
+                              return null;
+                            },
+                            onChanged: (_) {
+                              // Auto-save on change
+                              Future.delayed(const Duration(milliseconds: 500),
+                                  () {
+                                if (_pricingFormKey.currentState?.validate() ??
+                                    false) {
+                                  _savePricingSettings();
+                                }
+                              });
+                            },
+                          ),
+                        ],
+                      ],
                     ],
                   ],
                 ),

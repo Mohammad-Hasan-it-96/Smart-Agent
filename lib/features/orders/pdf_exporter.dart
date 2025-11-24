@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import '../../core/services/activation_service.dart';
+import '../../core/services/settings_service.dart';
 
 Future<Uint8List> generateOrderPdf(
   Map<String, dynamic> order,
@@ -38,6 +39,13 @@ Future<Uint8List> generateOrderPdf(
   final agentName = await activationService.getAgentName();
   final agentPhone = await activationService.getAgentPhone();
 
+  // Get pricing settings
+  final settingsService = SettingsService();
+  final pricingEnabled = await settingsService.isPricingEnabled();
+  final currencyMode = await settingsService.getCurrencyMode();
+  final exchangeRate = await settingsService.getExchangeRate();
+  final currencySymbol = currencyMode == 'syp' ? 'ل.س' : '\$';
+
   final pdf = pw.Document();
 
   pdf.addPage(
@@ -52,7 +60,9 @@ Future<Uint8List> generateOrderPdf(
               // Title
               pw.Center(
                 child: pw.Text(
-                  'المندوب الذكي - طلبية',
+                  pricingEnabled
+                      ? 'المندوب الذكي - فاتورة مبيع'
+                      : 'المندوب الذكي - طلبية',
                   style: getArabicStyle(
                     fontSize: 24,
                     fontWeight: pw.FontWeight.bold,
@@ -164,11 +174,19 @@ Future<Uint8List> generateOrderPdf(
                     pw.SizedBox(height: 8),
                     pw.Table(
                       border: pw.TableBorder.all(color: PdfColors.grey),
-                      columnWidths: {
-                        0: const pw.FlexColumnWidth(2),
-                        1: const pw.FlexColumnWidth(2),
-                        2: const pw.FlexColumnWidth(1),
-                      },
+                      columnWidths: pricingEnabled
+                          ? {
+                              0: const pw.FlexColumnWidth(2),
+                              1: const pw.FlexColumnWidth(2),
+                              2: const pw.FlexColumnWidth(1),
+                              3: const pw.FlexColumnWidth(1.5),
+                              4: const pw.FlexColumnWidth(1.5),
+                            }
+                          : {
+                              0: const pw.FlexColumnWidth(2),
+                              1: const pw.FlexColumnWidth(2),
+                              2: const pw.FlexColumnWidth(1),
+                            },
                       children: [
                         // Header row
                         pw.TableRow(
@@ -215,10 +233,46 @@ Future<Uint8List> generateOrderPdf(
                                 ),
                               ),
                             ),
+                            if (pricingEnabled) ...[
+                              pw.Padding(
+                                padding: const pw.EdgeInsets.all(8),
+                                child: pw.Directionality(
+                                  textDirection: pw.TextDirection.rtl,
+                                  child: pw.Text(
+                                    'السعر',
+                                    style: getArabicStyle(
+                                      fontWeight: pw.FontWeight.bold,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              pw.Padding(
+                                padding: const pw.EdgeInsets.all(8),
+                                child: pw.Directionality(
+                                  textDirection: pw.TextDirection.rtl,
+                                  child: pw.Text(
+                                    'المجموع',
+                                    style: getArabicStyle(
+                                      fontWeight: pw.FontWeight.bold,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                         // Data rows
                         ...items.map((item) {
+                          final priceUsd = (item['price'] as num?)?.toDouble() ?? 0.0;
+                          double displayPrice = priceUsd;
+                          if (pricingEnabled && currencyMode == 'syp') {
+                            displayPrice = priceUsd * exchangeRate;
+                          }
+                          final qty = (item['qty'] as num?)?.toInt() ?? 0;
+                          final total = displayPrice * qty;
+                          
                           return pw.TableRow(
                             children: [
                               pw.Padding(
@@ -246,16 +300,74 @@ Future<Uint8List> generateOrderPdf(
                                 child: pw.Directionality(
                                   textDirection: pw.TextDirection.rtl,
                                   child: pw.Text(
-                                    item['qty'].toString(),
+                                    qty.toString(),
                                     style: getArabicStyle(fontSize: 11),
                                   ),
                                 ),
                               ),
+                              if (pricingEnabled) ...[
+                                pw.Padding(
+                                  padding: const pw.EdgeInsets.all(8),
+                                  child: pw.Directionality(
+                                    textDirection: pw.TextDirection.rtl,
+                                    child: pw.Text(
+                                      '${displayPrice.toStringAsFixed(2)} $currencySymbol',
+                                      style: getArabicStyle(fontSize: 11),
+                                    ),
+                                  ),
+                                ),
+                                pw.Padding(
+                                  padding: const pw.EdgeInsets.all(8),
+                                  child: pw.Directionality(
+                                    textDirection: pw.TextDirection.rtl,
+                                    child: pw.Text(
+                                      '${total.toStringAsFixed(2)} $currencySymbol',
+                                      style: getArabicStyle(
+                                        fontSize: 11,
+                                        fontWeight: pw.FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ],
                           );
                         }),
                       ],
                     ),
+                    // Total (if pricing enabled)
+                    if (pricingEnabled) ...[
+                      pw.SizedBox(height: 16),
+                      pw.Container(
+                        padding: const pw.EdgeInsets.all(12),
+                        decoration: pw.BoxDecoration(
+                          color: PdfColors.blue50,
+                          border: pw.Border.all(color: PdfColors.blue),
+                        ),
+                        child: pw.Directionality(
+                          textDirection: pw.TextDirection.rtl,
+                          child: pw.Row(
+                            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                            children: [
+                              pw.Text(
+                                _calculateTotal(items, currencyMode, exchangeRate, currencySymbol),
+                                style: getArabicStyle(
+                                  fontSize: 18,
+                                  fontWeight: pw.FontWeight.bold,
+                                ),
+                              ),
+                              pw.Text(
+                                'المجموع النهائي:',
+                                style: getArabicStyle(
+                                  fontSize: 18,
+                                  fontWeight: pw.FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -276,4 +388,25 @@ String _formatDate(String dateString) {
   } catch (e) {
     return dateString;
   }
+}
+
+String _calculateTotal(
+  List<Map<String, dynamic>> items,
+  String currencyMode,
+  double exchangeRate,
+  String currencySymbol,
+) {
+  double totalUsd = 0.0;
+  for (final item in items) {
+    final priceUsd = (item['price'] as num?)?.toDouble() ?? 0.0;
+    final qty = (item['qty'] as num?)?.toInt() ?? 0;
+    totalUsd += priceUsd * qty;
+  }
+  
+  double displayTotal = totalUsd;
+  if (currencyMode == 'syp') {
+    displayTotal = totalUsd * exchangeRate;
+  }
+  
+  return '${displayTotal.toStringAsFixed(2)} $currencySymbol';
 }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/db/database_helper.dart';
 import '../../core/models/medicine.dart';
 import '../../core/models/company.dart';
+import '../../core/services/settings_service.dart';
 import '../../core/utils/slide_page_route.dart';
 import 'medicine_form.dart';
 
@@ -15,6 +16,7 @@ class MedicinesScreen extends StatefulWidget {
 
 class _MedicinesScreenState extends State<MedicinesScreen> {
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
+  final SettingsService _settingsService = SettingsService();
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
@@ -36,12 +38,29 @@ class _MedicinesScreenState extends State<MedicinesScreen> {
   bool _isInitialLoading = true;
   Timer? _debounceTimer;
 
+  // Pricing
+  bool _pricingEnabled = false;
+  String _currencyMode = 'usd';
+  double _exchangeRate = 1.0;
+
   @override
   void initState() {
     super.initState();
+    _loadPricingSettings();
     _loadCompanies();
     _searchController.addListener(_onSearchChanged);
     _scrollController.addListener(_onScroll);
+  }
+
+  Future<void> _loadPricingSettings() async {
+    final enabled = await _settingsService.isPricingEnabled();
+    final mode = await _settingsService.getCurrencyMode();
+    final rate = await _settingsService.getExchangeRate();
+    setState(() {
+      _pricingEnabled = enabled;
+      _currencyMode = mode;
+      _exchangeRate = rate;
+    });
   }
 
   @override
@@ -116,6 +135,7 @@ class _MedicinesScreenState extends State<MedicinesScreen> {
             medicines.id,
             medicines.name,
             medicines.company_id,
+            medicines.price_usd,
             companies.name as company_name
           FROM medicines
           LEFT JOIN companies ON medicines.company_id = companies.id
@@ -130,6 +150,7 @@ class _MedicinesScreenState extends State<MedicinesScreen> {
             medicines.id,
             medicines.name,
             medicines.company_id,
+            medicines.price_usd,
             companies.name as company_name
           FROM medicines
           LEFT JOIN companies ON medicines.company_id = companies.id
@@ -530,10 +551,35 @@ class _MedicinesScreenState extends State<MedicinesScreen> {
             ),
             textDirection: TextDirection.rtl,
           ),
-          subtitle: Text(
-            'الشركة: ${medicine['company_name'] ?? 'غير محدد'}',
-            style: const TextStyle(fontSize: 14),
-            textDirection: TextDirection.rtl,
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'الشركة: ${medicine['company_name'] ?? 'غير محدد'}',
+                style: const TextStyle(fontSize: 14),
+                textDirection: TextDirection.rtl,
+              ),
+              if (_pricingEnabled) ...[
+                const SizedBox(height: 4),
+                FutureBuilder<String>(
+                  future: _getPriceDisplay(medicine),
+                  builder: (context, snapshot) {
+                    if (snapshot.hasData) {
+                      return Text(
+                        snapshot.data!,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.blue[700],
+                          fontWeight: FontWeight.w500,
+                        ),
+                        textDirection: TextDirection.rtl,
+                      );
+                    }
+                    return const SizedBox.shrink();
+                  },
+                ),
+              ],
+            ],
           ),
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
@@ -635,5 +681,18 @@ class _MedicinesScreenState extends State<MedicinesScreen> {
         ),
       ),
     );
+  }
+
+  Future<String> _getPriceDisplay(Map<String, dynamic> medicine) async {
+    final priceUsd = (medicine['price_usd'] as num?)?.toDouble() ?? 0.0;
+    if (priceUsd <= 0) return '';
+
+    double displayPrice = priceUsd;
+    if (_currencyMode == 'syp') {
+      displayPrice = priceUsd * _exchangeRate;
+    }
+
+    final symbol = _currencyMode == 'syp' ? 'ل.س' : '\$';
+    return 'السعر: ${displayPrice.toStringAsFixed(2)} $symbol';
   }
 }

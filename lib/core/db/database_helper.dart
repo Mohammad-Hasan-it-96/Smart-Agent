@@ -20,7 +20,7 @@ class DatabaseHelper {
     return await databaseFactory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 4,
+        version: 5,
         onCreate: _createDB,
         onUpgrade: _onUpgrade,
       ),
@@ -41,7 +41,8 @@ class DatabaseHelper {
       CREATE TABLE medicines(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT,
-        company_id INTEGER
+        company_id INTEGER,
+        price_usd REAL DEFAULT 0
       )
     ''');
 
@@ -78,7 +79,8 @@ class DatabaseHelper {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         order_id INTEGER,
         medicine_id INTEGER,
-        qty INTEGER
+        qty INTEGER,
+        price REAL DEFAULT 0
       )
     ''');
 
@@ -131,6 +133,24 @@ class DatabaseHelper {
         ''');
       } catch (e) {
         // Indexes might already exist, ignore error
+      }
+    }
+    if (oldVersion < 5) {
+      // Add price_usd column to medicines table
+      try {
+        await db.execute('''
+          ALTER TABLE medicines ADD COLUMN price_usd REAL DEFAULT 0
+        ''');
+      } catch (e) {
+        // Column might already exist, ignore error
+      }
+      // Add price column to order_items table
+      try {
+        await db.execute('''
+          ALTER TABLE order_items ADD COLUMN price REAL DEFAULT 0
+        ''');
+      } catch (e) {
+        // Column might already exist, ignore error
       }
     }
   }

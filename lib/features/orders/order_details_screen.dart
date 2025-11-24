@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:printing/printing.dart';
 import '../../core/db/database_helper.dart';
+import '../../core/services/settings_service.dart';
 import 'pdf_exporter.dart';
 
 class OrderDetailsScreen extends StatefulWidget {
@@ -14,14 +15,30 @@ class OrderDetailsScreen extends StatefulWidget {
 
 class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
+  final SettingsService _settingsService = SettingsService();
   Map<String, dynamic>? _orderInfo;
   List<Map<String, dynamic>> _orderItems = [];
   bool _isLoading = true;
+  bool _pricingEnabled = false;
+  String _currencyMode = 'usd';
+  double _exchangeRate = 1.0;
 
   @override
   void initState() {
     super.initState();
+    _loadPricingSettings();
     _loadOrderDetails();
+  }
+
+  Future<void> _loadPricingSettings() async {
+    final enabled = await _settingsService.isPricingEnabled();
+    final mode = await _settingsService.getCurrencyMode();
+    final rate = await _settingsService.getExchangeRate();
+    setState(() {
+      _pricingEnabled = enabled;
+      _currencyMode = mode;
+      _exchangeRate = rate;
+    });
   }
 
   Future<void> _loadOrderDetails() async {
@@ -57,6 +74,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
           order_items.order_id,
           order_items.medicine_id,
           order_items.qty,
+          order_items.price,
           medicines.name as medicine_name,
           companies.name as company_name
         FROM order_items
@@ -209,19 +227,27 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                             )
                           : Card(
                               child: Table(
-                                columnWidths: const {
-                                  0: FlexColumnWidth(2),
-                                  1: FlexColumnWidth(2),
-                                  2: FlexColumnWidth(1),
-                                },
+                                columnWidths: _pricingEnabled
+                                    ? const {
+                                        0: FlexColumnWidth(2),
+                                        1: FlexColumnWidth(2),
+                                        2: FlexColumnWidth(1),
+                                        3: FlexColumnWidth(1.5),
+                                        4: FlexColumnWidth(1.5),
+                                      }
+                                    : const {
+                                        0: FlexColumnWidth(2),
+                                        1: FlexColumnWidth(2),
+                                        2: FlexColumnWidth(1),
+                                      },
                                 children: [
                                   // Header
                                   TableRow(
                                     decoration: BoxDecoration(
                                       color: Colors.grey[200],
                                     ),
-                                    children: const [
-                                      TableCell(
+                                    children: [
+                                      const TableCell(
                                         child: Padding(
                                           padding: EdgeInsets.all(8.0),
                                           child: Text(
@@ -233,7 +259,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                                           ),
                                         ),
                                       ),
-                                      TableCell(
+                                      const TableCell(
                                         child: Padding(
                                           padding: EdgeInsets.all(8.0),
                                           child: Text(
@@ -245,7 +271,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                                           ),
                                         ),
                                       ),
-                                      TableCell(
+                                      const TableCell(
                                         child: Padding(
                                           padding: EdgeInsets.all(8.0),
                                           child: Text(
@@ -257,11 +283,46 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                                           ),
                                         ),
                                       ),
+                                      if (_pricingEnabled) ...[
+                                        TableCell(
+                                          child: Padding(
+                                            padding: const EdgeInsets.all(8.0),
+                                            child: Text(
+                                              'السعر',
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                              textDirection: TextDirection.rtl,
+                                            ),
+                                          ),
+                                        ),
+                                        TableCell(
+                                          child: Padding(
+                                            padding: const EdgeInsets.all(8.0),
+                                            child: Text(
+                                              'المجموع',
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                              textDirection: TextDirection.rtl,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     ],
                                   ),
                                   // Data rows
                                   ...List.generate(_orderItems.length, (index) {
                                     final item = _orderItems[index];
+                                    final priceUsd = (item['price'] as num?)?.toDouble() ?? 0.0;
+                                    double displayPrice = priceUsd;
+                                    if (_pricingEnabled && _currencyMode == 'syp') {
+                                      displayPrice = priceUsd * _exchangeRate;
+                                    }
+                                    final qty = (item['qty'] as num?)?.toInt() ?? 0;
+                                    final total = displayPrice * qty;
+                                    final currencySymbol = _currencyMode == 'syp' ? 'ل.س' : '\$';
+                                    
                                     return TableRow(
                                       children: [
                                         TableCell(
@@ -288,17 +349,73 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                                           child: Padding(
                                             padding: const EdgeInsets.all(8.0),
                                             child: Text(
-                                              item['qty'].toString(),
+                                              qty.toString(),
                                               textDirection: TextDirection.rtl,
                                             ),
                                           ),
                                         ),
+                                        if (_pricingEnabled) ...[
+                                          TableCell(
+                                            child: Padding(
+                                              padding: const EdgeInsets.all(8.0),
+                                              child: Text(
+                                                '${displayPrice.toStringAsFixed(2)} $currencySymbol',
+                                                textDirection: TextDirection.rtl,
+                                              ),
+                                            ),
+                                          ),
+                                          TableCell(
+                                            child: Padding(
+                                              padding: const EdgeInsets.all(8.0),
+                                              child: Text(
+                                                '${total.toStringAsFixed(2)} $currencySymbol',
+                                                textDirection: TextDirection.rtl,
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
                                       ],
                                     );
                                   }),
                                 ],
                               ),
                             ),
+                      
+                      // Total (if pricing enabled)
+                      if (_pricingEnabled && _orderItems.isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        Card(
+                          color: Colors.blue[50],
+                          child: Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  _calculateTotal(),
+                                  style: TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.blue[900],
+                                  ),
+                                  textDirection: TextDirection.rtl,
+                                ),
+                                const Text(
+                                  'المجموع النهائي:',
+                                  style: TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  textDirection: TextDirection.rtl,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
 
                       // Export PDF Button
                       const SizedBox(height: 24),
@@ -320,6 +437,23 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                   ),
                 ),
     );
+  }
+
+  String _calculateTotal() {
+    double totalUsd = 0.0;
+    for (final item in _orderItems) {
+      final priceUsd = (item['price'] as num?)?.toDouble() ?? 0.0;
+      final qty = (item['qty'] as num?)?.toInt() ?? 0;
+      totalUsd += priceUsd * qty;
+    }
+    
+    double displayTotal = totalUsd;
+    if (_currencyMode == 'syp') {
+      displayTotal = totalUsd * _exchangeRate;
+    }
+    
+    final currencySymbol = _currencyMode == 'syp' ? 'ل.س' : '\$';
+    return '${displayTotal.toStringAsFixed(2)} $currencySymbol';
   }
 
   Widget _buildInfoRow(String label, String value) {

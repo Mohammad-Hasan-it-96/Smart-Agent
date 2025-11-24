@@ -15,6 +15,7 @@ class MedicineForm extends StatefulWidget {
 class _MedicineFormState extends State<MedicineForm> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
+  final _priceController = TextEditingController();
   final _dbHelper = DatabaseHelper.instance;
   List<Company> _companies = [];
   int? _selectedCompanyId;
@@ -28,12 +29,16 @@ class _MedicineFormState extends State<MedicineForm> {
     if (widget.medicine != null) {
       _nameController.text = widget.medicine!.name;
       _selectedCompanyId = widget.medicine!.companyId;
+      if (widget.medicine!.priceUsd > 0) {
+        _priceController.text = widget.medicine!.priceUsd.toString();
+      }
     }
   }
 
   @override
   void dispose() {
     _nameController.dispose();
+    _priceController.dispose();
     super.dispose();
   }
 
@@ -68,9 +73,21 @@ class _MedicineFormState extends State<MedicineForm> {
     });
 
     try {
+      double? priceUsd;
+      if (_priceController.text.trim().isNotEmpty) {
+        priceUsd = double.tryParse(_priceController.text.trim());
+        if (priceUsd == null || priceUsd < 0) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('يرجى إدخال سعر صحيح')),
+          );
+          return;
+        }
+      }
+
       final medicineData = {
         'name': _nameController.text.trim(),
         'company_id': _selectedCompanyId,
+        'price_usd': priceUsd ?? 0.0,
       };
 
       if (widget.medicine == null) {
@@ -172,6 +189,30 @@ class _MedicineFormState extends State<MedicineForm> {
                       validator: (value) {
                         if (value == null) {
                           return 'يرجى اختيار الشركة';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 24),
+                    TextFormField(
+                      controller: _priceController,
+                      decoration: InputDecoration(
+                        labelText: 'سعر الدواء بالدولار (اختياري)',
+                        hintText: '0.00',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        prefixIcon: const Icon(Icons.attach_money),
+                      ),
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      textDirection: TextDirection.rtl,
+                      textAlign: TextAlign.right,
+                      validator: (value) {
+                        if (value != null && value.trim().isNotEmpty) {
+                          final price = double.tryParse(value.trim());
+                          if (price == null || price < 0) {
+                            return 'يرجى إدخال سعر صحيح';
+                          }
                         }
                         return null;
                       },
