@@ -32,10 +32,31 @@ dependencies:
   device_info_plus: ^10.1.0
   package_info_plus: ^8.0.0
 
+  flutter_native_splash: ^2.3.10
+
 dev_dependencies:
+  flutter_launcher_icons: ^0.13.1
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.0
+
+flutter_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/app_logo.png"
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/images/app_logo.png"
+
+flutter_native_splash:
+  color: "#FFFFFF"
+  image: assets/images/app_logo.png
+  branding: assets/images/app_logo.png
+  android: true
+  ios: true
+  web: false
+  android_12:
+    image: assets/images/app_logo.png
+    icon_background_color: "#FFFFFF"
 
 flutter:
   uses-material-design: true
@@ -49,4 +70,5 @@ flutter:
   # Assets (for PDF font loading)
   assets:
     - assets/fonts/Cairo-Regular.ttf
+    - assets/images/app_logo.png
 
