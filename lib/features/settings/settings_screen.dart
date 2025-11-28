@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/services/activation_service.dart';
 import '../../core/services/settings_service.dart';
 import '../../core/providers/theme_provider.dart';
@@ -197,79 +199,47 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  void _showAboutDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text(
-          'حول التطبيق',
-          style: TextStyle(fontWeight: FontWeight.bold),
-          textDirection: TextDirection.rtl,
+  Future<void> _openSupportEmail() async {
+    final email = 'smartAgentAppSupport@gmail.com';
+    final emailUri = Uri.parse('mailto:$email');
+
+    try {
+      // Try to launch email app directly
+      final launched = await launchUrl(
+        emailUri,
+        mode: LaunchMode.externalApplication,
+      );
+
+      if (!launched && mounted) {
+        // If launch failed, show email address for manual copy
+        _showEmailFallback(email);
+      }
+    } catch (e) {
+      // If error occurs (e.g., no email app), show fallback
+      if (mounted) {
+        _showEmailFallback(email);
+      }
+    }
+  }
+
+  void _showEmailFallback(String email) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('البريد الإلكتروني: $email'),
+        duration: const Duration(seconds: 4),
+        action: SnackBarAction(
+          label: 'نسخ',
+          onPressed: () {
+            Clipboard.setData(ClipboardData(text: email));
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('تم نسخ البريد الإلكتروني'),
+                duration: Duration(seconds: 1),
+              ),
+            );
+          },
         ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'المندوب الذكي',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-                textDirection: TextDirection.rtl,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'تطبيق لإدارة الطلبيات محلياً بدون الحاجة للإنترنت',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[700],
-                ),
-                textDirection: TextDirection.rtl,
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                'معلومات المطور:',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-                textDirection: TextDirection.rtl,
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'للتواصل والدعم الفني',
-                style: TextStyle(fontSize: 14),
-                textDirection: TextDirection.rtl,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'البريد الإلكتروني: support@example.com',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.blue,
-                ),
-                textDirection: TextDirection.rtl,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'الهاتف: +966 50 000 0000',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.blue,
-                ),
-                textDirection: TextDirection.rtl,
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('إغلاق'),
-          ),
-        ],
       ),
     );
   }
@@ -353,42 +323,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               },
             ),
             const SizedBox(height: 16),
-            // App Version Card
-            Card(
-              elevation: 2,
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    if (_isLoadingVersion)
-                      const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    else
-                      Text(
-                        _appVersion,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.blue,
-                        ),
-                        textDirection: TextDirection.rtl,
-                      ),
-                    const Text(
-                      'إصدار التطبيق',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      textDirection: TextDirection.rtl,
-                    ),
-                  ],
-                ),
-              ),
-            ),
             const SizedBox(height: 16),
 
             // Agent Profile Section
@@ -684,45 +618,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const SizedBox(height: 16),
 
-            // About App Button
-            Card(
-              elevation: 2,
-              child: InkWell(
-                onTap: _showAboutDialog,
-                borderRadius: BorderRadius.circular(12),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Icon(
-                        Icons.info_outline,
-                        color: Colors.blue,
-                      ),
-                      const Expanded(
-                        child: Text(
-                          'حول التطبيق',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                          ),
-                          textDirection: TextDirection.rtl,
-                          textAlign: TextAlign.right,
-                        ),
-                      ),
-                      const Icon(
-                        Icons.arrow_back_ios,
-                        size: 20,
-                        textDirection: TextDirection.rtl,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // Developer Contact Info Card
+            // About App Section
             Card(
               elevation: 2,
               child: Padding(
@@ -730,47 +626,134 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.info_outline,
+                          color: theme.colorScheme.primary,
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          'حول التطبيق',
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textDirection: TextDirection.rtl,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.apps, color: Colors.blue),
+                      title: const Text(
+                        'اسم التطبيق',
+                        style: TextStyle(fontWeight: FontWeight.w500),
+                        textDirection: TextDirection.rtl,
+                      ),
+                      trailing: const Text(
+                        'المندوب الذكي',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey,
+                        ),
+                        textDirection: TextDirection.rtl,
+                      ),
+                    ),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.tag, color: Colors.blue),
+                      title: const Text(
+                        'إصدار التطبيق',
+                        style: TextStyle(fontWeight: FontWeight.w500),
+                        textDirection: TextDirection.rtl,
+                      ),
+                      trailing: _isLoadingVersion
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : Text(
+                              _appVersion,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey,
+                              ),
+                              textDirection: TextDirection.rtl,
+                            ),
+                    ),
+                    const Divider(),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 8.0),
+                      child: Text(
+                        'مطور التطبيق',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.grey,
+                        ),
+                        textDirection: TextDirection.rtl,
+                      ),
+                    ),
                     const Text(
-                      'معلومات التواصل',
+                      'تطبيق لإدارة الطلبيات محلياً بدون الحاجة للإنترنت',
                       style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                        color: Colors.grey,
                       ),
                       textDirection: TextDirection.rtl,
                     ),
-                    const SizedBox(height: 16),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Technical Support Section
+            Card(
+              elevation: 2,
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Row(
                       children: [
-                        const Icon(Icons.email, color: Colors.blue),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'support@example.com',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey[700],
-                            ),
-                            textDirection: TextDirection.rtl,
+                        Icon(
+                          Icons.support_agent,
+                          color: theme.colorScheme.primary,
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          'الدعم الفني',
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
                           ),
+                          textDirection: TextDirection.rtl,
                         ),
                       ],
                     ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        const Icon(Icons.phone, color: Colors.blue),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            '+966 50 000 0000',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey[700],
-                            ),
-                            textDirection: TextDirection.rtl,
-                          ),
-                        ),
-                      ],
+                    const SizedBox(height: 16),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.email, color: Colors.blue),
+                      title: const Text(
+                        'مراسلة الدعم',
+                        style: TextStyle(fontWeight: FontWeight.w500),
+                        textDirection: TextDirection.rtl,
+                      ),
+                      subtitle: const Text(
+                        'smartAgentAppSupport@gmail.com',
+                        style: TextStyle(fontSize: 12),
+                        textDirection: TextDirection.rtl,
+                      ),
+                      trailing: const Icon(
+                        Icons.arrow_back_ios,
+                        size: 20,
+                        textDirection: TextDirection.rtl,
+                      ),
+                      onTap: _openSupportEmail,
                     ),
                   ],
                 ),
