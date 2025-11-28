@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../core/widgets/custom_app_bar.dart';
 import '../../core/utils/slide_page_route.dart';
+import '../../core/services/activation_service.dart';
 import '../companies/companies_screen.dart';
 import '../medicines/medicines_screen.dart';
 import '../pharmacies/pharmacies_screen.dart';
@@ -18,6 +19,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final PageController _pageController = PageController();
+  final ActivationService _activationService = ActivationService();
   int _currentPage = 0;
   Timer? _timer;
 
@@ -25,6 +27,27 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _startAutoSlide();
+    _checkTrialExpiration();
+  }
+
+  Future<void> _checkTrialExpiration() async {
+    // Check if trial has expired
+    final trialExpired = await _activationService.hasTrialExpired();
+    if (trialExpired && mounted) {
+      // Disable trial mode and redirect to activation
+      await _activationService.disableTrialMode();
+      Navigator.of(context).pushNamedAndRemoveUntil(
+        '/activation',
+        (route) => false,
+      );
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('انتهت النسخة التجريبية – يرجى التواصل مع المطور'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 5),
+        ),
+      );
+    }
   }
 
   @override

@@ -106,6 +106,15 @@ class _SplashScreenState extends State<SplashScreen>
 
     if (!mounted) return;
 
+    // Check if trial has expired
+    final trialExpired = await _activationService.hasTrialExpired();
+    if (trialExpired) {
+      // Disable trial mode and redirect to activation
+      await _activationService.disableTrialMode();
+      Navigator.of(context).pushReplacementNamed('/activation');
+      return;
+    }
+
     // Navigate based on activation status
     if (isActivated) {
       Navigator.of(context).pushReplacementNamed('/home');

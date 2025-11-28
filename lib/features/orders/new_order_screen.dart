@@ -4,6 +4,7 @@ import '../../core/models/pharmacy.dart';
 import '../../core/models/company.dart';
 import '../../core/utils/slide_page_route.dart';
 import '../../core/widgets/custom_app_bar.dart';
+import '../../core/services/activation_service.dart';
 import 'order_details_screen.dart';
 
 class OrderItemData {
@@ -204,6 +205,41 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
                           });
 
                           try {
+                            // Check trial mode limits before inserting
+                            final activationService = ActivationService();
+                            final isTrialMode =
+                                await activationService.isTrialMode();
+                            if (isTrialMode) {
+                              // Get current pharmacy count
+                              final db = await _dbHelper.database;
+                              final result = await db.rawQuery(
+                                  'SELECT COUNT(*) as count FROM pharmacies');
+                              final currentCount = result.first['count'] as int;
+                              final limit = await activationService
+                                  .getTrialPharmaciesLimit();
+
+                              if (currentCount >= limit) {
+                                // Trial expired - disable trial and redirect
+                                await activationService.disableTrialMode();
+                                if (mounted) {
+                                  Navigator.of(context).pop(); // Close dialog
+                                  Navigator.of(context).pushNamedAndRemoveUntil(
+                                    '/activation',
+                                    (route) => false,
+                                  );
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                          'انتهت النسخة التجريبية – يرجى التواصل مع المطور'),
+                                      backgroundColor: Colors.red,
+                                      duration: Duration(seconds: 5),
+                                    ),
+                                  );
+                                }
+                                return;
+                              }
+                            }
+
                             final pharmacyData = {
                               'name': nameController.text.trim(),
                               'address': addressController.text.trim(),
