@@ -255,4 +255,34 @@ class DatabaseHelper {
     final db = await database;
     await db.close();
   }
+
+  /// Fetches order items with medicine and company details for PDF export
+  /// Returns list of items with all necessary fields for PDF generation
+  Future<List<Map<String, dynamic>>> fetchOrderItemsWithDetails(
+      int orderId) async {
+    final db = await database;
+
+    // Query order items with joined medicine and company data
+    final itemMaps = await db.rawQuery('''
+      SELECT 
+        order_items.id,
+        order_items.order_id,
+        order_items.medicine_id,
+        order_items.qty,
+        COALESCE(medicines.price_usd, order_items.price, 0) as price_usd,
+        order_items.price as price,
+        medicines.name as medicine_name,
+        medicines.source as medicine_source,
+        medicines.form as medicine_form,
+        medicines.notes as medicine_notes,
+        companies.name as company_name
+      FROM order_items
+      LEFT JOIN medicines ON order_items.medicine_id = medicines.id
+      LEFT JOIN companies ON medicines.company_id = companies.id
+      WHERE order_items.order_id = ?
+      ORDER BY medicines.name
+    ''', [orderId]);
+
+    return itemMaps;
+  }
 }

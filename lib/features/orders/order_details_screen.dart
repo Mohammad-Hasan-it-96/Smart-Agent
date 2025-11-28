@@ -236,6 +236,8 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                                 children:
                                     List.generate(_orderItems.length, (index) {
                                   final item = _orderItems[index];
+                                  final itemNumber =
+                                      index + 1; // 1-based numbering
                                   // Use price_usd from medicine record (fallback to order_items.price for backward compatibility)
                                   final priceUsd =
                                       (item['price_usd'] as num?)?.toDouble() ??
@@ -270,14 +272,49 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                                         crossAxisAlignment:
                                             CrossAxisAlignment.start,
                                         children: [
-                                          // Medicine name (bold)
-                                          Text(
-                                            medicineName,
-                                            style: theme.textTheme.titleMedium
-                                                ?.copyWith(
-                                              fontWeight: FontWeight.bold,
-                                            ),
+                                          // Item number and medicine name row
+                                          Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.spaceBetween,
                                             textDirection: TextDirection.rtl,
+                                            children: [
+                                              // Medicine name (bold)
+                                              Expanded(
+                                                child: Text(
+                                                  medicineName,
+                                                  style: theme
+                                                      .textTheme.titleMedium
+                                                      ?.copyWith(
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                  textDirection:
+                                                      TextDirection.rtl,
+                                                ),
+                                              ),
+                                              // Item number
+                                              Container(
+                                                width: 32,
+                                                height: 32,
+                                                decoration: BoxDecoration(
+                                                  color: theme.colorScheme
+                                                      .primaryContainer,
+                                                  shape: BoxShape.circle,
+                                                ),
+                                                alignment: Alignment.center,
+                                                child: Text(
+                                                  itemNumber.toString(),
+                                                  style: theme
+                                                      .textTheme.bodyMedium
+                                                      ?.copyWith(
+                                                    fontWeight: FontWeight.bold,
+                                                    color: theme.colorScheme
+                                                        .onPrimaryContainer,
+                                                  ),
+                                                  textDirection:
+                                                      TextDirection.rtl,
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                           const SizedBox(height: 8),
                                           // Company name

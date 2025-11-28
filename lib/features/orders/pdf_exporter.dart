@@ -4,12 +4,25 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import '../../core/services/activation_service.dart';
 import '../../core/services/settings_service.dart';
+import '../../core/db/database_helper.dart';
 
 Future<Uint8List> generateOrderPdf(
   Map<String, dynamic> order,
   List<Map<String, dynamic>> items,
   Map<String, dynamic> pharmacy,
 ) async {
+  // If items list is empty, try to fetch from database
+  // This handles cases where order object doesn't have items loaded
+  if (items.isEmpty && order['id'] != null) {
+    try {
+      final dbHelper = DatabaseHelper.instance;
+      final orderId = order['id'] as int;
+      items = await dbHelper.fetchOrderItemsWithDetails(orderId);
+    } catch (e) {
+      // If DB fetch fails, continue with empty items list
+      print('Warning: Could not fetch items from DB: $e');
+    }
+  }
   // Load Arabic font
   pw.Font? arabicFont;
   try {
@@ -47,34 +60,57 @@ Future<Uint8List> generateOrderPdf(
   final currencySymbol = currencyMode == 'syp' ? 'ل.س' : '\$';
 
   final pdf = pw.Document();
+  final pageWidth = PdfPageFormat.a4.width;
+  const itemsPerPage = 20;
 
-  pdf.addPage(
-    pw.Page(
-      pageFormat: PdfPageFormat.a4,
-      build: (pw.Context context) {
-        return pw.Directionality(
-          textDirection: pw.TextDirection.rtl,
-          child: pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              // Title
-              pw.Center(
-                child: pw.Text(
-                  pricingEnabled
-                      ? 'المندوب الذكي - فاتورة مبيع'
-                      : 'المندوب الذكي - طلبية',
-                  style: getArabicStyle(
-                    fontSize: 24,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
+  // Split items into chunks for pagination
+  final List<List<Map<String, dynamic>>> itemChunks = [];
+  for (int i = 0; i < items.length; i += itemsPerPage) {
+    itemChunks.add(items.sublist(
+      i,
+      i + itemsPerPage > items.length ? items.length : i + itemsPerPage,
+    ));
+  }
+
+  // If no items, create a single empty chunk
+  if (itemChunks.isEmpty) {
+    itemChunks.add([]);
+  }
+
+  // Build header content (title + agent/pharmacy info) - shown on first page only
+  pw.Widget buildHeader() {
+    return pw.Directionality(
+      textDirection: pw.TextDirection.rtl,
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          // Title
+          pw.Center(
+            child: pw.Directionality(
+              textDirection: pw.TextDirection.rtl,
+              child: pw.Text(
+                pricingEnabled
+                    ? 'المندوب الذكي - فاتورة مبيع'
+                    : 'المندوب الذكي - طلبية',
+                style: getArabicStyle(
+                  fontSize: 20,
+                  fontWeight: pw.FontWeight.bold,
                 ),
               ),
-              pw.SizedBox(height: 20),
+            ),
+          ),
+          pw.SizedBox(height: 8),
 
-              // Agent Info (if available)
-              if (agentName.isNotEmpty || agentPhone.isNotEmpty) ...[
+          // Agent Info and Pharmacy Info side-by-side (compact)
+          pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              // Agent Info (if available) - compact
+              if (agentName.isNotEmpty || agentPhone.isNotEmpty)
                 pw.Container(
-                  padding: const pw.EdgeInsets.all(12),
+                  width: pageWidth * 0.43,
+                  padding: const pw.EdgeInsets.all(8),
                   decoration: pw.BoxDecoration(
                     border: pw.Border.all(color: PdfColors.blue),
                     borderRadius:
@@ -88,33 +124,36 @@ Future<Uint8List> generateOrderPdf(
                         pw.Text(
                           'معلومات المندوب',
                           style: getArabicStyle(
-                            fontSize: 16,
+                            fontSize: 10,
                             fontWeight: pw.FontWeight.bold,
                           ),
                         ),
-                        pw.SizedBox(height: 8),
+                        pw.SizedBox(height: 4),
                         if (agentName.isNotEmpty)
                           pw.Text(
                             'اسم المندوب: $agentName',
-                            style: getArabicStyle(fontSize: 12),
+                            style: getArabicStyle(fontSize: 9),
+                            textDirection: pw.TextDirection.rtl,
                           ),
                         if (agentName.isNotEmpty && agentPhone.isNotEmpty)
-                          pw.SizedBox(height: 4),
+                          pw.SizedBox(height: 2),
                         if (agentPhone.isNotEmpty)
                           pw.Text(
                             'رقم المندوب: $agentPhone',
-                            style: getArabicStyle(fontSize: 12),
+                            style: getArabicStyle(fontSize: 9),
+                            textDirection: pw.TextDirection.rtl,
                           ),
                       ],
                     ),
                   ),
-                ),
-                pw.SizedBox(height: 20),
-              ],
+                )
+              else
+                pw.SizedBox(width: pageWidth * 0.43),
 
-              // Pharmacy Info
+              // Pharmacy Info - compact
               pw.Container(
-                padding: const pw.EdgeInsets.all(12),
+                width: pageWidth * 0.43,
+                padding: const pw.EdgeInsets.all(8),
                 decoration: pw.BoxDecoration(
                   border: pw.Border.all(color: PdfColors.grey),
                   borderRadius:
@@ -128,275 +167,556 @@ Future<Uint8List> generateOrderPdf(
                       pw.Text(
                         'معلومات الصيدلية',
                         style: getArabicStyle(
-                          fontSize: 16,
+                          fontSize: 10,
                           fontWeight: pw.FontWeight.bold,
                         ),
                       ),
-                      pw.SizedBox(height: 8),
+                      pw.SizedBox(height: 4),
                       pw.Text(
                         'الاسم: ${pharmacy['pharmacy_name'] ?? 'غير معروف'}',
-                        style: getArabicStyle(fontSize: 12),
+                        style: getArabicStyle(fontSize: 9),
+                        textDirection: pw.TextDirection.rtl,
                       ),
-                      pw.SizedBox(height: 4),
+                      pw.SizedBox(height: 2),
                       pw.Text(
                         'العنوان: ${pharmacy['pharmacy_address'] ?? 'غير معروف'}',
-                        style: getArabicStyle(fontSize: 12),
+                        style: getArabicStyle(fontSize: 9),
+                        textDirection: pw.TextDirection.rtl,
                       ),
-                      pw.SizedBox(height: 4),
+                      pw.SizedBox(height: 2),
                       pw.Text(
                         'الهاتف: ${pharmacy['pharmacy_phone'] ?? 'غير معروف'}',
-                        style: getArabicStyle(fontSize: 12),
+                        style: getArabicStyle(fontSize: 9),
+                        textDirection: pw.TextDirection.rtl,
                       ),
-                      pw.SizedBox(height: 4),
+                      pw.SizedBox(height: 2),
                       pw.Text(
                         'التاريخ: ${_formatDate(order['created_at'] as String)}',
-                        style: getArabicStyle(fontSize: 12),
+                        style: getArabicStyle(fontSize: 9),
+                        textDirection: pw.TextDirection.rtl,
                       ),
                     ],
                   ),
                 ),
               ),
-              pw.SizedBox(height: 20),
+            ],
+          ),
+          pw.SizedBox(height: 8),
+        ],
+      ),
+    );
+  }
 
-              // Items Table
-              pw.Directionality(
-                textDirection: pw.TextDirection.rtl,
-                child: pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    pw.Text(
-                      'عناصر الطلبية',
-                      style: getArabicStyle(
-                        fontSize: 16,
-                        fontWeight: pw.FontWeight.bold,
-                      ),
+  // Build items table for a chunk of items
+  pw.Widget buildItemsTable(
+      List<Map<String, dynamic>> chunkItems, int startIndex) {
+    return pw.Directionality(
+      textDirection: pw.TextDirection.rtl,
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(
+            'عناصر الطلبية',
+            style: getArabicStyle(
+              fontSize: 14,
+              fontWeight: pw.FontWeight.bold,
+            ),
+            textDirection: pw.TextDirection.rtl,
+          ),
+          pw.SizedBox(height: 8),
+          chunkItems.isEmpty
+              ? pw.Padding(
+                  padding: const pw.EdgeInsets.all(16),
+                  child: pw.Directionality(
+                    textDirection: pw.TextDirection.rtl,
+                    child: pw.Text(
+                      'لا توجد عناصر في هذه الطلبية',
+                      style: getArabicStyle(fontSize: 11),
                     ),
-                    pw.SizedBox(height: 8),
-                    pw.Table(
-                      border: pw.TableBorder.all(color: PdfColors.grey),
-                      columnWidths: pricingEnabled
-                          ? {
-                              0: const pw.FlexColumnWidth(2),
-                              1: const pw.FlexColumnWidth(2),
-                              2: const pw.FlexColumnWidth(1),
-                              3: const pw.FlexColumnWidth(1.5),
-                              4: const pw.FlexColumnWidth(1.5),
-                            }
-                          : {
-                              0: const pw.FlexColumnWidth(2),
-                              1: const pw.FlexColumnWidth(2),
-                              2: const pw.FlexColumnWidth(1),
-                            },
-                      children: [
-                        // Header row
-                        pw.TableRow(
-                          decoration: const pw.BoxDecoration(
-                            color: PdfColors.grey300,
-                          ),
-                          children: [
-                            pw.Padding(
-                              padding: const pw.EdgeInsets.all(8),
-                              child: pw.Directionality(
-                                textDirection: pw.TextDirection.rtl,
-                                child: pw.Text(
-                                  'الدواء',
-                                  style: getArabicStyle(
-                                    fontWeight: pw.FontWeight.bold,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            pw.Padding(
-                              padding: const pw.EdgeInsets.all(8),
-                              child: pw.Directionality(
-                                textDirection: pw.TextDirection.rtl,
-                                child: pw.Text(
-                                  'الكمية',
-                                  style: getArabicStyle(
-                                    fontWeight: pw.FontWeight.bold,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            if (pricingEnabled) ...[
+                  ),
+                )
+              : pw.Table(
+                  border: pw.TableBorder.all(color: PdfColors.grey),
+                  columnWidths: pricingEnabled
+                      ? {
+                          // Reversed for RTL: المجموع, السعر, الكمية, الشركة, الدواء, الرقم (array order, but visually: الرقم on right, المجموع on left)
+                          0: const pw.FlexColumnWidth(1.5), // المجموع
+                          1: const pw.FlexColumnWidth(1.5), // السعر
+                          2: const pw.FlexColumnWidth(1), // الكمية
+                          3: const pw.FlexColumnWidth(1.5), // الشركة
+                          4: const pw.FlexColumnWidth(2), // الدواء
+                          5: const pw.FixedColumnWidth(35), // الرقم
+                        }
+                      : {
+                          // Reversed for RTL: الكمية, الشركة, الدواء, الرقم (array order, but visually: الرقم on right, الكمية on left)
+                          0: const pw.FlexColumnWidth(1), // الكمية
+                          1: const pw.FlexColumnWidth(1.5), // الشركة
+                          2: const pw.FlexColumnWidth(2), // الدواء
+                          3: const pw.FixedColumnWidth(35), // الرقم
+                        },
+                  children: [
+                    // Header row (RTL order: الرقم, الدواء, الشركة, الكمية, السعر, المجموع)
+                    pw.TableRow(
+                      decoration: const pw.BoxDecoration(
+                        color: PdfColors.grey300,
+                      ),
+                      children: pricingEnabled
+                          ? [
+                              // Reversed order for RTL: المجموع, السعر, الكمية, الشركة, الدواء, الرقم
+                              // (Visually: الرقم appears on RIGHT, المجموع appears on LEFT)
+                              // المجموع - FIRST in array (leftmost visually in RTL)
                               pw.Padding(
-                                padding: const pw.EdgeInsets.all(8),
-                                child: pw.Directionality(
-                                  textDirection: pw.TextDirection.rtl,
-                                  child: pw.Text(
-                                    'السعر',
-                                    style: getArabicStyle(
-                                      fontWeight: pw.FontWeight.bold,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              pw.Padding(
-                                padding: const pw.EdgeInsets.all(8),
+                                padding: const pw.EdgeInsets.all(6),
                                 child: pw.Directionality(
                                   textDirection: pw.TextDirection.rtl,
                                   child: pw.Text(
                                     'المجموع',
                                     style: getArabicStyle(
                                       fontWeight: pw.FontWeight.bold,
-                                      fontSize: 12,
+                                      fontSize: 10,
                                     ),
+                                    textAlign: pw.TextAlign.right,
+                                  ),
+                                ),
+                              ),
+                              // السعر - SECOND in array
+                              pw.Padding(
+                                padding: const pw.EdgeInsets.all(6),
+                                child: pw.Directionality(
+                                  textDirection: pw.TextDirection.rtl,
+                                  child: pw.Text(
+                                    'السعر',
+                                    style: getArabicStyle(
+                                      fontWeight: pw.FontWeight.bold,
+                                      fontSize: 10,
+                                    ),
+                                    textAlign: pw.TextAlign.right,
+                                  ),
+                                ),
+                              ),
+                              // الكمية - THIRD in array
+                              pw.Padding(
+                                padding: const pw.EdgeInsets.all(6),
+                                child: pw.Directionality(
+                                  textDirection: pw.TextDirection.rtl,
+                                  child: pw.Text(
+                                    'الكمية',
+                                    style: getArabicStyle(
+                                      fontWeight: pw.FontWeight.bold,
+                                      fontSize: 10,
+                                    ),
+                                    textAlign: pw.TextAlign.right,
+                                  ),
+                                ),
+                              ),
+                              // الشركة - FOURTH in array
+                              pw.Padding(
+                                padding: const pw.EdgeInsets.all(6),
+                                child: pw.Directionality(
+                                  textDirection: pw.TextDirection.rtl,
+                                  child: pw.Text(
+                                    'الشركة',
+                                    style: getArabicStyle(
+                                      fontWeight: pw.FontWeight.bold,
+                                      fontSize: 10,
+                                    ),
+                                    textAlign: pw.TextAlign.right,
+                                  ),
+                                ),
+                              ),
+                              // الدواء - FIFTH in array
+                              pw.Padding(
+                                padding: const pw.EdgeInsets.all(6),
+                                child: pw.Directionality(
+                                  textDirection: pw.TextDirection.rtl,
+                                  child: pw.Text(
+                                    'الدواء',
+                                    style: getArabicStyle(
+                                      fontWeight: pw.FontWeight.bold,
+                                      fontSize: 10,
+                                    ),
+                                    textAlign: pw.TextAlign.right,
+                                  ),
+                                ),
+                              ),
+                              // الرقم - LAST in array (rightmost visually in RTL)
+                              pw.Padding(
+                                padding: const pw.EdgeInsets.all(6),
+                                child: pw.Directionality(
+                                  textDirection: pw.TextDirection.rtl,
+                                  child: pw.Text(
+                                    'الرقم',
+                                    style: getArabicStyle(
+                                      fontWeight: pw.FontWeight.bold,
+                                      fontSize: 10,
+                                    ),
+                                    textAlign: pw.TextAlign.center,
+                                  ),
+                                ),
+                              ),
+                            ]
+                          : [
+                              // Reversed order for RTL: الكمية, الشركة, الدواء, الرقم
+                              // (Visually: الرقم appears on RIGHT, الكمية appears on LEFT)
+                              // الكمية - FIRST in array (leftmost visually in RTL)
+                              pw.Padding(
+                                padding: const pw.EdgeInsets.all(6),
+                                child: pw.Directionality(
+                                  textDirection: pw.TextDirection.rtl,
+                                  child: pw.Text(
+                                    'الكمية',
+                                    style: getArabicStyle(
+                                      fontWeight: pw.FontWeight.bold,
+                                      fontSize: 10,
+                                    ),
+                                    textAlign: pw.TextAlign.right,
+                                  ),
+                                ),
+                              ),
+                              // الشركة - SECOND in array
+                              pw.Padding(
+                                padding: const pw.EdgeInsets.all(6),
+                                child: pw.Directionality(
+                                  textDirection: pw.TextDirection.rtl,
+                                  child: pw.Text(
+                                    'الشركة',
+                                    style: getArabicStyle(
+                                      fontWeight: pw.FontWeight.bold,
+                                      fontSize: 10,
+                                    ),
+                                    textAlign: pw.TextAlign.right,
+                                  ),
+                                ),
+                              ),
+                              // الدواء - THIRD in array
+                              pw.Padding(
+                                padding: const pw.EdgeInsets.all(6),
+                                child: pw.Directionality(
+                                  textDirection: pw.TextDirection.rtl,
+                                  child: pw.Text(
+                                    'الدواء',
+                                    style: getArabicStyle(
+                                      fontWeight: pw.FontWeight.bold,
+                                      fontSize: 10,
+                                    ),
+                                    textAlign: pw.TextAlign.right,
+                                  ),
+                                ),
+                              ),
+                              // الرقم - LAST in array (rightmost visually in RTL)
+                              pw.Padding(
+                                padding: const pw.EdgeInsets.all(6),
+                                child: pw.Directionality(
+                                  textDirection: pw.TextDirection.rtl,
+                                  child: pw.Text(
+                                    'الرقم',
+                                    style: getArabicStyle(
+                                      fontWeight: pw.FontWeight.bold,
+                                      fontSize: 10,
+                                    ),
+                                    textAlign: pw.TextAlign.center,
                                   ),
                                 ),
                               ),
                             ],
-                          ],
-                        ),
-                        // Data rows
-                        ...items.map((item) {
-                          // Use price_usd from medicine record (fallback to order_items.price for backward compatibility)
-                          final priceUsd =
-                              (item['price_usd'] as num?)?.toDouble() ??
-                                  (item['price'] as num?)?.toDouble() ??
-                                  0.0;
-                          double displayPrice = priceUsd;
-                          if (pricingEnabled && currencyMode == 'syp') {
-                            displayPrice = priceUsd * exchangeRate;
-                          }
-                          final qty = (item['qty'] as num?)?.toInt() ?? 0;
-                          final total = displayPrice * qty;
+                    ),
+                    // Data rows (RTL order: الرقم, الدواء, الشركة, الكمية, السعر, المجموع)
+                    ...chunkItems.asMap().entries.map((entry) {
+                      final itemIndex = entry.key;
+                      final item = entry.value;
+                      final globalIndex =
+                          startIndex + itemIndex + 1; // 1-based numbering
+                      // Use price_usd from medicine record (fallback to order_items.price for backward compatibility)
+                      final priceUsd =
+                          (item['price_usd'] as num?)?.toDouble() ??
+                              (item['price'] as num?)?.toDouble() ??
+                              0.0;
+                      double displayPrice = priceUsd;
+                      if (pricingEnabled && currencyMode == 'syp') {
+                        displayPrice = priceUsd * exchangeRate;
+                      }
+                      final qty = (item['qty'] as num?)?.toInt() ?? 0;
+                      final total = displayPrice * qty;
 
-                          final medicineName =
-                              item['medicine_name'] ?? 'غير معروف';
-                          final companyName =
-                              item['company_name'] ?? 'غير معروف';
-                          final source = item['medicine_source'] as String?;
-                          final form = item['medicine_form'] as String?;
-                          final notes = item['medicine_notes'] as String?;
+                      final medicineName = item['medicine_name'] ?? 'غير معروف';
+                      final companyName = item['company_name'] ?? 'غير معروف';
+                      final source = item['medicine_source'] as String?;
+                      final form = item['medicine_form'] as String?;
+                      final notes = item['medicine_notes'] as String?;
 
-                          // Build description string with optional fields
-                          final List<String> descriptionParts = [companyName];
-                          if (source != null && source.isNotEmpty) {
-                            descriptionParts.add('المصدر: $source');
-                          }
-                          if (form != null && form.isNotEmpty) {
-                            descriptionParts.add('النوع: $form');
-                          }
-                          if (notes != null && notes.isNotEmpty) {
-                            descriptionParts.add('ملاحظات: $notes');
-                          }
-                          final description = descriptionParts.join(' — ');
+                      // Build description string with optional fields (source, form, notes only)
+                      final List<String> descriptionParts = [];
+                      if (source != null && source.isNotEmpty) {
+                        descriptionParts.add('المصدر: $source');
+                      }
+                      if (form != null && form.isNotEmpty) {
+                        descriptionParts.add('النوع: $form');
+                      }
+                      if (notes != null && notes.isNotEmpty) {
+                        descriptionParts.add('ملاحظات: $notes');
+                      }
+                      final description = descriptionParts.isNotEmpty
+                          ? '(${descriptionParts.join(' — ')})'
+                          : '';
 
-                          return pw.TableRow(
-                            children: [
-                              pw.Padding(
-                                padding: const pw.EdgeInsets.all(8),
-                                child: pw.Directionality(
-                                  textDirection: pw.TextDirection.rtl,
-                                  child: pw.Column(
-                                    crossAxisAlignment:
-                                        pw.CrossAxisAlignment.start,
-                                    children: [
-                                      pw.Text(
-                                        medicineName,
-                                        style: getArabicStyle(
-                                          fontSize: 11,
-                                          fontWeight: pw.FontWeight.bold,
-                                        ),
-                                      ),
-                                      pw.SizedBox(height: 2),
-                                      pw.Text(
-                                        '($description)',
-                                        style: getArabicStyle(
-                                          fontSize: 9,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              pw.Padding(
-                                padding: const pw.EdgeInsets.all(8),
-                                child: pw.Directionality(
-                                  textDirection: pw.TextDirection.rtl,
-                                  child: pw.Text(
-                                    qty.toString(),
-                                    style: getArabicStyle(fontSize: 11),
-                                  ),
-                                ),
-                              ),
-                              if (pricingEnabled) ...[
+                      return pw.TableRow(
+                        children: pricingEnabled
+                            ? [
+                                // Reversed order for RTL: المجموع, السعر, الكمية, الشركة, الدواء, الرقم
+                                // (Visually: الرقم appears on RIGHT, المجموع appears on LEFT)
+                                // المجموع - FIRST in array (leftmost visually in RTL)
                                 pw.Padding(
-                                  padding: const pw.EdgeInsets.all(8),
-                                  child: pw.Directionality(
-                                    textDirection: pw.TextDirection.rtl,
-                                    child: pw.Text(
-                                      '${displayPrice.toStringAsFixed(2)} $currencySymbol',
-                                      style: getArabicStyle(fontSize: 11),
-                                    ),
-                                  ),
-                                ),
-                                pw.Padding(
-                                  padding: const pw.EdgeInsets.all(8),
+                                  padding: const pw.EdgeInsets.all(6),
                                   child: pw.Directionality(
                                     textDirection: pw.TextDirection.rtl,
                                     child: pw.Text(
                                       '${total.toStringAsFixed(2)} $currencySymbol',
                                       style: getArabicStyle(
-                                        fontSize: 11,
+                                        fontSize: 10,
                                         fontWeight: pw.FontWeight.bold,
                                       ),
+                                      textAlign: pw.TextAlign.right,
+                                    ),
+                                  ),
+                                ),
+                                // السعر - SECOND in array
+                                pw.Padding(
+                                  padding: const pw.EdgeInsets.all(6),
+                                  child: pw.Directionality(
+                                    textDirection: pw.TextDirection.rtl,
+                                    child: pw.Text(
+                                      '${displayPrice.toStringAsFixed(2)} $currencySymbol',
+                                      style: getArabicStyle(fontSize: 10),
+                                      textAlign: pw.TextAlign.right,
+                                    ),
+                                  ),
+                                ),
+                                // الكمية - THIRD in array
+                                pw.Padding(
+                                  padding: const pw.EdgeInsets.all(6),
+                                  child: pw.Directionality(
+                                    textDirection: pw.TextDirection.rtl,
+                                    child: pw.Text(
+                                      qty.toString(),
+                                      style: getArabicStyle(fontSize: 10),
+                                      textAlign: pw.TextAlign.right,
+                                    ),
+                                  ),
+                                ),
+                                // الشركة - FOURTH in array
+                                pw.Padding(
+                                  padding: const pw.EdgeInsets.all(6),
+                                  child: pw.Directionality(
+                                    textDirection: pw.TextDirection.rtl,
+                                    child: pw.Text(
+                                      companyName,
+                                      style: getArabicStyle(fontSize: 10),
+                                      textAlign: pw.TextAlign.right,
+                                    ),
+                                  ),
+                                ),
+                                // الدواء - FIFTH in array
+                                pw.Padding(
+                                  padding: const pw.EdgeInsets.all(6),
+                                  child: pw.Directionality(
+                                    textDirection: pw.TextDirection.rtl,
+                                    child: pw.Column(
+                                      crossAxisAlignment:
+                                          pw.CrossAxisAlignment.start,
+                                      children: [
+                                        pw.Text(
+                                          medicineName,
+                                          style: getArabicStyle(
+                                            fontSize: 10,
+                                            fontWeight: pw.FontWeight.bold,
+                                          ),
+                                          textDirection: pw.TextDirection.rtl,
+                                        ),
+                                        if (description.isNotEmpty) ...[
+                                          pw.SizedBox(height: 2),
+                                          pw.Directionality(
+                                            textDirection: pw.TextDirection.rtl,
+                                            child: pw.Text(
+                                              description,
+                                              style: getArabicStyle(
+                                                fontSize: 8,
+                                              ),
+                                              textDirection:
+                                                  pw.TextDirection.rtl,
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                // الرقم - LAST in array (rightmost visually in RTL)
+                                pw.Padding(
+                                  padding: const pw.EdgeInsets.all(6),
+                                  child: pw.Directionality(
+                                    textDirection: pw.TextDirection.rtl,
+                                    child: pw.Text(
+                                      globalIndex.toString(),
+                                      style: getArabicStyle(fontSize: 10),
+                                      textAlign: pw.TextAlign.center,
+                                    ),
+                                  ),
+                                ),
+                              ]
+                            : [
+                                // Reversed order for RTL: الكمية, الشركة, الدواء, الرقم
+                                // (Visually: الرقم appears on RIGHT, الكمية appears on LEFT)
+                                // الكمية - FIRST in array (leftmost visually in RTL)
+                                pw.Padding(
+                                  padding: const pw.EdgeInsets.all(6),
+                                  child: pw.Directionality(
+                                    textDirection: pw.TextDirection.rtl,
+                                    child: pw.Text(
+                                      qty.toString(),
+                                      style: getArabicStyle(fontSize: 10),
+                                      textAlign: pw.TextAlign.right,
+                                    ),
+                                  ),
+                                ),
+                                // الشركة - SECOND in array
+                                pw.Padding(
+                                  padding: const pw.EdgeInsets.all(6),
+                                  child: pw.Directionality(
+                                    textDirection: pw.TextDirection.rtl,
+                                    child: pw.Text(
+                                      companyName,
+                                      style: getArabicStyle(fontSize: 10),
+                                      textAlign: pw.TextAlign.right,
+                                    ),
+                                  ),
+                                ),
+                                // الدواء - THIRD in array
+                                pw.Padding(
+                                  padding: const pw.EdgeInsets.all(6),
+                                  child: pw.Directionality(
+                                    textDirection: pw.TextDirection.rtl,
+                                    child: pw.Column(
+                                      crossAxisAlignment:
+                                          pw.CrossAxisAlignment.start,
+                                      children: [
+                                        pw.Text(
+                                          medicineName,
+                                          style: getArabicStyle(
+                                            fontSize: 10,
+                                            fontWeight: pw.FontWeight.bold,
+                                          ),
+                                          textDirection: pw.TextDirection.rtl,
+                                        ),
+                                        if (description.isNotEmpty) ...[
+                                          pw.SizedBox(height: 2),
+                                          pw.Directionality(
+                                            textDirection: pw.TextDirection.rtl,
+                                            child: pw.Text(
+                                              description,
+                                              style: getArabicStyle(
+                                                fontSize: 8,
+                                              ),
+                                              textDirection:
+                                                  pw.TextDirection.rtl,
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                // الرقم - LAST in array (rightmost visually in RTL)
+                                pw.Padding(
+                                  padding: const pw.EdgeInsets.all(6),
+                                  child: pw.Directionality(
+                                    textDirection: pw.TextDirection.rtl,
+                                    child: pw.Text(
+                                      globalIndex.toString(),
+                                      style: getArabicStyle(fontSize: 10),
+                                      textAlign: pw.TextAlign.center,
                                     ),
                                   ),
                                 ),
                               ],
-                            ],
-                          );
-                        }),
-                      ],
-                    ),
-                    // Total (if pricing enabled)
-                    if (pricingEnabled) ...[
-                      pw.SizedBox(height: 16),
-                      pw.Container(
-                        padding: const pw.EdgeInsets.all(12),
-                        decoration: pw.BoxDecoration(
-                          color: PdfColors.blue50,
-                          border: pw.Border.all(color: PdfColors.blue),
-                        ),
-                        child: pw.Directionality(
-                          textDirection: pw.TextDirection.rtl,
-                          child: pw.Row(
-                            mainAxisAlignment:
-                                pw.MainAxisAlignment.spaceBetween,
-                            children: [
-                              pw.Text(
-                                _calculateTotal(items, currencyMode,
-                                    exchangeRate, currencySymbol),
-                                style: getArabicStyle(
-                                  fontSize: 18,
-                                  fontWeight: pw.FontWeight.bold,
-                                ),
-                              ),
-                              pw.Text(
-                                'المجموع النهائي:',
-                                style: getArabicStyle(
-                                  fontSize: 18,
-                                  fontWeight: pw.FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
+                      );
+                    }),
                   ],
                 ),
+        ],
+      ),
+    );
+  }
+
+  // Build footer with totals (shown only on last page)
+  pw.Widget buildFooter() {
+    if (!pricingEnabled || items.isEmpty) return pw.SizedBox.shrink();
+
+    return pw.Directionality(
+      textDirection: pw.TextDirection.rtl,
+      child: pw.Container(
+        padding: const pw.EdgeInsets.all(10),
+        decoration: pw.BoxDecoration(
+          color: PdfColors.blue50,
+          border: pw.Border.all(color: PdfColors.blue),
+        ),
+        child: pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          children: [
+            // Label on right (in RTL layout)
+            pw.Text(
+              'المجموع النهائي:',
+              style: getArabicStyle(
+                fontSize: 16,
+                fontWeight: pw.FontWeight.bold,
               ),
-            ],
-          ),
-        );
-      },
-    ),
-  );
+              textDirection: pw.TextDirection.rtl,
+            ),
+            // Number on left (in RTL layout)
+            pw.Text(
+              _calculateTotal(
+                  items, currencyMode, exchangeRate, currencySymbol),
+              style: getArabicStyle(
+                fontSize: 16,
+                fontWeight: pw.FontWeight.bold,
+              ),
+              textDirection: pw.TextDirection.rtl,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Add pages for each chunk of items
+  for (int pageIndex = 0; pageIndex < itemChunks.length; pageIndex++) {
+    final isFirstPage = pageIndex == 0;
+    final isLastPage = pageIndex == itemChunks.length - 1;
+    final chunkItems = itemChunks[pageIndex];
+
+    pdf.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        build: (pw.Context context) {
+          return pw.Directionality(
+            textDirection: pw.TextDirection.rtl,
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                // Header (only on first page)
+                if (isFirstPage) buildHeader(),
+
+                // Items table for this page (with starting index for numbering)
+                buildItemsTable(chunkItems, pageIndex * itemsPerPage),
+
+                // Footer with totals (only on last page)
+                if (isLastPage) buildFooter(),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
 
   return pdf.save();
 }
