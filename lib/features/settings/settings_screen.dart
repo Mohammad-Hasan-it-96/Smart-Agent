@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/services/activation_service.dart';
 import '../../core/services/settings_service.dart';
@@ -31,6 +32,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _currencyMode = 'usd';
   bool _isLoadingPricingSettings = true;
   bool _isSavingPricing = false;
+  bool _hideCarousel = false;
+  bool _isLoadingCarouselSetting = true;
+  static const String _hideCarouselKey = 'hide_home_carousel';
 
   @override
   void initState() {
@@ -38,6 +42,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _loadAppVersion();
     _loadAgentData();
     _loadPricingSettings();
+    _loadCarouselSetting();
   }
 
   @override
@@ -134,6 +139,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
       setState(() {
         _isLoadingPricingSettings = false;
       });
+    }
+  }
+
+  Future<void> _loadCarouselSetting() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      setState(() {
+        _hideCarousel = prefs.getBool(_hideCarouselKey) ?? false;
+        _isLoadingCarouselSetting = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoadingCarouselSetting = false;
+      });
+    }
+  }
+
+  Future<void> _saveCarouselSetting(bool hide) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_hideCarouselKey, hide);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('حدث خطأ في حفظ الإعداد: ${e.toString()}'),
+          ),
+        );
+      }
     }
   }
 
@@ -323,6 +357,62 @@ class _SettingsScreenState extends State<SettingsScreen> {
               },
             ),
             const SizedBox(height: 16),
+
+            // Carousel Visibility Toggle Section
+            Card(
+              elevation: 2,
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.slideshow,
+                          color: theme.colorScheme.primary,
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          'إعدادات العرض',
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textDirection: TextDirection.rtl,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    if (_isLoadingCarouselSetting)
+                      const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(16.0),
+                          child: CircularProgressIndicator(),
+                        ),
+                      )
+                    else
+                      SwitchListTile(
+                        title: const Text(
+                          'إظهار الإعلان في الصفحة الرئيسية',
+                          textDirection: TextDirection.rtl,
+                        ),
+                        subtitle: const Text(
+                          'إظهار أو إخفاء الإعلان في أعلى الصفحة الرئيسية',
+                          style: TextStyle(fontSize: 12),
+                          textDirection: TextDirection.rtl,
+                        ),
+                        value: !_hideCarousel,
+                        onChanged: (value) {
+                          setState(() {
+                            _hideCarousel = !value;
+                          });
+                          _saveCarouselSetting(!value);
+                        },
+                      ),
+                  ],
+                ),
+              ),
+            ),
             const SizedBox(height: 16),
 
             // Agent Profile Section

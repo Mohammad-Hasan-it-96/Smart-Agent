@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/widgets/custom_app_bar.dart';
 import '../../core/utils/slide_page_route.dart';
 import '../../core/services/activation_service.dart';
@@ -22,12 +23,32 @@ class _HomeScreenState extends State<HomeScreen> {
   final ActivationService _activationService = ActivationService();
   int _currentPage = 0;
   Timer? _timer;
+  bool _hideCarousel = false;
+  static const String _hideCarouselKey = 'hide_home_carousel';
 
   @override
   void initState() {
     super.initState();
+    _loadCarouselVisibility();
     _startAutoSlide();
     _checkTrialExpiration();
+  }
+
+  Future<void> _loadCarouselVisibility() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _hideCarousel = prefs.getBool(_hideCarouselKey) ?? false;
+    });
+  }
+
+  Future<void> _hideCarouselPermanently() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_hideCarouselKey, true);
+    setState(() {
+      _hideCarousel = true;
+    });
+    // Stop the timer if carousel is hidden
+    _timer?.cancel();
   }
 
   Future<void> _checkTrialExpiration() async {
@@ -58,8 +79,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _startAutoSlide() {
+    if (_hideCarousel) return; // Don't start timer if carousel is hidden
     _timer = Timer.periodic(const Duration(seconds: 4), (timer) {
-      if (_pageController.hasClients) {
+      if (_pageController.hasClients && !_hideCarousel) {
         if (_currentPage < 2) {
           _currentPage++;
         } else {
@@ -82,11 +104,13 @@ class _HomeScreenState extends State<HomeScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // Header Carousel Slider
-            _buildCarouselSlider(theme),
-            const SizedBox(height: 8),
-            _buildPageIndicators(theme),
-            const SizedBox(height: 16),
+            // Header Carousel Slider (conditionally shown)
+            if (!_hideCarousel) ...[
+              _buildCarouselSlider(theme),
+              const SizedBox(height: 8),
+              _buildPageIndicators(theme),
+              const SizedBox(height: 16),
+            ],
 
             // Main Menu Grid
             Expanded(
@@ -131,76 +155,105 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return SizedBox(
       height: 200,
-      child: PageView.builder(
-        controller: _pageController,
-        onPageChanged: (index) {
-          setState(() {
-            _currentPage = index;
-          });
-        },
-        itemCount: slides.length,
-        itemBuilder: (context, index) {
-          final slide = slides[index];
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: Card(
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  gradient: LinearGradient(
-                    begin: Alignment.topRight,
-                    end: Alignment.bottomLeft,
-                    colors: slide.gradient,
+      child: Stack(
+        children: [
+          PageView.builder(
+            controller: _pageController,
+            onPageChanged: (index) {
+              setState(() {
+                _currentPage = index;
+              });
+            },
+            itemCount: slides.length,
+            itemBuilder: (context, index) {
+              final slide = slides[index];
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                child: Card(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      gradient: LinearGradient(
+                        begin: Alignment.topRight,
+                        end: Alignment.bottomLeft,
+                        colors: slide.gradient,
+                      ),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(24.0),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  slide.title,
+                                  style:
+                                      theme.textTheme.headlineSmall?.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  textDirection: TextDirection.rtl,
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  slide.subtitle,
+                                  style: theme.textTheme.bodyLarge?.copyWith(
+                                    color: Colors.white.withValues(alpha: 0.9),
+                                  ),
+                                  textDirection: TextDirection.rtl,
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Icon(
+                              slide.icon,
+                              size: 48,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
-                child: Padding(
-                  padding: const EdgeInsets.all(24.0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              slide.title,
-                              style: theme.textTheme.headlineSmall?.copyWith(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                              ),
-                              textDirection: TextDirection.rtl,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              slide.subtitle,
-                              style: theme.textTheme.bodyLarge?.copyWith(
-                                color: Colors.white.withValues(alpha: 0.9),
-                              ),
-                              textDirection: TextDirection.rtl,
-                            ),
-                          ],
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Icon(
-                          slide.icon,
-                          size: 48,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ],
+              );
+            },
+          ),
+          // Close/Hide button positioned on top-right
+          Positioned(
+            top: 8,
+            right: 8,
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: _hideCarouselPermanently,
+                borderRadius: BorderRadius.circular(20),
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Icon(
+                    Icons.close,
+                    size: 18,
+                    color: Colors.white,
                   ),
                 ),
               ),
             ),
-          );
-        },
+          ),
+        ],
       ),
     );
   }
