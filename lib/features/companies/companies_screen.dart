@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../core/db/database_helper.dart';
 import '../../core/models/company.dart';
+import '../../core/services/activation_service.dart';
+import '../../core/exceptions/trial_expired_exception.dart';
 import '../../core/utils/slide_page_route.dart';
 import '../../core/widgets/custom_app_bar.dart';
 import '../../core/widgets/empty_state.dart';
@@ -15,6 +17,7 @@ class CompaniesScreen extends StatefulWidget {
 
 class _CompaniesScreenState extends State<CompaniesScreen> {
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
+  final ActivationService _activationService = ActivationService();
   List<Company> _companies = [];
   List<Company> _filteredCompanies = [];
   final TextEditingController _searchController = TextEditingController();
@@ -108,6 +111,37 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
   }
 
   Future<void> _navigateToForm(Company? company) async {
+    // If adding new company, check trial limit first
+    if (company == null) {
+      try {
+        await _activationService.checkTrialLimitCompanies();
+      } on TrialExpiredException {
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('وصلت للحد المسموح'),
+              content: const Text(
+                  'وصلت للحد المسموح في النسخة التجريبية. يرجى التواصل مع المطور لتفعيل التطبيق.'),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    Navigator.of(context).pushNamedAndRemoveUntil(
+                      '/activation',
+                      (route) => false,
+                    );
+                  },
+                  child: const Text('تواصل مع المطور'),
+                ),
+              ],
+            ),
+          );
+        }
+        return;
+      }
+    }
+
     final result = await Navigator.push(
       context,
       SlidePageRoute(

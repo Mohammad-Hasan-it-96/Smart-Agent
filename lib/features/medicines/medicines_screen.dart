@@ -4,6 +4,8 @@ import '../../core/db/database_helper.dart';
 import '../../core/models/medicine.dart';
 import '../../core/models/company.dart';
 import '../../core/services/settings_service.dart';
+import '../../core/services/activation_service.dart';
+import '../../core/exceptions/trial_expired_exception.dart';
 import '../../core/utils/slide_page_route.dart';
 import '../../core/widgets/custom_app_bar.dart';
 import '../../core/widgets/empty_state.dart';
@@ -19,6 +21,7 @@ class MedicinesScreen extends StatefulWidget {
 class _MedicinesScreenState extends State<MedicinesScreen> {
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
   final SettingsService _settingsService = SettingsService();
+  final ActivationService _activationService = ActivationService();
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
@@ -310,6 +313,37 @@ class _MedicinesScreenState extends State<MedicinesScreen> {
   }
 
   Future<void> _navigateToForm(Map<String, dynamic>? medicine) async {
+    // If adding new medicine, check trial limit first
+    if (medicine == null) {
+      try {
+        await _activationService.checkTrialLimitMedicines();
+      } on TrialExpiredException {
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('وصلت للحد المسموح'),
+              content: const Text(
+                  'وصلت للحد المسموح في النسخة التجريبية. يرجى التواصل مع المطور لتفعيل التطبيق.'),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    Navigator.of(context).pushNamedAndRemoveUntil(
+                      '/activation',
+                      (route) => false,
+                    );
+                  },
+                  child: const Text('تواصل مع المطور'),
+                ),
+              ],
+            ),
+          );
+        }
+        return;
+      }
+    }
+
     Medicine? medicineModel;
     if (medicine != null) {
       medicineModel = Medicine(

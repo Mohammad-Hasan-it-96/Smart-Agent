@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../core/db/database_helper.dart';
 import '../../core/models/pharmacy.dart';
+import '../../core/services/activation_service.dart';
+import '../../core/exceptions/trial_expired_exception.dart';
 import '../../core/utils/slide_page_route.dart';
 import '../../core/widgets/custom_app_bar.dart';
 import '../../core/widgets/empty_state.dart';
@@ -15,6 +17,7 @@ class PharmaciesScreen extends StatefulWidget {
 
 class _PharmaciesScreenState extends State<PharmaciesScreen> {
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
+  final ActivationService _activationService = ActivationService();
   List<Pharmacy> _pharmacies = [];
   List<Pharmacy> _filteredPharmacies = [];
   final TextEditingController _searchController = TextEditingController();
@@ -111,6 +114,37 @@ class _PharmaciesScreenState extends State<PharmaciesScreen> {
   }
 
   Future<void> _navigateToForm(Pharmacy? pharmacy) async {
+    // If adding new pharmacy, check trial limit first
+    if (pharmacy == null) {
+      try {
+        await _activationService.checkTrialLimitPharmacies();
+      } on TrialExpiredException {
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('وصلت للحد المسموح'),
+              content: const Text(
+                  'وصلت للحد المسموح في النسخة التجريبية. يرجى التواصل مع المطور لتفعيل التطبيق.'),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    Navigator.of(context).pushNamedAndRemoveUntil(
+                      '/activation',
+                      (route) => false,
+                    );
+                  },
+                  child: const Text('تواصل مع المطور'),
+                ),
+              ],
+            ),
+          );
+        }
+        return;
+      }
+    }
+
     final result = await Navigator.push(
       context,
       SlidePageRoute(

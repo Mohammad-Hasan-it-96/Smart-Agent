@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../../core/db/database_helper.dart';
 import '../../core/models/medicine.dart';
 import '../../core/models/company.dart';
+import '../../core/services/activation_service.dart';
+import '../../core/exceptions/trial_expired_exception.dart';
 import '../../core/widgets/custom_app_bar.dart';
 
 class MedicineForm extends StatefulWidget {
@@ -20,6 +22,7 @@ class _MedicineFormState extends State<MedicineForm> {
   final _sourceController = TextEditingController();
   final _notesController = TextEditingController();
   final _dbHelper = DatabaseHelper.instance;
+  final _activationService = ActivationService();
   List<Company> _companies = [];
   int? _selectedCompanyId;
   String? _selectedForm;
@@ -119,6 +122,28 @@ class _MedicineFormState extends State<MedicineForm> {
       };
 
       if (widget.medicine == null) {
+        // Check trial mode limits before inserting
+        try {
+          await _activationService.checkTrialLimitMedicines();
+        } on TrialExpiredException catch (e) {
+          // Trial expired - redirect to activation
+          if (mounted) {
+            Navigator.of(context).pushNamedAndRemoveUntil(
+              '/activation',
+              (route) => false,
+            );
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                    'انتهت النسخة التجريبية. يرجى التواصل مع المطور لتفعيل التطبيق.'),
+                backgroundColor: Colors.red,
+                duration: Duration(seconds: 5),
+              ),
+            );
+          }
+          return;
+        }
+
         // Insert new medicine
         await _dbHelper.insert('medicines', medicineData);
         if (mounted) {

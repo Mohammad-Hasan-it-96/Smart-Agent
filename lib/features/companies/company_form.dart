@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../core/db/database_helper.dart';
 import '../../core/models/company.dart';
+import '../../core/services/activation_service.dart';
+import '../../core/exceptions/trial_expired_exception.dart';
 import '../../core/widgets/custom_app_bar.dart';
 
 class CompanyForm extends StatefulWidget {
@@ -16,6 +18,7 @@ class _CompanyFormState extends State<CompanyForm> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _dbHelper = DatabaseHelper.instance;
+  final _activationService = ActivationService();
   bool _isLoading = false;
 
   @override
@@ -47,6 +50,28 @@ class _CompanyFormState extends State<CompanyForm> {
       };
 
       if (widget.company == null) {
+        // Check trial mode limits before inserting
+        try {
+          await _activationService.checkTrialLimitCompanies();
+        } on TrialExpiredException catch (e) {
+          // Trial expired - redirect to activation
+          if (mounted) {
+            Navigator.of(context).pushNamedAndRemoveUntil(
+              '/activation',
+              (route) => false,
+            );
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                    'انتهت النسخة التجريبية. يرجى التواصل مع المطور لتفعيل التطبيق.'),
+                backgroundColor: Colors.red,
+                duration: Duration(seconds: 5),
+              ),
+            );
+          }
+          return;
+        }
+
         // Insert new company
         await _dbHelper.insert('companies', companyData);
         if (mounted) {
@@ -125,7 +150,8 @@ class _CompanyFormState extends State<CompanyForm> {
                           width: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(Colors.white),
                           ),
                         )
                       : Text(

@@ -24,14 +24,19 @@ class _ActivationScreenState extends State<ActivationScreen> {
   }
 
   Future<void> _checkTrialExpiration() async {
-    final expired = await _activationService.hasTrialExpired();
-    if (expired) {
-      // Disable trial mode permanently
-      await _activationService.disableTrialMode();
-      setState(() {
-        _trialExpired = true;
-        _errorMessage = 'انتهت النسخة التجريبية – يرجى التواصل مع المطور';
-      });
+    try {
+      final expired = await _activationService.hasTrialExpired();
+      if (expired) {
+        // Disable trial mode permanently
+        await _activationService.disableTrialMode();
+        setState(() {
+          _trialExpired = true;
+          _errorMessage =
+              'انتهت النسخة التجريبية. يرجى التواصل مع المطور لتفعيل التطبيق.';
+        });
+      }
+    } catch (e) {
+      // Ignore errors in trial expiration check
     }
   }
 
@@ -126,12 +131,39 @@ class _ActivationScreenState extends State<ActivationScreen> {
   }
 
   void _navigateToTrial() async {
-    // Enable trial mode
-    await _activationService.enableTrialMode();
+    try {
+      // Check if trial was already used once
+      final usedOnce = await _activationService.hasTrialBeenUsedOnce();
+      if (usedOnce) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('تم استخدام النسخة التجريبية مسبقاً'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+        return;
+      }
 
-    // Navigate to trial/home mode (allow access)
-    if (mounted) {
-      Navigator.of(context).pushReplacementNamed('/home');
+      // Enable trial mode
+      await _activationService.enableTrialMode();
+
+      // Navigate to trial/home mode (allow access)
+      if (mounted) {
+        Navigator.of(context).pushReplacementNamed('/home');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('حدث خطأ: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
     }
   }
 
@@ -239,22 +271,39 @@ class _ActivationScreenState extends State<ActivationScreen> {
             ),
           ] else if (!_isVerified && !_trialExpired) ...[
             // Show trial button if is_verified = 0 and trial not expired
-            ElevatedButton(
-              onPressed: _navigateToTrial,
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 32,
-                  vertical: 16,
-                ),
-                minimumSize: const Size(200, 50),
-                backgroundColor: Colors.orange,
-              ),
-              child: const Text(
-                'تجربة النسخة التجريبية',
-                style: TextStyle(fontSize: 18),
-              ),
+            // Check if trial was already used
+            FutureBuilder<bool>(
+              future: _activationService.hasTrialBeenUsedOnce(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const SizedBox.shrink();
+                }
+                final usedOnce = snapshot.data ?? false;
+                if (usedOnce) {
+                  return const SizedBox.shrink(); // Don't show trial button
+                }
+                return Column(
+                  children: [
+                    ElevatedButton(
+                      onPressed: _navigateToTrial,
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 32,
+                          vertical: 16,
+                        ),
+                        minimumSize: const Size(200, 50),
+                        backgroundColor: Colors.orange,
+                      ),
+                      child: const Text(
+                        'تجربة النسخة التجريبية',
+                        style: TextStyle(fontSize: 18),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                );
+              },
             ),
-            const SizedBox(height: 16),
             TextButton(
               onPressed: _checkActivation,
               child: const Text(
@@ -262,6 +311,18 @@ class _ActivationScreenState extends State<ActivationScreen> {
                 style: TextStyle(fontSize: 16),
               ),
             ),
+          ] else if (_trialExpired) ...[
+            // Trial expired message
+            const Text(
+              'انتهت النسخة التجريبية. يرجى التواصل مع المطور لتفعيل التطبيق.',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.red,
+              ),
+              textDirection: TextDirection.rtl,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
           ],
         ],
       ),

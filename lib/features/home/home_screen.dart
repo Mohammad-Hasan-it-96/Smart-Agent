@@ -24,14 +24,23 @@ class _HomeScreenState extends State<HomeScreen> {
   int _currentPage = 0;
   Timer? _timer;
   bool _hideCarousel = false;
+  bool _isTrialMode = false;
   static const String _hideCarouselKey = 'hide_home_carousel';
 
   @override
   void initState() {
     super.initState();
     _loadCarouselVisibility();
+    _checkTrialStatus();
     _startAutoSlide();
     _checkTrialExpiration();
+  }
+
+  Future<void> _checkTrialStatus() async {
+    final isTrial = await _activationService.isTrialMode();
+    setState(() {
+      _isTrialMode = isTrial;
+    });
   }
 
   Future<void> _loadCarouselVisibility() async {
@@ -53,21 +62,26 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _checkTrialExpiration() async {
     // Check if trial has expired
-    final trialExpired = await _activationService.hasTrialExpired();
-    if (trialExpired && mounted) {
-      // Disable trial mode and redirect to activation
-      await _activationService.disableTrialMode();
-      Navigator.of(context).pushNamedAndRemoveUntil(
-        '/activation',
-        (route) => false,
-      );
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('انتهت النسخة التجريبية – يرجى التواصل مع المطور'),
-          backgroundColor: Colors.red,
-          duration: Duration(seconds: 5),
-        ),
-      );
+    try {
+      final trialExpired = await _activationService.hasTrialExpired();
+      if (trialExpired && mounted) {
+        // Disable trial mode and redirect to activation
+        await _activationService.disableTrialMode();
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          '/activation',
+          (route) => false,
+        );
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+                'انتهت النسخة التجريبية. يرجى التواصل مع المطور لتفعيل التطبيق.'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 5),
+          ),
+        );
+      }
+    } catch (e) {
+      // Ignore errors
     }
   }
 
@@ -100,7 +114,31 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: const CustomAppBar(title: 'الصفحة الرئيسية'),
+      appBar: CustomAppBar(
+        title: 'الصفحة الرئيسية',
+        actions: _isTrialMode
+            ? [
+                Container(
+                  margin: const EdgeInsets.only(left: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.orange,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Text(
+                    'نسخة تجريبية',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textDirection: TextDirection.rtl,
+                  ),
+                ),
+              ]
+            : null,
+      ),
       body: SafeArea(
         child: Column(
           children: [

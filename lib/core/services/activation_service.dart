@@ -2,8 +2,10 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../db/database_helper.dart';
+import '../exceptions/trial_expired_exception.dart';
 
 enum ActivationState {
   checking,
@@ -79,6 +81,13 @@ class ActivationService {
 
         // Save activation_verified status
         await _saveActivationVerified(verified);
+
+        // If verified, disable trial mode
+        if (verified) {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setBool(_trialActiveKey, false);
+          await prefs.setBool(_trialEnabledKey, false);
+        }
 
         // Mark that API has been called
         final prefs = await SharedPreferences.getInstance();
@@ -165,15 +174,61 @@ class ActivationService {
 
   static const String _trialEnabledKey = 'trial_enabled';
   static const String _trialActiveKey = 'trial_active';
-  static const String _trialPharmaciesLimitKey = 'trial_pharmacies_limit';
+  static const String _trialPharmaciesLimitKey = 'trial_limit_pharmacies';
+  static const String _trialCompaniesLimitKey = 'trial_limit_companies';
+  static const String _trialMedicinesLimitKey = 'trial_limit_medicines';
+  static const String _trialUsedOnceFileName = 'trial_used_once.flag';
+
+  // Initialize trial limits (called on first trial activation)
+  Future<void> _initializeTrialLimits() async {
+    final prefs = await SharedPreferences.getInstance();
+    // Set default limits if not already set
+    if (prefs.getInt(_trialPharmaciesLimitKey) == null) {
+      await prefs.setInt(_trialPharmaciesLimitKey, 1);
+    }
+    if (prefs.getInt(_trialCompaniesLimitKey) == null) {
+      await prefs.setInt(_trialCompaniesLimitKey, 2);
+    }
+    if (prefs.getInt(_trialMedicinesLimitKey) == null) {
+      await prefs.setInt(_trialMedicinesLimitKey, 10);
+    }
+  }
+
+  // Check if trial was used once (tamper-proof)
+  Future<bool> hasTrialBeenUsedOnce() async {
+    try {
+      final directory = await getApplicationDocumentsDirectory();
+      final file = File('${directory.path}/$_trialUsedOnceFileName');
+      return await file.exists();
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // Mark trial as used once (tamper-proof)
+  Future<void> markTrialAsUsedOnce() async {
+    try {
+      final directory = await getApplicationDocumentsDirectory();
+      final file = File('${directory.path}/$_trialUsedOnceFileName');
+      await file.writeAsString('trial_used');
+    } catch (e) {
+      // Ignore errors
+    }
+  }
 
   // Enable trial mode
   Future<void> enableTrialMode() async {
+    // Check if trial was already used once
+    final usedOnce = await hasTrialBeenUsedOnce();
+    if (usedOnce) {
+      throw Exception('تم استخدام النسخة التجريبية مسبقاً');
+    }
+
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_trialEnabledKey, true);
     await prefs.setBool(_trialActiveKey, true);
-    // Set default limit to 1
-    await prefs.setInt(_trialPharmaciesLimitKey, 1);
+    await _initializeTrialLimits();
+    await markTrialAsUsedOnce();
   }
 
   // Disable trial mode (when expired)
@@ -201,17 +256,32 @@ class ActivationService {
     return prefs.getInt(_trialPharmaciesLimitKey) ?? 1;
   }
 
+  // Get trial companies limit
+  Future<int> getTrialCompaniesLimit() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt(_trialCompaniesLimitKey) ?? 2;
+  }
+
+  // Get trial medicines limit
+  Future<int> getTrialMedicinesLimit() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt(_trialMedicinesLimitKey) ?? 10;
+  }
+
   // Check if currently in trial mode
   Future<bool> isTrialMode() async {
     final verified = await getActivationVerified();
+    if (verified == true) {
+      return false; // Activated, not in trial
+    }
     final trialActive = await isTrialActive();
-    return (verified == false) && trialActive;
+    return trialActive;
   }
 
-  // Check if trial has expired (pharmacy count >= limit)
-  Future<bool> hasTrialExpired() async {
+  // Check trial limit for pharmacies
+  Future<void> checkTrialLimitPharmacies() async {
     if (!await isTrialMode()) {
-      return false; // Not in trial mode, so not expired
+      return; // Not in trial mode, no limit
     }
 
     final db = await DatabaseHelper.instance.database;
@@ -220,6 +290,62 @@ class ActivationService {
     final count = result.first['count'] as int;
     final limit = await getTrialPharmaciesLimit();
 
-    return count >= limit;
+    if (count >= limit) {
+      await disableTrialMode();
+      throw TrialExpiredException('pharmacies');
+    }
+  }
+
+  // Check trial limit for companies
+  Future<void> checkTrialLimitCompanies() async {
+    if (!await isTrialMode()) {
+      return; // Not in trial mode, no limit
+    }
+
+    final db = await DatabaseHelper.instance.database;
+    final result = await db.rawQuery('SELECT COUNT(*) as count FROM companies');
+    final count = result.first['count'] as int;
+    final limit = await getTrialCompaniesLimit();
+
+    if (count >= limit) {
+      await disableTrialMode();
+      throw TrialExpiredException('companies');
+    }
+  }
+
+  // Check trial limit for medicines
+  Future<void> checkTrialLimitMedicines() async {
+    if (!await isTrialMode()) {
+      return; // Not in trial mode, no limit
+    }
+
+    final db = await DatabaseHelper.instance.database;
+    final result = await db.rawQuery('SELECT COUNT(*) as count FROM medicines');
+    final count = result.first['count'] as int;
+    final limit = await getTrialMedicinesLimit();
+
+    if (count >= limit) {
+      await disableTrialMode();
+      throw TrialExpiredException('medicines');
+    }
+  }
+
+  // Check if trial has expired (any limit reached)
+  Future<bool> hasTrialExpired() async {
+    if (!await isTrialMode()) {
+      return false; // Not in trial mode, so not expired
+    }
+
+    try {
+      await checkTrialLimitPharmacies();
+      await checkTrialLimitCompanies();
+      await checkTrialLimitMedicines();
+      return false;
+    } catch (e) {
+      if (e is TrialExpiredException) {
+        return true;
+      }
+      return false;
+    }
   }
 }

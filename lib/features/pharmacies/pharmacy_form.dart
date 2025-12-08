@@ -3,6 +3,7 @@ import '../../core/db/database_helper.dart';
 import '../../core/models/pharmacy.dart';
 import '../../core/widgets/custom_app_bar.dart';
 import '../../core/services/activation_service.dart';
+import '../../core/exceptions/trial_expired_exception.dart';
 
 class PharmacyForm extends StatefulWidget {
   final Pharmacy? pharmacy;
@@ -58,34 +59,25 @@ class _PharmacyFormState extends State<PharmacyForm> {
 
       if (widget.pharmacy == null) {
         // Check trial mode limits before inserting
-        final isTrialMode = await _activationService.isTrialMode();
-        if (isTrialMode) {
-          // Get current pharmacy count
-          final db = await _dbHelper.database;
-          final result =
-              await db.rawQuery('SELECT COUNT(*) as count FROM pharmacies');
-          final currentCount = result.first['count'] as int;
-          final limit = await _activationService.getTrialPharmaciesLimit();
-
-          if (currentCount >= limit) {
-            // Trial expired - disable trial and redirect
-            await _activationService.disableTrialMode();
-            if (mounted) {
-              Navigator.of(context).pushNamedAndRemoveUntil(
-                '/activation',
-                (route) => false,
-              );
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content:
-                      Text('انتهت النسخة التجريبية – يرجى التواصل مع المطور'),
-                  backgroundColor: Colors.red,
-                  duration: Duration(seconds: 5),
-                ),
-              );
-            }
-            return;
+        try {
+          await _activationService.checkTrialLimitPharmacies();
+        } on TrialExpiredException catch (e) {
+          // Trial expired - redirect to activation
+          if (mounted) {
+            Navigator.of(context).pushNamedAndRemoveUntil(
+              '/activation',
+              (route) => false,
+            );
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                    'انتهت النسخة التجريبية. يرجى التواصل مع المطور لتفعيل التطبيق.'),
+                backgroundColor: Colors.red,
+                duration: Duration(seconds: 5),
+              ),
+            );
           }
+          return;
         }
 
         // Insert new pharmacy
