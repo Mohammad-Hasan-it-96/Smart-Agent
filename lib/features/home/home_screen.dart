@@ -1,9 +1,12 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/widgets/custom_app_bar.dart';
+import '../../core/widgets/update_dialog.dart';
 import '../../core/utils/slide_page_route.dart';
 import '../../core/services/activation_service.dart';
+import '../../core/services/update_service.dart';
 import '../companies/companies_screen.dart';
 import '../medicines/medicines_screen.dart';
 import '../pharmacies/pharmacies_screen.dart';
@@ -34,6 +37,26 @@ class _HomeScreenState extends State<HomeScreen> {
     _checkTrialStatus();
     _startAutoSlide();
     _checkTrialExpiration();
+    _checkForUpdates();
+  }
+
+  Future<void> _checkForUpdates() async {
+    try {
+      final pkg = await PackageInfo.fromPlatform();
+      final updateService = UpdateService();
+      final info = await updateService.checkForUpdate(pkg.version);
+      if (info != null && mounted) {
+        // Delay to ensure UI is ready
+        Future.delayed(const Duration(seconds: 1), () {
+          if (mounted) {
+            showUpdateDialog(context, info);
+          }
+        });
+      }
+    } catch (e) {
+      // Silently fail - don't interrupt user experience
+      print("Update check failed: $e");
+    }
   }
 
   Future<void> _checkTrialStatus() async {

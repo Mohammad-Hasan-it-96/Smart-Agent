@@ -6,8 +6,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/services/activation_service.dart';
 import '../../core/services/settings_service.dart';
+import '../../core/services/update_service.dart';
 import '../../core/providers/theme_provider.dart';
 import '../../core/widgets/custom_app_bar.dart';
+import '../../core/widgets/update_dialog.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -847,6 +849,64 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ],
                 ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Update Check Section
+            Card(
+              elevation: 2,
+              child: ListTile(
+                leading: const Icon(Icons.system_update, color: Colors.blue),
+                title: const Text(
+                  'التحقق من وجود تحديث',
+                  style: TextStyle(fontWeight: FontWeight.w500),
+                  textDirection: TextDirection.rtl,
+                ),
+                trailing: const Icon(
+                  Icons.arrow_back_ios,
+                  size: 20,
+                  textDirection: TextDirection.rtl,
+                ),
+                onTap: () async {
+                  try {
+                    final pkg = await PackageInfo.fromPlatform();
+                    final updateService = UpdateService();
+                    final info =
+                        await updateService.checkForUpdate(pkg.version);
+
+                    if (mounted) {
+                      if (info != null) {
+                        showUpdateDialog(context, info);
+                      } else {
+                        showDialog(
+                          context: context,
+                          builder: (_) => AlertDialog(
+                            content: const Text(
+                              "لا يوجد تحديث جديد حالياً.",
+                              textDirection: TextDirection.rtl,
+                            ),
+                            actions: [
+                              TextButton(
+                                child: const Text("حسناً"),
+                                onPressed: () => Navigator.pop(context),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                              'حدث خطأ أثناء التحقق من التحديث: ${e.toString()}'),
+                        ),
+                      );
+                    }
+                  }
+                },
               ),
             ),
           ],
