@@ -14,6 +14,8 @@ class OrderItemData {
   final String companyName;
   final int qty;
   final double price;
+  final bool isGift;
+  final int giftQty;
 
   OrderItemData({
     required this.medicineId,
@@ -22,6 +24,8 @@ class OrderItemData {
     required this.companyName,
     required this.qty,
     this.price = 0.0,
+    this.isGift = false,
+    this.giftQty = 0,
   });
 }
 
@@ -443,7 +447,9 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
 
     int? selectedCompanyId;
     final qtyController = TextEditingController();
+    final giftQtyController = TextEditingController();
     final formKey = GlobalKey<FormState>();
+    bool isGift = false;
 
     await showDialog(
       context: context,
@@ -541,6 +547,70 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
                       return null;
                     },
                   ),
+                  const SizedBox(height: 12),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .surfaceVariant
+                          .withValues(alpha: 0.4),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: CheckboxListTile(
+                      value: isGift,
+                      onChanged: (value) {
+                        setDialogState(() {
+                          isGift = value ?? false;
+                          if (!isGift) {
+                            giftQtyController.clear();
+                          }
+                        });
+                      },
+                      controlAffinity: ListTileControlAffinity.leading,
+                      title: const Text(
+                        'هدية',
+                        textDirection: TextDirection.rtl,
+                      ),
+                      subtitle: const Text(
+                        'لا يتم احتساب سعر هذا العنصر في المجموع',
+                        textDirection: TextDirection.rtl,
+                      ),
+                    ),
+                  ),
+                  if (isGift) ...[
+                    const SizedBox(height: 12),
+                    const Text(
+                      'كمية الهدية:',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textDirection: TextDirection.rtl,
+                    ),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: giftQtyController,
+                      decoration: InputDecoration(
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        prefixIcon: const Icon(Icons.card_giftcard),
+                      ),
+                      keyboardType: TextInputType.number,
+                      textDirection: TextDirection.rtl,
+                      validator: (value) {
+                        if (!isGift) return null;
+                        if (value == null || value.trim().isEmpty) {
+                          return 'يرجى إدخال كمية الهدية';
+                        }
+                        final qty = int.tryParse(value.trim());
+                        if (qty == null || qty <= 0) {
+                          return 'يرجى إدخال كمية هدية صحيحة';
+                        }
+                        return null;
+                      },
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -572,6 +642,18 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
                   return;
                 }
 
+                int giftQty = 0;
+                if (isGift) {
+                  final giftQtyText = giftQtyController.text.trim();
+                  giftQty = int.tryParse(giftQtyText) ?? 0;
+                  if (giftQty <= 0) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('يرجى إدخال كمية هدية صحيحة')),
+                    );
+                    return;
+                  }
+                }
+
                 // Check if pharmacy is selected
                 if (_selectedPharmacyId == null) {
                   Navigator.pop(context);
@@ -592,15 +674,19 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
 
                 // Add to order list
                 setState(() {
-                  _orderItems.add(OrderItemData(
-                    medicineId: medicine['id'] as int,
-                    medicineName: medicine['name'] as String,
-                    companyId: selectedCompanyId!,
-                    companyName: company.name,
-                    qty: qty,
-                    price:
-                        medicinePriceUsd, // Store USD price from medicine record
-                  ));
+                  _orderItems.add(
+                    OrderItemData(
+                      medicineId: medicine['id'] as int,
+                      medicineName: medicine['name'] as String,
+                      companyId: selectedCompanyId!,
+                      companyName: company.name,
+                      qty: qty,
+                      // If item is a gift, store price as 0 (will not affect totals)
+                      price: medicinePriceUsd,
+                      isGift: false,
+                      giftQty: giftQty,
+                    ),
+                  );
                 });
 
                 Navigator.pop(context);
@@ -669,6 +755,8 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
           'medicine_id': item.medicineId,
           'qty': item.qty,
           'price': item.price,
+          'is_gift': item.isGift ? 1 : 0,
+          'gift_qty': item.giftQty,
         };
         await _dbHelper.insert('order_items', itemData);
       }
@@ -1071,13 +1159,31 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
                                             ),
                                             textDirection: TextDirection.rtl,
                                           ),
-                                          subtitle: Text(
-                                            item.companyName,
-                                            style: TextStyle(
-                                              color: Colors.grey[600],
-                                              fontSize: 14,
-                                            ),
-                                            textDirection: TextDirection.rtl,
+                                          subtitle: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.end,
+                                            children: [
+                                              Text(
+                                                item.companyName,
+                                                style: TextStyle(
+                                                  color: Colors.grey[600],
+                                                  fontSize: 14,
+                                                ),
+                                                textDirection:
+                                                    TextDirection.rtl,
+                                              ),
+                                              if (item.giftQty > 0)
+                                                Text(
+                                                  'هدية: ${item.giftQty}',
+                                                  style: const TextStyle(
+                                                    color: Colors.green,
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                  textDirection:
+                                                      TextDirection.rtl,
+                                                ),
+                                            ],
                                           ),
                                           trailing: IconButton(
                                             icon: const Icon(

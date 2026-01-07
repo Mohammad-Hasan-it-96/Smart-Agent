@@ -86,7 +86,13 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
           order_items.order_id,
           order_items.medicine_id,
           order_items.qty,
-          COALESCE(medicines.price_usd, order_items.price, 0) as price_usd,
+          CASE 
+            WHEN order_items.is_gift = 1 THEN 0 
+            ELSE COALESCE(medicines.price_usd, order_items.price, 0) 
+          END as price_usd,
+          order_items.price as price,
+          order_items.is_gift as is_gift,
+          order_items.gift_qty as gift_qty,
           medicines.name as medicine_name,
           medicines.source as medicine_source,
           medicines.form as medicine_form,
@@ -340,7 +346,6 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                                   // Use price_usd from medicine record (fallback to order_items.price for backward compatibility)
                                   final priceUsd =
                                       (item['price_usd'] as num?)?.toDouble() ??
-                                          (item['price'] as num?)?.toDouble() ??
                                           0.0;
                                   double displayPrice = priceUsd;
                                   if (_pricingEnabled &&
@@ -349,6 +354,8 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                                   }
                                   final qty =
                                       (item['qty'] as num?)?.toInt() ?? 0;
+                                  final giftQty =
+                                      (item['gift_qty'] as num?)?.toInt() ?? 0;
                                   final total = displayPrice * qty;
                                   final currencySymbol =
                                       _currencyMode == 'syp' ? 'ل.س' : '\$';
@@ -362,6 +369,8 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                                   final form = item['medicine_form'] as String?;
                                   final notes =
                                       item['medicine_notes'] as String?;
+                                  final isGiftOnly =
+                                      (item['is_gift'] as int? ?? 0) == 1;
 
                                   return Card(
                                     margin: const EdgeInsets.only(bottom: 12),
@@ -471,6 +480,20 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                                               textDirection: TextDirection.rtl,
                                             ),
                                           ],
+                                          if (isGiftOnly || giftQty > 0) ...[
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              giftQty > 0
+                                                  ? 'هدية: $giftQty'
+                                                  : 'هدية',
+                                              style: theme.textTheme.bodySmall
+                                                  ?.copyWith(
+                                                color: Colors.green,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                              textDirection: TextDirection.rtl,
+                                            ),
+                                          ],
                                           const SizedBox(height: 8),
                                           // Quantity and price
                                           Row(
@@ -487,7 +510,8 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                                                 textDirection:
                                                     TextDirection.rtl,
                                               ),
-                                              if (_pricingEnabled)
+                                              if (_pricingEnabled &&
+                                                  !isGiftOnly)
                                                 Text(
                                                   '${displayPrice.toStringAsFixed(2)} $currencySymbol × $qty = ${total.toStringAsFixed(2)} $currencySymbol',
                                                   style: theme
@@ -582,6 +606,8 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
   String _calculateTotal() {
     double totalUsd = 0.0;
     for (final item in _orderItems) {
+      final isGiftOnly = (item['is_gift'] as int? ?? 0) == 1;
+      if (isGiftOnly) continue;
       // Use price_usd from medicine record (fallback to order_items.price for backward compatibility)
       final priceUsd = (item['price_usd'] as num?)?.toDouble() ??
           (item['price'] as num?)?.toDouble() ??

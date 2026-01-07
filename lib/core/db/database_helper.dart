@@ -20,7 +20,7 @@ class DatabaseHelper {
     return await databaseFactory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 6,
+        version: 8,
         onCreate: _createDB,
         onUpgrade: _onUpgrade,
       ),
@@ -83,7 +83,9 @@ class DatabaseHelper {
         order_id INTEGER,
         medicine_id INTEGER,
         qty INTEGER,
-        price REAL DEFAULT 0
+        price REAL DEFAULT 0,
+        is_gift INTEGER NOT NULL DEFAULT 0,
+        gift_qty INTEGER NOT NULL DEFAULT 0
       )
     ''');
 
@@ -180,6 +182,26 @@ class DatabaseHelper {
         // Column might already exist, ignore error
       }
     }
+    if (oldVersion < 7) {
+      // Add is_gift column to order_items table
+      try {
+        await db.execute('''
+          ALTER TABLE order_items ADD COLUMN is_gift INTEGER NOT NULL DEFAULT 0
+        ''');
+      } catch (e) {
+        // Column might already exist, ignore error
+      }
+    }
+    if (oldVersion < 8) {
+      // Add gift_qty column to order_items table
+      try {
+        await db.execute('''
+          ALTER TABLE order_items ADD COLUMN gift_qty INTEGER NOT NULL DEFAULT 0
+        ''');
+      } catch (e) {
+        // Column might already exist, ignore error
+      }
+    }
   }
 
   Future<Database> openDatabase() async {
@@ -269,8 +291,13 @@ class DatabaseHelper {
         order_items.order_id,
         order_items.medicine_id,
         order_items.qty,
-        COALESCE(medicines.price_usd, order_items.price, 0) as price_usd,
+        CASE 
+          WHEN order_items.is_gift = 1 THEN 0 
+          ELSE COALESCE(medicines.price_usd, order_items.price, 0) 
+        END as price_usd,
         order_items.price as price,
+        order_items.is_gift as is_gift,
+        order_items.gift_qty as gift_qty,
         medicines.name as medicine_name,
         medicines.source as medicine_source,
         medicines.form as medicine_form,
