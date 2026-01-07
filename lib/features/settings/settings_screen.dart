@@ -290,6 +290,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  void _showBackupDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text(
+          'ميزة غير مفعّلة حالياً',
+          textDirection: TextDirection.rtl,
+        ),
+        content: const Text(
+          'سيتم تفعيل ميزة النسخ الاحتياطي قريباً في تحديث قادم.',
+          textDirection: TextDirection.rtl,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text(
+              'حسناً',
+              textDirection: TextDirection.rtl,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -696,6 +721,59 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ),
                           textDirection: TextDirection.rtl,
                           textAlign: TextAlign.right,
+                        ),
+                      ),
+                      const Icon(
+                        Icons.arrow_back_ios,
+                        size: 20,
+                        textDirection: TextDirection.rtl,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Backup Section
+            Card(
+              elevation: 2,
+              child: InkWell(
+                onTap: _showBackupDialog,
+                borderRadius: BorderRadius.circular(12),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Icon(
+                        Icons.backup,
+                        color: Colors.blue,
+                      ),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            const Text(
+                              'النسخ الاحتياطي',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              textDirection: TextDirection.rtl,
+                              textAlign: TextAlign.right,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'حفظ نسخة من البيانات',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                              ),
+                              textDirection: TextDirection.rtl,
+                              textAlign: TextAlign.right,
+                            ),
+                          ],
                         ),
                       ),
                       const Icon(
