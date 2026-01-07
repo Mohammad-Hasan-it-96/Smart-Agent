@@ -106,20 +106,21 @@ class _MedicineFormState extends State<MedicineForm> {
         }
       }
 
-      final medicineData = {
-        'name': _nameController.text.trim(),
-        'company_id': _selectedCompanyId,
-        'price_usd': priceUsd ?? 0.0,
-        'source': _sourceController.text.trim().isEmpty
+      final medicine = Medicine(
+        id: widget.medicine?.id,
+        name: _nameController.text.trim(),
+        companyId: _selectedCompanyId!,
+        priceUsd: priceUsd ?? 0.0,
+        source: _sourceController.text.trim().isEmpty
             ? null
             : _sourceController.text.trim(),
-        'form': _selectedForm?.trim().isEmpty == true
+        form: _selectedForm?.trim().isEmpty == true
             ? null
             : _selectedForm?.trim(),
-        'notes': _notesController.text.trim().isEmpty
+        notes: _notesController.text.trim().isEmpty
             ? null
             : _notesController.text.trim(),
-      };
+      );
 
       if (widget.medicine == null) {
         // Check trial mode limits before inserting
@@ -145,19 +146,19 @@ class _MedicineFormState extends State<MedicineForm> {
         }
 
         // Insert new medicine
-        await _dbHelper.insert('medicines', medicineData);
+        await _dbHelper.insert('medicines', medicine.toMap());
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('تمت الإضافة بنجاح')),
           );
         }
       } else {
-        // Update existing medicine
+        // Update existing medicine (all columns)
         await _dbHelper.update(
           'medicines',
-          medicineData,
+          medicine.toMap(),
           where: 'id = ?',
-          whereArgs: [widget.medicine!.id],
+          whereArgs: [medicine.id],
         );
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(

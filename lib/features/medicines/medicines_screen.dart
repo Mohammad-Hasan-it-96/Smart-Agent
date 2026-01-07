@@ -346,11 +346,26 @@ class _MedicinesScreenState extends State<MedicinesScreen> {
 
     Medicine? medicineModel;
     if (medicine != null) {
-      medicineModel = Medicine(
-        id: medicine['id'] as int,
-        name: medicine['name'] as String,
-        companyId: medicine['company_id'] as int,
-      );
+      // Always load full medicine record from database to ensure
+      // all fields (price, source, form, notes) are available.
+      try {
+        final maps = await _dbHelper.query(
+          'medicines',
+          where: 'id = ?',
+          whereArgs: [medicine['id']],
+          limit: 1,
+        );
+        if (maps.isNotEmpty) {
+          medicineModel = Medicine.fromMap(maps.first);
+        }
+      } catch (_) {
+        // Fallback to minimal data if query fails for any reason
+        medicineModel = Medicine(
+          id: medicine['id'] as int,
+          name: medicine['name'] as String,
+          companyId: medicine['company_id'] as int,
+        );
+      }
     }
 
     final result = await Navigator.push(
