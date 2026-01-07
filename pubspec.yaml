@@ -33,6 +33,10 @@ dependencies:
   package_info_plus: ^8.0.0
   url_launcher: ^6.2.5
 
+  # File sharing and picking
+  share_plus: ^10.1.2
+  file_picker: ^8.1.4
+
   flutter_native_splash: ^2.3.10
 
 dev_dependencies:
