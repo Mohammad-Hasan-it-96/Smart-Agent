@@ -4,6 +4,7 @@ class SettingsService {
   static const String _enablePricesKey = 'settings_enable_prices';
   static const String _currencyModeKey = 'settings_currency_mode';
   static const String _exchangeRateKey = 'settings_exchange_rate';
+  static const String _inventoryPhoneKey = 'settings_inventory_phone';
 
   // Check if pricing is enabled
   Future<bool> isPricingEnabled() async {
@@ -39,6 +40,21 @@ class SettingsService {
   Future<void> setExchangeRate(double rate) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setDouble(_exchangeRateKey, rate);
+  }
+
+  // Inventory WhatsApp phone number (for warehouse)
+  Future<String> getInventoryPhone() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_inventoryPhoneKey) ?? '';
+  }
+
+  Future<void> setInventoryPhone(String phone) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (phone.trim().isEmpty) {
+      await prefs.remove(_inventoryPhoneKey);
+    } else {
+      await prefs.setString(_inventoryPhoneKey, phone.trim());
+    }
   }
 
   // Convert USD value to display currency

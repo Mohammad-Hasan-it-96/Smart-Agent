@@ -1,4 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:printing/printing.dart';
 import '../../core/db/database_helper.dart';
 import '../../core/services/settings_service.dart';
@@ -23,6 +27,10 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
   bool _pricingEnabled = false;
   String _currencyMode = 'usd';
   double _exchangeRate = 1.0;
+  String _inventoryPhone = '';
+
+  static const MethodChannel _whatsAppChannel =
+      MethodChannel('smart_agent/whatsapp_share');
 
   @override
   void initState() {
@@ -35,10 +43,12 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     final enabled = await _settingsService.isPricingEnabled();
     final mode = await _settingsService.getCurrencyMode();
     final rate = await _settingsService.getExchangeRate();
+    final inventoryPhone = await _settingsService.getInventoryPhone();
     setState(() {
       _pricingEnabled = enabled;
       _currencyMode = mode;
       _exchangeRate = rate;
+      _inventoryPhone = inventoryPhone;
     });
   }
 
@@ -144,6 +154,95 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('حدث خطأ أثناء التصدير: ${e.toString()}')),
+        );
+      }
+    }
+  }
+
+  /// Share order PDF directly to WhatsApp chat with inventory phone
+  Future<void> _shareWithInventory() async {
+    if (_orderInfo == null) return;
+    final phone = _inventoryPhone.trim();
+    if (phone.isEmpty) return;
+
+    if (!Platform.isAndroid) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('مشاركة الواتساب مدعومة على أجهزة أندرويد فقط.'),
+          ),
+        );
+      }
+      return;
+    }
+
+    try {
+      // Prepare pharmacy data
+      final pharmacy = {
+        'pharmacy_name': _orderInfo!['pharmacy_name'],
+        'pharmacy_address': _orderInfo!['pharmacy_address'],
+        'pharmacy_phone': _orderInfo!['pharmacy_phone'],
+      };
+
+      // Generate PDF bytes
+      final pdfBytes = await generateOrderPdf(
+        _orderInfo!,
+        _orderItems,
+        pharmacy,
+      );
+
+      // Save PDF to a temporary file so it can be shared via FileProvider
+      final tempDir = await getTemporaryDirectory();
+      final filePath = '${tempDir.path}/order_${widget.orderId}.pdf';
+      final file = File(filePath);
+      await file.writeAsBytes(pdfBytes, flush: true);
+
+      try {
+        await _whatsAppChannel.invokeMethod('sharePdfToWhatsApp', {
+          'filePath': file.path,
+          'phone': phone,
+          'message': 'هذه الطلبية الخاصة بالصيدلية',
+        });
+      } on PlatformException catch (e) {
+        if (!mounted) return;
+        if (e.code == 'WHATSAPP_NOT_INSTALLED' ||
+            e.code == 'WHATSAPP_NOT_AVAILABLE') {
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text(
+                'تنبيه',
+                textDirection: TextDirection.rtl,
+              ),
+              content: const Text(
+                'تعذّر فتح واتساب للمشاركة على هذا الجهاز.\n'
+                'تأكد من تثبيت واتساب وتحديثه ثم أعد المحاولة.',
+                textDirection: TextDirection.rtl,
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('حسناً'),
+                ),
+              ],
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content:
+                  Text('تعذّر مشاركة الطلبية عبر واتساب. يرجى المحاولة مرة أخرى.'),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content:
+                Text('حدث خطأ غير متوقع أثناء مشاركة الطلبية. يرجى المحاولة لاحقاً.'),
+          ),
         );
       }
     }
@@ -445,7 +544,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                           ),
                         ],
 
-                        // Export PDF Button
+                        // Export / Share Buttons
                         const SizedBox(height: 24),
                         FilledButton.icon(
                           onPressed: _exportToPdf,
@@ -458,6 +557,21 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                             padding: const EdgeInsets.symmetric(vertical: 16),
                           ),
                         ),
+                        if (_inventoryPhone.trim().isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          OutlinedButton.icon(
+                            onPressed: _shareWithInventory,
+                            icon: const Icon(Icons.share),
+                            label: const Text(
+                              'مشاركة مع المستودع',
+                              style: TextStyle(fontSize: 16),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 14),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),

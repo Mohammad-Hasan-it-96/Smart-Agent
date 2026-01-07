@@ -27,6 +27,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _settingsService = SettingsService();
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
+  final _inventoryPhoneController = TextEditingController();
   final _exchangeRateController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   final _pricingFormKey = GlobalKey<FormState>();
@@ -56,6 +57,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void dispose() {
     _nameController.dispose();
     _phoneController.dispose();
+    _inventoryPhoneController.dispose();
     _exchangeRateController.dispose();
     super.dispose();
   }
@@ -64,9 +66,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     try {
       final name = await _activationService.getAgentName();
       final phone = await _activationService.getAgentPhone();
+      final inventoryPhone = await _settingsService.getInventoryPhone();
       setState(() {
         _nameController.text = name;
         _phoneController.text = phone;
+        _inventoryPhoneController.text = inventoryPhone;
         _isLoadingAgentData = false;
       });
     } catch (e) {
@@ -88,6 +92,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     try {
       await _activationService.saveAgentName(_nameController.text.trim());
       await _activationService.saveAgentPhone(_phoneController.text.trim());
+      await _settingsService
+          .setInventoryPhone(_inventoryPhoneController.text.trim());
 
       if (!mounted) return;
 
@@ -631,6 +637,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             return null;
                           },
                           onFieldSubmitted: (_) => _saveAgentData(),
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Inventory WhatsApp Number Field
+                        TextFormField(
+                          controller: _inventoryPhoneController,
+                          decoration: InputDecoration(
+                            labelText: 'رقم المستودع (واتساب)',
+                            hintText: 'أدخل رقم المستودع لمشاركة الطلبية',
+                            prefixIcon: const Icon(Icons.phone),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          keyboardType: TextInputType.phone,
+                          textDirection: TextDirection.rtl,
+                          textAlign: TextAlign.right,
+                          textInputAction: TextInputAction.done,
+                          enabled: !_isSaving,
+                          // Optional: don't force the user to fill it
+                          validator: (value) {
+                            final text = value?.trim() ?? '';
+                            if (text.isEmpty) return null;
+                            // Basic phone validation (at least 8 digits)
+                            final phoneRegex = RegExp(r'^[0-9]{8,}$');
+                            if (!phoneRegex.hasMatch(
+                              text.replaceAll(RegExp(r'[\s\-\(\)\+]'), ''),
+                            )) {
+                              return 'يرجى إدخال رقم مستودع صحيح (8 أرقام على الأقل)';
+                            }
+                            return null;
+                          },
                         ),
                         const SizedBox(height: 16),
                         // Save Button
