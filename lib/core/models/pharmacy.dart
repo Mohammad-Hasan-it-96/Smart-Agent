@@ -1,14 +1,14 @@
 class Pharmacy {
   final int? id;
   final String name;
-  final String address;
-  final String phone;
+  final String? address;
+  final String? phone;
 
   Pharmacy({
     this.id,
     required this.name,
-    required this.address,
-    required this.phone,
+    this.address,
+    this.phone,
   });
 
   Map<String, dynamic> toMap() {
@@ -24,8 +24,8 @@ class Pharmacy {
     return Pharmacy(
       id: map['id'] as int?,
       name: map['name'] as String,
-      address: map['address'] as String,
-      phone: map['phone'] as String,
+      address: map['address'] as String?,
+      phone: map['phone'] as String?,
     );
   }
 }

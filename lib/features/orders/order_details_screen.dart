@@ -292,19 +292,30 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                                   theme,
                                 ),
                                 const SizedBox(height: 12),
-                                _buildInfoRow(
-                                  'العنوان',
-                                  _orderInfo!['pharmacy_address'] ??
-                                      'غير معروف',
-                                  theme,
-                                ),
-                                const SizedBox(height: 12),
-                                _buildInfoRow(
-                                  'الهاتف',
-                                  _orderInfo!['pharmacy_phone'] ?? 'غير معروف',
-                                  theme,
-                                ),
-                                const SizedBox(height: 12),
+                                if (((_orderInfo!['pharmacy_address'] as String?)
+                                            ?.trim()
+                                            .isNotEmpty ??
+                                        false)) ...[
+                                  _buildInfoRow(
+                                    'العنوان',
+                                    (_orderInfo!['pharmacy_address'] as String)
+                                        .trim(),
+                                    theme,
+                                  ),
+                                  const SizedBox(height: 12),
+                                ],
+                                if (((_orderInfo!['pharmacy_phone'] as String?)
+                                            ?.trim()
+                                            .isNotEmpty ??
+                                        false)) ...[
+                                  _buildInfoRow(
+                                    'الهاتف',
+                                    (_orderInfo!['pharmacy_phone'] as String)
+                                        .trim(),
+                                    theme,
+                                  ),
+                                  const SizedBox(height: 12),
+                                ],
                                 _buildInfoRow(
                                   'التاريخ',
                                   _formatDate(

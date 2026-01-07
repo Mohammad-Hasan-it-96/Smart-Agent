@@ -62,10 +62,13 @@ class _PharmaciesScreenState extends State<PharmaciesScreen> {
         _filteredPharmacies = _pharmacies;
       } else {
         _filteredPharmacies = _pharmacies
-            .where((pharmacy) =>
-                pharmacy.name.toLowerCase().contains(query) ||
-                pharmacy.address.toLowerCase().contains(query) ||
-                pharmacy.phone.contains(query))
+            .where((pharmacy) {
+              final address = (pharmacy.address ?? '').toLowerCase();
+              final phone = pharmacy.phone ?? '';
+              return pharmacy.name.toLowerCase().contains(query) ||
+                  address.contains(query) ||
+                  phone.contains(query);
+            })
             .toList();
       }
     });
@@ -225,43 +228,59 @@ class _PharmaciesScreenState extends State<PharmaciesScreen> {
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      Row(
-                                        children: [
-                                          Icon(
-                                            Icons.location_on,
-                                            size: 14,
-                                            color: theme.colorScheme.onSurface
-                                                .withValues(alpha: 0.6),
-                                          ),
-                                          const SizedBox(width: 4),
-                                          Expanded(
-                                            child: Text(
-                                              pharmacy.address,
-                                              style: theme.textTheme.bodyMedium,
-                                              textDirection: TextDirection.rtl,
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
+                                      if ((pharmacy.address ?? '')
+                                          .trim()
+                                          .isNotEmpty) ...[
+                                        Row(
+                                          children: [
+                                            Icon(
+                                              Icons.location_on,
+                                              size: 14,
+                                              color: theme.colorScheme.onSurface
+                                                  .withValues(alpha: 0.6),
                                             ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Row(
-                                        children: [
-                                          Icon(
-                                            Icons.phone,
-                                            size: 14,
-                                            color: theme.colorScheme.onSurface
-                                                .withValues(alpha: 0.6),
-                                          ),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            pharmacy.phone,
-                                            style: theme.textTheme.bodyMedium,
-                                            textDirection: TextDirection.rtl,
-                                          ),
-                                        ],
-                                      ),
+                                            const SizedBox(width: 4),
+                                            Expanded(
+                                              child: Text(
+                                                pharmacy.address!.trim(),
+                                                style:
+                                                    theme.textTheme.bodyMedium,
+                                                textDirection:
+                                                    TextDirection.rtl,
+                                                maxLines: 1,
+                                                overflow:
+                                                    TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                      if ((pharmacy.phone ?? '')
+                                          .trim()
+                                          .isNotEmpty) ...[
+                                        if ((pharmacy.address ?? '')
+                                            .trim()
+                                            .isNotEmpty)
+                                          const SizedBox(height: 4),
+                                        Row(
+                                          children: [
+                                            Icon(
+                                              Icons.phone,
+                                              size: 14,
+                                              color: theme.colorScheme.onSurface
+                                                  .withValues(alpha: 0.6),
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              pharmacy.phone!.trim(),
+                                              style:
+                                                  theme.textTheme.bodyMedium,
+                                              textDirection:
+                                                  TextDirection.rtl,
+                                            ),
+                                          ],
+                                        ),
+                                      ],
                                     ],
                                   ),
                                 ),

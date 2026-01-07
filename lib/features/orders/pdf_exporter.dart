@@ -37,7 +37,8 @@ Future<Uint8List> generateOrderPdf(
 
   // Create text style with Arabic font
   pw.TextStyle getArabicStyle({
-    double fontSize = 12,
+    // Slightly smaller default for better A4 fit
+    double fontSize = 10,
     pw.FontWeight fontWeight = pw.FontWeight.normal,
   }) {
     return pw.TextStyle(
@@ -93,7 +94,7 @@ Future<Uint8List> generateOrderPdf(
                     ? 'المندوب الذكي - فاتورة مبيع'
                     : 'المندوب الذكي - طلبية',
                 style: getArabicStyle(
-                  fontSize: 20,
+                  fontSize: 18,
                   fontWeight: pw.FontWeight.bold,
                 ),
               ),
@@ -124,7 +125,7 @@ Future<Uint8List> generateOrderPdf(
                         pw.Text(
                           'معلومات المندوب',
                           style: getArabicStyle(
-                            fontSize: 10,
+                            fontSize: 9,
                             fontWeight: pw.FontWeight.bold,
                           ),
                         ),
@@ -132,7 +133,7 @@ Future<Uint8List> generateOrderPdf(
                         if (agentName.isNotEmpty)
                           pw.Text(
                             'اسم المندوب: $agentName',
-                            style: getArabicStyle(fontSize: 9),
+                            style: getArabicStyle(fontSize: 8.5),
                             textDirection: pw.TextDirection.rtl,
                           ),
                         if (agentName.isNotEmpty && agentPhone.isNotEmpty)
@@ -140,7 +141,7 @@ Future<Uint8List> generateOrderPdf(
                         if (agentPhone.isNotEmpty)
                           pw.Text(
                             'رقم المندوب: $agentPhone',
-                            style: getArabicStyle(fontSize: 9),
+                            style: getArabicStyle(fontSize: 8.5),
                             textDirection: pw.TextDirection.rtl,
                           ),
                       ],
@@ -167,32 +168,42 @@ Future<Uint8List> generateOrderPdf(
                       pw.Text(
                         'معلومات الصيدلية',
                         style: getArabicStyle(
-                          fontSize: 10,
+                          fontSize: 9,
                           fontWeight: pw.FontWeight.bold,
                         ),
                       ),
                       pw.SizedBox(height: 4),
                       pw.Text(
                         'الاسم: ${pharmacy['pharmacy_name'] ?? 'غير معروف'}',
-                        style: getArabicStyle(fontSize: 9),
+                        style: getArabicStyle(fontSize: 8.5),
                         textDirection: pw.TextDirection.rtl,
                       ),
                       pw.SizedBox(height: 2),
-                      pw.Text(
-                        'العنوان: ${pharmacy['pharmacy_address'] ?? 'غير معروف'}',
-                        style: getArabicStyle(fontSize: 9),
-                        textDirection: pw.TextDirection.rtl,
-                      ),
-                      pw.SizedBox(height: 2),
-                      pw.Text(
-                        'الهاتف: ${pharmacy['pharmacy_phone'] ?? 'غير معروف'}',
-                        style: getArabicStyle(fontSize: 9),
-                        textDirection: pw.TextDirection.rtl,
-                      ),
-                      pw.SizedBox(height: 2),
+                      if ((pharmacy['pharmacy_address'] as String?)
+                              ?.trim()
+                              .isNotEmpty ??
+                          false) ...[
+                        pw.Text(
+                          'العنوان: ${(pharmacy['pharmacy_address'] as String).trim()}',
+                          style: getArabicStyle(fontSize: 8.5),
+                          textDirection: pw.TextDirection.rtl,
+                        ),
+                        pw.SizedBox(height: 2),
+                      ],
+                      if ((pharmacy['pharmacy_phone'] as String?)
+                              ?.trim()
+                              .isNotEmpty ??
+                          false) ...[
+                        pw.Text(
+                          'الهاتف: ${(pharmacy['pharmacy_phone'] as String).trim()}',
+                          style: getArabicStyle(fontSize: 8.5),
+                          textDirection: pw.TextDirection.rtl,
+                        ),
+                        pw.SizedBox(height: 2),
+                      ],
                       pw.Text(
                         'التاريخ: ${_formatDate(order['created_at'] as String)}',
-                        style: getArabicStyle(fontSize: 9),
+                        style: getArabicStyle(fontSize: 8.5),
                         textDirection: pw.TextDirection.rtl,
                       ),
                     ],
@@ -218,7 +229,7 @@ Future<Uint8List> generateOrderPdf(
           pw.Text(
             'عناصر الطلبية',
             style: getArabicStyle(
-              fontSize: 14,
+              fontSize: 12,
               fontWeight: pw.FontWeight.bold,
             ),
             textDirection: pw.TextDirection.rtl,
@@ -231,7 +242,7 @@ Future<Uint8List> generateOrderPdf(
                     textDirection: pw.TextDirection.rtl,
                     child: pw.Text(
                       'لا توجد عناصر في هذه الطلبية',
-                      style: getArabicStyle(fontSize: 11),
+                      style: getArabicStyle(fontSize: 10),
                     ),
                   ),
                 )
@@ -268,14 +279,14 @@ Future<Uint8List> generateOrderPdf(
                               // (Visually: الرقم appears on RIGHT, المجموع appears on LEFT)
                               // المجموع - FIRST in array (leftmost visually in RTL)
                               pw.Padding(
-                                padding: const pw.EdgeInsets.all(6),
+                                padding: const pw.EdgeInsets.all(4),
                                 child: pw.Directionality(
                                   textDirection: pw.TextDirection.rtl,
                                   child: pw.Text(
                                     'المجموع',
                                     style: getArabicStyle(
                                       fontWeight: pw.FontWeight.bold,
-                                      fontSize: 10,
+                                      fontSize: 9,
                                     ),
                                     textAlign: pw.TextAlign.right,
                                   ),
@@ -283,14 +294,14 @@ Future<Uint8List> generateOrderPdf(
                               ),
                               // السعر - SECOND in array
                               pw.Padding(
-                                padding: const pw.EdgeInsets.all(6),
+                                padding: const pw.EdgeInsets.all(4),
                                 child: pw.Directionality(
                                   textDirection: pw.TextDirection.rtl,
                                   child: pw.Text(
                                     'السعر',
                                     style: getArabicStyle(
                                       fontWeight: pw.FontWeight.bold,
-                                      fontSize: 10,
+                                      fontSize: 9,
                                     ),
                                     textAlign: pw.TextAlign.right,
                                   ),
@@ -298,14 +309,14 @@ Future<Uint8List> generateOrderPdf(
                               ),
                               // الكمية - THIRD in array
                               pw.Padding(
-                                padding: const pw.EdgeInsets.all(6),
+                                padding: const pw.EdgeInsets.all(4),
                                 child: pw.Directionality(
                                   textDirection: pw.TextDirection.rtl,
                                   child: pw.Text(
                                     'الكمية',
                                     style: getArabicStyle(
                                       fontWeight: pw.FontWeight.bold,
-                                      fontSize: 10,
+                                      fontSize: 9,
                                     ),
                                     textAlign: pw.TextAlign.right,
                                   ),
@@ -313,14 +324,14 @@ Future<Uint8List> generateOrderPdf(
                               ),
                               // هدية - FOURTH in array
                               pw.Padding(
-                                padding: const pw.EdgeInsets.all(6),
+                                padding: const pw.EdgeInsets.all(4),
                                 child: pw.Directionality(
                                   textDirection: pw.TextDirection.rtl,
                                   child: pw.Text(
                                     'هدية',
                                     style: getArabicStyle(
                                       fontWeight: pw.FontWeight.bold,
-                                      fontSize: 10,
+                                      fontSize: 9,
                                     ),
                                     textAlign: pw.TextAlign.right,
                                   ),
@@ -328,14 +339,14 @@ Future<Uint8List> generateOrderPdf(
                               ),
                               // الشركة - FIFTH in array
                               pw.Padding(
-                                padding: const pw.EdgeInsets.all(6),
+                                padding: const pw.EdgeInsets.all(4),
                                 child: pw.Directionality(
                                   textDirection: pw.TextDirection.rtl,
                                   child: pw.Text(
                                     'الشركة',
                                     style: getArabicStyle(
                                       fontWeight: pw.FontWeight.bold,
-                                      fontSize: 10,
+                                      fontSize: 9,
                                     ),
                                     textAlign: pw.TextAlign.right,
                                   ),
@@ -343,14 +354,14 @@ Future<Uint8List> generateOrderPdf(
                               ),
                               // الدواء - SIXTH in array
                               pw.Padding(
-                                padding: const pw.EdgeInsets.all(6),
+                                padding: const pw.EdgeInsets.all(4),
                                 child: pw.Directionality(
                                   textDirection: pw.TextDirection.rtl,
                                   child: pw.Text(
                                     'الدواء',
                                     style: getArabicStyle(
                                       fontWeight: pw.FontWeight.bold,
-                                      fontSize: 10,
+                                      fontSize: 9,
                                     ),
                                     textAlign: pw.TextAlign.right,
                                   ),
@@ -358,14 +369,14 @@ Future<Uint8List> generateOrderPdf(
                               ),
                               // الرقم - LAST in array (rightmost visually in RTL)
                               pw.Padding(
-                                padding: const pw.EdgeInsets.all(6),
+                                padding: const pw.EdgeInsets.all(4),
                                 child: pw.Directionality(
                                   textDirection: pw.TextDirection.rtl,
                                   child: pw.Text(
                                     'الرقم',
                                     style: getArabicStyle(
                                       fontWeight: pw.FontWeight.bold,
-                                      fontSize: 10,
+                                      fontSize: 9,
                                     ),
                                     textAlign: pw.TextAlign.center,
                                   ),
@@ -504,13 +515,13 @@ Future<Uint8List> generateOrderPdf(
                                 // (Visually: الرقم appears on RIGHT, المجموع appears on LEFT)
                                 // المجموع - FIRST in array (leftmost visually in RTL)
                                 pw.Padding(
-                                  padding: const pw.EdgeInsets.all(6),
+                                  padding: const pw.EdgeInsets.all(4),
                                   child: pw.Directionality(
                                     textDirection: pw.TextDirection.rtl,
                                     child: pw.Text(
                                       '${total.toStringAsFixed(2)} $currencySymbol',
                                       style: getArabicStyle(
-                                        fontSize: 10,
+                                        fontSize: 9,
                                         fontWeight: pw.FontWeight.bold,
                                       ),
                                       textAlign: pw.TextAlign.right,
@@ -519,55 +530,55 @@ Future<Uint8List> generateOrderPdf(
                                 ),
                                 // السعر - SECOND in array
                                 pw.Padding(
-                                  padding: const pw.EdgeInsets.all(6),
+                                  padding: const pw.EdgeInsets.all(4),
                                   child: pw.Directionality(
                                     textDirection: pw.TextDirection.rtl,
                                     child: pw.Text(
                                       '${displayPrice.toStringAsFixed(2)} $currencySymbol',
-                                      style: getArabicStyle(fontSize: 10),
+                                      style: getArabicStyle(fontSize: 9),
                                       textAlign: pw.TextAlign.right,
                                     ),
                                   ),
                                 ),
                                 // الكمية - THIRD in array
                                 pw.Padding(
-                                  padding: const pw.EdgeInsets.all(6),
+                                  padding: const pw.EdgeInsets.all(4),
                                   child: pw.Directionality(
                                     textDirection: pw.TextDirection.rtl,
                                     child: pw.Text(
                                       qty.toString(),
-                                      style: getArabicStyle(fontSize: 10),
+                                      style: getArabicStyle(fontSize: 9),
                                       textAlign: pw.TextAlign.right,
                                     ),
                                   ),
                                 ),
                                 // هدية - FOURTH in array
                                 pw.Padding(
-                                  padding: const pw.EdgeInsets.all(6),
+                                  padding: const pw.EdgeInsets.all(4),
                                   child: pw.Directionality(
                                     textDirection: pw.TextDirection.rtl,
                                     child: pw.Text(
                                       (isGiftOnly ? qty : giftQty).toString(),
-                                      style: getArabicStyle(fontSize: 10),
+                                      style: getArabicStyle(fontSize: 9),
                                       textAlign: pw.TextAlign.right,
                                     ),
                                   ),
                                 ),
                                 // الشركة - FIFTH in array
                                 pw.Padding(
-                                  padding: const pw.EdgeInsets.all(6),
+                                  padding: const pw.EdgeInsets.all(4),
                                   child: pw.Directionality(
                                     textDirection: pw.TextDirection.rtl,
                                     child: pw.Text(
                                       companyName,
-                                      style: getArabicStyle(fontSize: 10),
+                                      style: getArabicStyle(fontSize: 9),
                                       textAlign: pw.TextAlign.right,
                                     ),
                                   ),
                                 ),
                                 // الدواء - SIXTH in array
                                 pw.Padding(
-                                  padding: const pw.EdgeInsets.all(6),
+                                  padding: const pw.EdgeInsets.all(4),
                                   child: pw.Directionality(
                                     textDirection: pw.TextDirection.rtl,
                                     child: pw.Column(
@@ -577,7 +588,7 @@ Future<Uint8List> generateOrderPdf(
                                         pw.Text(
                                           medicineName,
                                           style: getArabicStyle(
-                                            fontSize: 10,
+                                            fontSize: 9,
                                             fontWeight: pw.FontWeight.bold,
                                           ),
                                           textDirection: pw.TextDirection.rtl,
@@ -589,7 +600,7 @@ Future<Uint8List> generateOrderPdf(
                                             child: pw.Text(
                                               description,
                                               style: getArabicStyle(
-                                                fontSize: 8,
+                                                fontSize: 7,
                                               ),
                                               textDirection:
                                                   pw.TextDirection.rtl,
@@ -602,12 +613,12 @@ Future<Uint8List> generateOrderPdf(
                                 ),
                                 // الرقم - LAST in array (rightmost visually in RTL)
                                 pw.Padding(
-                                  padding: const pw.EdgeInsets.all(6),
+                                  padding: const pw.EdgeInsets.all(4),
                                   child: pw.Directionality(
                                     textDirection: pw.TextDirection.rtl,
                                     child: pw.Text(
                                       globalIndex.toString(),
-                                      style: getArabicStyle(fontSize: 10),
+                                      style: getArabicStyle(fontSize: 9),
                                       textAlign: pw.TextAlign.center,
                                     ),
                                   ),
@@ -744,7 +755,7 @@ Future<Uint8List> generateOrderPdf(
                 pw.Text(
                   'عدد الأصناف:',
                   style: getArabicStyle(
-                    fontSize: 12,
+                    fontSize: 11,
                     fontWeight: pw.FontWeight.bold,
                   ),
                   textDirection: pw.TextDirection.rtl,
@@ -752,7 +763,7 @@ Future<Uint8List> generateOrderPdf(
                 pw.Text(
                   itemsCount.toString(),
                   style: getArabicStyle(
-                    fontSize: 12,
+                    fontSize: 11,
                     fontWeight: pw.FontWeight.bold,
                   ),
                   textDirection: pw.TextDirection.rtl,
@@ -766,7 +777,7 @@ Future<Uint8List> generateOrderPdf(
                 pw.Text(
                   'مجموع الأقلام:',
                   style: getArabicStyle(
-                    fontSize: 12,
+                    fontSize: 11,
                     fontWeight: pw.FontWeight.bold,
                   ),
                   textDirection: pw.TextDirection.rtl,
@@ -774,7 +785,7 @@ Future<Uint8List> generateOrderPdf(
                 pw.Text(
                   qtyCount.toString(),
                   style: getArabicStyle(
-                    fontSize: 12,
+                    fontSize: 11,
                     fontWeight: pw.FontWeight.bold,
                   ),
                   textDirection: pw.TextDirection.rtl,
@@ -789,7 +800,7 @@ Future<Uint8List> generateOrderPdf(
                   pw.Text(
                     'المجموع النهائي:',
                     style: getArabicStyle(
-                      fontSize: 16,
+                      fontSize: 14,
                       fontWeight: pw.FontWeight.bold,
                     ),
                     textDirection: pw.TextDirection.rtl,
@@ -797,7 +808,7 @@ Future<Uint8List> generateOrderPdf(
                   pw.Text(
                     totalText,
                     style: getArabicStyle(
-                      fontSize: 16,
+                      fontSize: 14,
                       fontWeight: pw.FontWeight.bold,
                     ),
                     textDirection: pw.TextDirection.rtl,

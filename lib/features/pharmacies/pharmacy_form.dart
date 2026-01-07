@@ -28,8 +28,8 @@ class _PharmacyFormState extends State<PharmacyForm> {
     super.initState();
     if (widget.pharmacy != null) {
       _nameController.text = widget.pharmacy!.name;
-      _addressController.text = widget.pharmacy!.address;
-      _phoneController.text = widget.pharmacy!.phone;
+      _addressController.text = widget.pharmacy!.address ?? '';
+      _phoneController.text = widget.pharmacy!.phone ?? '';
     }
   }
 
@@ -53,15 +53,18 @@ class _PharmacyFormState extends State<PharmacyForm> {
     try {
       final pharmacyData = {
         'name': _nameController.text.trim(),
-        'address': _addressController.text.trim(),
-        'phone': _phoneController.text.trim(),
+        'address': _addressController.text.trim().isEmpty
+            ? null
+            : _addressController.text.trim(),
+        'phone':
+            _phoneController.text.trim().isEmpty ? null : _phoneController.text.trim(),
       };
 
       if (widget.pharmacy == null) {
         // Check trial mode limits before inserting
         try {
           await _activationService.checkTrialLimitPharmacies();
-        } on TrialExpiredException catch (e) {
+        } on TrialExpiredException {
           // Trial expired - redirect to activation
           if (mounted) {
             Navigator.of(context).pushNamedAndRemoveUntil(
@@ -156,12 +159,7 @@ class _PharmacyFormState extends State<PharmacyForm> {
                   textDirection: TextDirection.rtl,
                   textAlign: TextAlign.right,
                   maxLines: 2,
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'يرجى إدخال العنوان';
-                    }
-                    return null;
-                  },
+                  // Optional
                 ),
                 const SizedBox(height: 20),
                 TextFormField(
@@ -173,12 +171,7 @@ class _PharmacyFormState extends State<PharmacyForm> {
                   keyboardType: TextInputType.phone,
                   textDirection: TextDirection.rtl,
                   textAlign: TextAlign.right,
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'يرجى إدخال رقم الهاتف';
-                    }
-                    return null;
-                  },
+                  // Optional
                 ),
                 const SizedBox(height: 32),
                 FilledButton(

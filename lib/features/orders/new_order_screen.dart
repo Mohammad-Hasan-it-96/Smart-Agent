@@ -168,12 +168,7 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
                   ),
                   textDirection: TextDirection.rtl,
                   textAlign: TextAlign.right,
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'يرجى إدخال العنوان';
-                    }
-                    return null;
-                  },
+                  // Optional
                 ),
                 const SizedBox(height: 16),
                 TextFormField(
@@ -188,12 +183,7 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
                   keyboardType: TextInputType.phone,
                   textDirection: TextDirection.rtl,
                   textAlign: TextAlign.right,
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'يرجى إدخال رقم الهاتف';
-                    }
-                    return null;
-                  },
+                  // Optional
                 ),
                 const SizedBox(height: 24),
                 ElevatedButton(
@@ -244,10 +234,12 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
                               }
                             }
 
+                            final address = addressController.text.trim();
+                            final phone = phoneController.text.trim();
                             final pharmacyData = {
                               'name': nameController.text.trim(),
-                              'address': addressController.text.trim(),
-                              'phone': phoneController.text.trim(),
+                              'address': address.isEmpty ? null : address,
+                              'phone': phone.isEmpty ? null : phone,
                             };
 
                             final newPharmacyId = await _dbHelper.insert(
