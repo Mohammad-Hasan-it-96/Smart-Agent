@@ -709,9 +709,23 @@ Future<Uint8List> generateOrderPdf(
     );
   }
 
-  // Build footer with totals (shown only on last page)
+  // Build footer summary (shown only on last page)
   pw.Widget buildFooter() {
-    if (!pricingEnabled || items.isEmpty) return pw.SizedBox.shrink();
+    // Definitions:
+    // - Items count = number of distinct order lines (rows in the table)
+    // - Quantity count = sum of quantities across all lines (includes gift_qty)
+    final itemsCount = items.length;
+    int qtyCount = 0;
+    for (final item in items) {
+      final qty = (item['qty'] as num?)?.toInt() ?? 0;
+      final giftQty = (item['gift_qty'] as num?)?.toInt() ?? 0;
+      qtyCount += qty + giftQty;
+    }
+
+    if (itemsCount == 0) return pw.SizedBox.shrink();
+
+    final totalText =
+        _calculateTotal(items, currencyMode, exchangeRate, currencySymbol);
 
     return pw.Directionality(
       textDirection: pw.TextDirection.rtl,
@@ -721,28 +735,76 @@ Future<Uint8List> generateOrderPdf(
           color: PdfColors.blue50,
           border: pw.Border.all(color: PdfColors.blue),
         ),
-        child: pw.Row(
-          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        child: pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
-            // Label on right (in RTL layout)
-            pw.Text(
-              'المجموع النهائي:',
-              style: getArabicStyle(
-                fontSize: 16,
-                fontWeight: pw.FontWeight.bold,
-              ),
-              textDirection: pw.TextDirection.rtl,
+            pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Text(
+                  'عدد الأصناف:',
+                  style: getArabicStyle(
+                    fontSize: 12,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                  textDirection: pw.TextDirection.rtl,
+                ),
+                pw.Text(
+                  itemsCount.toString(),
+                  style: getArabicStyle(
+                    fontSize: 12,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                  textDirection: pw.TextDirection.rtl,
+                ),
+              ],
             ),
-            // Number on left (in RTL layout)
-            pw.Text(
-              _calculateTotal(
-                  items, currencyMode, exchangeRate, currencySymbol),
-              style: getArabicStyle(
-                fontSize: 16,
-                fontWeight: pw.FontWeight.bold,
-              ),
-              textDirection: pw.TextDirection.rtl,
+            pw.SizedBox(height: 4),
+            pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Text(
+                  'مجموع الأقلام:',
+                  style: getArabicStyle(
+                    fontSize: 12,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                  textDirection: pw.TextDirection.rtl,
+                ),
+                pw.Text(
+                  qtyCount.toString(),
+                  style: getArabicStyle(
+                    fontSize: 12,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                  textDirection: pw.TextDirection.rtl,
+                ),
+              ],
             ),
+            if (pricingEnabled) ...[
+              pw.Divider(color: PdfColors.blue),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text(
+                    'المجموع النهائي:',
+                    style: getArabicStyle(
+                      fontSize: 16,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                    textDirection: pw.TextDirection.rtl,
+                  ),
+                  pw.Text(
+                    totalText,
+                    style: getArabicStyle(
+                      fontSize: 16,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                    textDirection: pw.TextDirection.rtl,
+                  ),
+                ],
+              ),
+            ],
           ],
         ),
       ),
