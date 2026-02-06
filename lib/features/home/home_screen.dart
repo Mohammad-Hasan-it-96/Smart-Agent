@@ -84,23 +84,38 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _checkTrialExpiration() async {
-    // Check if trial has expired
+    // Check if license has expired (using server-provided expires_at)
     try {
-      final trialExpired = await _activationService.hasTrialExpired();
-      if (trialExpired && mounted) {
-        // Disable trial mode and redirect to activation
-        await _activationService.disableTrialMode();
+      // First check offline limit
+      final offlineLimitExceeded = await _activationService.isOfflineLimitExceeded();
+      if (offlineLimitExceeded && mounted) {
+        // Offline limit exceeded - redirect to offline limit screen
         Navigator.of(context).pushNamedAndRemoveUntil(
-          '/activation',
+          '/offline-limit',
           (route) => false,
         );
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-                'انتهت النسخة التجريبية. يرجى التواصل مع المطور لتفعيل التطبيق.'),
-            backgroundColor: Colors.red,
-            duration: Duration(seconds: 5),
-          ),
+        return;
+      }
+
+      // Then check license expiration
+      final licenseExpired = await _activationService.isLicenseExpired();
+      if (licenseExpired && mounted) {
+        // License expired - redirect to subscription plans screen
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          '/trial-expired-plans',
+          (route) => false,
+        );
+        return;
+      }
+
+      // Then check if trial has expired
+      final trialExpired = await _activationService.hasTrialExpired();
+      if (trialExpired && mounted) {
+        // Disable trial mode and redirect to trial expired plans screen
+        await _activationService.disableTrialMode();
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          '/trial-expired-plans',
+          (route) => false,
         );
       }
     } catch (e) {

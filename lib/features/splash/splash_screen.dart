@@ -101,17 +101,47 @@ class _SplashScreenState extends State<SplashScreen>
       return;
     }
 
-    // Check activation status
+    // Check for time tampering first
+    final timeTampered = await _activationService.checkTimeTampering();
+    if (timeTampered && mounted) {
+      // Show time tampering dialog
+      await _showTimeTamperingDialog();
+      return;
+    }
+
+    // Check offline limit before attempting connection
+    final offlineLimitExceeded = await _activationService.isOfflineLimitExceeded();
+    if (offlineLimitExceeded && mounted) {
+      // Redirect to offline limit screen
+      Navigator.of(context).pushReplacementNamed('/offline-limit');
+      return;
+    }
+
+    // Update device status from server (sync expires_at)
+    // This should be called on every app startup
+    await _activationService.checkDeviceStatus();
+
+    if (!mounted) return;
+
+    // Check activation status (this now uses expires_at from server)
     final isActivated = await _activationService.isActivated();
 
     if (!mounted) return;
 
+    // Check if license has expired (using server-provided expires_at)
+    final licenseExpired = await _activationService.isLicenseExpired();
+    if (licenseExpired) {
+      // License expired - redirect to subscription plans screen
+      Navigator.of(context).pushReplacementNamed('/trial-expired-plans');
+      return;
+    }
+
     // Check if trial has expired
     final trialExpired = await _activationService.hasTrialExpired();
     if (trialExpired) {
-      // Disable trial mode and redirect to activation
+      // Disable trial mode and redirect to trial expired plans screen
       await _activationService.disableTrialMode();
-      Navigator.of(context).pushReplacementNamed('/activation');
+      Navigator.of(context).pushReplacementNamed('/trial-expired-plans');
       return;
     }
 
@@ -251,6 +281,43 @@ class _SplashScreenState extends State<SplashScreen>
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Future<void> _showTimeTamperingDialog() async {
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text(
+          'تحذير',
+          textDirection: TextDirection.rtl,
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        content: const Text(
+          'تم اكتشاف تغيير في وقت الجهاز. يرجى تصحيح الوقت.',
+          textDirection: TextDirection.rtl,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              Navigator.of(context).pop();
+              // Try to reconnect to server
+              await _activationService.checkDeviceStatus();
+              // Clear tampering flag if reconnection successful
+              await _activationService.clearTimeTamperingFlag();
+              // Retry navigation
+              if (mounted) {
+                _navigateToNextScreen();
+              }
+            },
+            child: const Text(
+              'إعادة الاتصال بالسيرفر',
+              textDirection: TextDirection.rtl,
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -17,10 +17,25 @@ class ActivationService {
   static const String _activationKey = 'is_activated';
   static const String _activationVerifiedKey = 'activation_verified';
   static const String _activationCalledKey = 'activation_api_called';
+  static const String _subscriptionRequestSentKey = 'subscription_request_sent';
+  static const String _activationRequestedKey = 'activation_requested';
+  static const String _selectedPlanKey = 'selected_plan';
+  static const String _requestTimestampKey = 'request_timestamp';
+  static const String _expiresAtKey = 'expires_at';
+  static const String _lastTrustedTimeKey = 'last_trusted_time';
+  static const String _timeOffsetKey = 'time_offset_seconds';
+  static const String _timeTamperedKey = 'time_tampered';
+  static const String _lastOnlineSyncKey = 'last_online_sync';
+  static const String _offlineLimitExceededKey = 'offline_limit_exceeded';
   static const String _agentNameKey = 'agent_full_name';
   static const String _agentPhoneKey = 'agent_phone';
+  static const String _expiresAtFileName = 'activation_expires_at.txt';
   static const String _apiUrl =
-      'https://harrypotter.africaxbet.com/api/create_device';
+      'https://harrypotter.foodsalebot.com/api/create_device';
+  static const String _checkDeviceApiUrl =
+      'https://harrypotter.foodsalebot.com/api/check_device';
+  static const int _timeTamperThresholdMinutes = 5;
+  static const int _offlineLimitHours = 72;
 
   // Get device ID using device_info_plus or fallback
   Future<String> getDeviceId() async {
@@ -75,6 +90,16 @@ class ActivationService {
         // Parse response
         final responseData = jsonDecode(response.body) as Map<String, dynamic>;
         final isVerified = responseData['is_verified'];
+        final expiresAt = responseData['expires_at'] as String?;
+        final serverTime = responseData['server_time'] as String?;
+
+        // Update trusted time from server
+        if (serverTime != null && serverTime.isNotEmpty) {
+          await _updateTrustedTime(serverTime);
+        }
+
+        // Update last online sync timestamp (successful connection)
+        await _updateLastOnlineSync();
 
         // Convert to bool (1 = true, 0 = false)
         final verified = isVerified == 1 || isVerified == true;
@@ -82,8 +107,14 @@ class ActivationService {
         // Save activation_verified status
         await _saveActivationVerified(verified);
 
-        // If verified, disable trial mode
-        if (verified) {
+        // If verified, save expires_at and disable trial mode
+        if (verified && expiresAt != null && expiresAt.isNotEmpty) {
+          await _saveExpiresAt(expiresAt);
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setBool(_trialActiveKey, false);
+          await prefs.setBool(_trialEnabledKey, false);
+        } else if (verified) {
+          // Verified but no expires_at - legacy activation (no expiration)
           final prefs = await SharedPreferences.getInstance();
           await prefs.setBool(_trialActiveKey, false);
           await prefs.setBool(_trialEnabledKey, false);
@@ -129,15 +160,322 @@ class ActivationService {
     await prefs.setBool(_activationKey, value);
   }
 
+  // Save expires_at to both SharedPreferences and local file
+  Future<void> _saveExpiresAt(String expiresAt) async {
+    // Save to SharedPreferences
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_expiresAtKey, expiresAt);
+
+    // Save to local file for redundancy/security
+    try {
+      final directory = await getApplicationDocumentsDirectory();
+      final file = File('${directory.path}/$_expiresAtFileName');
+      await file.writeAsString(expiresAt);
+    } catch (e) {
+      // If file write fails, continue with SharedPreferences only
+      // This is not critical as SharedPreferences is the primary storage
+    }
+  }
+
+  // Update trusted time from server
+  // Calculates offset between server time and device time
+  Future<void> _updateTrustedTime(String serverTimeString) async {
+    try {
+      final serverTime = DateTime.parse(serverTimeString).toUtc();
+      final deviceTime = DateTime.now().toUtc();
+      
+      // Calculate offset (server time - device time) in seconds
+      final offsetSeconds = serverTime.difference(deviceTime).inSeconds;
+      
+      // Calculate trusted time (server time)
+      final trustedTime = serverTime;
+      
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_lastTrustedTimeKey, trustedTime.toIso8601String());
+      await prefs.setInt(_timeOffsetKey, offsetSeconds);
+      await prefs.setBool(_timeTamperedKey, false); // Reset tamper flag on successful sync
+    } catch (e) {
+      // If parsing fails, don't update trusted time
+    }
+  }
+
+  // Get last trusted time
+  Future<DateTime?> getLastTrustedTime() async {
+    final prefs = await SharedPreferences.getInstance();
+    final trustedTimeString = prefs.getString(_lastTrustedTimeKey);
+    if (trustedTimeString == null || trustedTimeString.isEmpty) {
+      return null;
+    }
+    
+    try {
+      return DateTime.parse(trustedTimeString).toUtc();
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // Get time offset (server time - device time) in seconds
+  Future<int> getTimeOffset() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt(_timeOffsetKey) ?? 0;
+  }
+
+  // Check for time tampering
+  // Returns true if time tampering is detected
+  Future<bool> checkTimeTampering() async {
+    final lastTrustedTime = await getLastTrustedTime();
+    if (lastTrustedTime == null) {
+      // No trusted time yet - first run, not tampering
+      return false;
+    }
+
+    final currentDeviceTime = DateTime.now().toUtc();
+    final timeOffset = await getTimeOffset();
+    
+    // Calculate adjusted device time (accounting for known offset)
+    final adjustedDeviceTime = currentDeviceTime.add(Duration(seconds: timeOffset));
+    
+    // Check if device time went backwards significantly
+    // If adjusted device time is less than last trusted time by more than threshold, it's tampering
+    final timeDifference = lastTrustedTime.difference(adjustedDeviceTime);
+    
+    if (timeDifference.inMinutes > _timeTamperThresholdMinutes) {
+      // Time tampering detected - device time went backwards
+      await _handleTimeTampering();
+      return true;
+    }
+
+    // No tampering detected
+    return false;
+  }
+
+  // Handle time tampering detection
+  Future<void> _handleTimeTampering() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_timeTamperedKey, true);
+    
+    // Disable paid features by clearing activation
+    await _saveActivationVerified(false);
+  }
+
+  // Check if time tampering was detected
+  Future<bool> isTimeTampered() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_timeTamperedKey) ?? false;
+  }
+
+  // Clear time tampering flag (after reconnecting to server)
+  Future<void> clearTimeTamperingFlag() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_timeTamperedKey, false);
+  }
+
+  // Update last online sync timestamp
+  Future<void> _updateLastOnlineSync() async {
+    final prefs = await SharedPreferences.getInstance();
+    final now = DateTime.now().toUtc().toIso8601String();
+    await prefs.setString(_lastOnlineSyncKey, now);
+    // Clear offline limit exceeded flag on successful sync
+    await prefs.setBool(_offlineLimitExceededKey, false);
+  }
+
+  // Get last online sync timestamp
+  Future<DateTime?> getLastOnlineSync() async {
+    final prefs = await SharedPreferences.getInstance();
+    final syncString = prefs.getString(_lastOnlineSyncKey);
+    if (syncString == null || syncString.isEmpty) {
+      return null;
+    }
+    
+    try {
+      return DateTime.parse(syncString).toUtc();
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // Check if offline limit (72 hours) has been exceeded
+  Future<bool> isOfflineLimitExceeded() async {
+    final lastSync = await getLastOnlineSync();
+    if (lastSync == null) {
+      // No sync recorded yet - allow operation (first run)
+      return false;
+    }
+
+    final now = DateTime.now().toUtc();
+    final timeSinceLastSync = now.difference(lastSync);
+    
+    // Check if more than 72 hours have passed
+    if (timeSinceLastSync.inHours > _offlineLimitHours) {
+      // Mark as exceeded
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_offlineLimitExceededKey, true);
+      return true;
+    }
+
+    // Check if flag was previously set (in case time was adjusted)
+    final prefs = await SharedPreferences.getInstance();
+    final previouslyExceeded = prefs.getBool(_offlineLimitExceededKey) ?? false;
+    
+    // If time is now within limit, clear the flag
+    if (previouslyExceeded && timeSinceLastSync.inHours <= _offlineLimitHours) {
+      await prefs.setBool(_offlineLimitExceededKey, false);
+      return false;
+    }
+
+    return previouslyExceeded;
+  }
+
+  // Check if offline limit is currently exceeded (cached check)
+  Future<bool> hasOfflineLimitExceeded() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_offlineLimitExceededKey) ?? false;
+  }
+
+  // Get expires_at from SharedPreferences or local file
+  Future<String?> getExpiresAt() async {
+    // Try SharedPreferences first
+    final prefs = await SharedPreferences.getInstance();
+    final expiresAt = prefs.getString(_expiresAtKey);
+    if (expiresAt != null && expiresAt.isNotEmpty) {
+      return expiresAt;
+    }
+
+    // Fallback to local file
+    try {
+      final directory = await getApplicationDocumentsDirectory();
+      final file = File('${directory.path}/$_expiresAtFileName');
+      if (await file.exists()) {
+        final content = await file.readAsString();
+        if (content.isNotEmpty) {
+          // Also save to SharedPreferences for faster access next time
+          await prefs.setString(_expiresAtKey, content);
+          return content;
+        }
+      }
+    } catch (e) {
+      // File read failed, return null
+    }
+
+    return null;
+  }
+
+  // Check device status from server and update expires_at
+  // This should be called on app startup to sync expiration date
+  Future<bool> checkDeviceStatus() async {
+    try {
+      final deviceId = await getDeviceId();
+      final agentName = await getAgentName();
+      final agentPhone = await getAgentPhone();
+
+      if (agentName.isEmpty || agentPhone.isEmpty) {
+        return false;
+      }
+
+      final requestBody = {
+        'device_id': deviceId,
+        'app_name': 'SmartAgent',
+      };
+
+      final response = await http
+          .post(
+        Uri.parse(_checkDeviceApiUrl),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(requestBody),
+      )
+          .timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          throw Exception('Connection timeout');
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body) as Map<String, dynamic>;
+        final isVerified = responseData['is_verified'];
+        final expiresAt = responseData['expires_at'] as String?;
+        final serverTime = responseData['server_time'] as String?;
+
+        // Update trusted time from server
+        if (serverTime != null && serverTime.isNotEmpty) {
+          await _updateTrustedTime(serverTime);
+        }
+
+        // Convert to bool (1 = true, 0 = false)
+        final verified = isVerified == 1 || isVerified == true;
+
+        // Update activation status
+        await _saveActivationVerified(verified);
+
+        // Update expires_at if provided
+        if (expiresAt != null && expiresAt.isNotEmpty) {
+          await _saveExpiresAt(expiresAt);
+        }
+
+        return verified;
+      } else {
+        return false;
+      }
+    } catch (e) {
+      // If API fails, return current activation status
+      return await isActivated();
+    }
+  }
+
+  // Check if license has expired
+  // IMPORTANT: This uses expires_at from server, not just DateTime.now()
+  Future<bool> isLicenseExpired() async {
+    final expiresAt = await getExpiresAt();
+    if (expiresAt == null || expiresAt.isEmpty) {
+      // No expiration date means legacy activation (no expiration)
+      return false;
+    }
+
+    try {
+      // Parse ISO 8601 UTC string
+      final expirationDate = DateTime.parse(expiresAt).toUtc();
+      final now = DateTime.now().toUtc();
+      
+      // License is expired if current time >= expiration time
+      return now.isAfter(expirationDate) || now.isAtSameMomentAs(expirationDate);
+    } catch (e) {
+      // If parsing fails, assume not expired (fail-safe)
+      return false;
+    }
+  }
+
   // Check if device is activated from SharedPreferences
+  // IMPORTANT: This checks expires_at from server, not just DateTime.now()
+  // Always compares current time with server-provided expires_at
+  // Also checks for time tampering
   Future<bool> isActivated() async {
+    // First check for time tampering
+    final tampered = await isTimeTampered();
+    if (tampered) {
+      return false; // Time tampered - disable paid features
+    }
+
     final prefs = await SharedPreferences.getInstance();
     // Check new key first, fallback to old key
     final verified = prefs.getBool(_activationVerifiedKey);
-    if (verified != null) {
-      return verified;
+    final isVerified = verified ?? prefs.getBool(_activationKey) ?? false;
+
+    if (!isVerified) {
+      return false;
     }
-    return prefs.getBool(_activationKey) ?? false;
+
+    // If verified, check if license has expired using server-provided expires_at
+    // This is the primary validation - we don't rely on DateTime.now() alone
+    final expired = await isLicenseExpired();
+    if (expired) {
+      // License expired - clear activation status
+      await _saveActivationVerified(false);
+      return false;
+    }
+
+    return true;
   }
 
   // Agent data helper functions
@@ -347,5 +685,128 @@ class ActivationService {
       }
       return false;
     }
+  }
+
+  // Send subscription activation request to backend API
+  // This is called when user selects a plan and contact method
+  Future<bool> sendSubscriptionActivationRequest({
+    required String deviceId,
+    required String agentName,
+    required String agentPhone,
+    required String planId, // 'half_year' or 'yearly'
+    required String contactMethod, // 'email' or 'telegram'
+  }) async {
+    try {
+      // Map plan ID to API format
+      String requestedPlan;
+      switch (planId) {
+        case 'half_year':
+          requestedPlan = '6_months';
+          break;
+        case 'yearly':
+          requestedPlan = '12_months';
+          break;
+        default:
+          requestedPlan = '6_months'; // Default fallback
+      }
+
+      // Prepare request body
+      final requestBody = {
+        'app_name': 'SmartAgent',
+        'device_id': deviceId,
+        'full_name': agentName,
+        'phone': agentPhone,
+        'requested_plan': requestedPlan,
+        'contact_method': contactMethod,
+        'status': 'pending',
+      };
+
+      final response = await http
+          .post(
+        Uri.parse(_apiUrl),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(requestBody),
+      )
+          .timeout(
+        const Duration(seconds: 15),
+        onTimeout: () {
+          throw Exception('Connection timeout');
+        },
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        // Parse response for potential activation data
+        final responseData = jsonDecode(response.body) as Map<String, dynamic>;
+        final isVerified = responseData['is_verified'];
+        final expiresAt = responseData['expires_at'] as String?;
+        final serverTime = responseData['server_time'] as String?;
+
+        // Update trusted time from server
+        if (serverTime != null && serverTime.isNotEmpty) {
+          await _updateTrustedTime(serverTime);
+        }
+
+        // Mark that subscription request was sent
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool(_subscriptionRequestSentKey, true);
+        
+        // Save activation request state
+        await _saveActivationRequestState(planId);
+
+        // If activation was successful, save expires_at
+        final verified = isVerified == 1 || isVerified == true;
+        if (verified && expiresAt != null && expiresAt.isNotEmpty) {
+          await _saveExpiresAt(expiresAt);
+          await _saveActivationVerified(true);
+        }
+        
+        return true;
+      } else {
+        throw Exception('Server returned status code: ${response.statusCode}');
+      }
+    } catch (e) {
+      // Don't throw - let caller handle gracefully
+      // The request will be retried later if needed
+      return false;
+    }
+  }
+
+  // Save activation request state locally
+  Future<void> _saveActivationRequestState(String planId) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_activationRequestedKey, true);
+    await prefs.setString(_selectedPlanKey, planId);
+    await prefs.setString(_requestTimestampKey, DateTime.now().toIso8601String());
+  }
+
+  // Public method to save activation request state (called before API call)
+  Future<void> saveActivationRequestState(String planId) async {
+    await _saveActivationRequestState(planId);
+  }
+
+  // Check if activation request was already sent
+  Future<bool> hasActivationRequestBeenSent() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_activationRequestedKey) ?? false;
+  }
+
+  // Get selected plan from saved state
+  Future<String?> getSelectedPlan() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_selectedPlanKey);
+  }
+
+  // Get request timestamp
+  Future<String?> getRequestTimestamp() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_requestTimestampKey);
+  }
+
+  // Check if subscription activation request was sent (legacy method)
+  Future<bool> hasSubscriptionRequestBeenSent() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_subscriptionRequestSentKey) ?? false;
   }
 }

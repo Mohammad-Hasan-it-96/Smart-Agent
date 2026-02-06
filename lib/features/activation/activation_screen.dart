@@ -173,6 +173,23 @@ class _ActivationScreenState extends State<ActivationScreen> {
     Navigator.of(context).pushReplacementNamed('/home');
   }
 
+  void _navigateToSubscriptionPlans() async {
+    // Navigate to subscription plans screen
+    final selectedPlanId = await Navigator.of(context).pushNamed('/subscription-plans');
+    
+    // Handle selected plan (if needed)
+    if (selectedPlanId != null && mounted) {
+      // TODO: Process subscription with selected plan ID
+      // For now, just show a message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('تم اختيار الباقة: $selectedPlanId'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -228,6 +245,25 @@ class _ActivationScreenState extends State<ActivationScreen> {
               textDirection: TextDirection.rtl,
             ),
             const SizedBox(height: 24),
+            // Subscription plans button
+            ElevatedButton.icon(
+              onPressed: _navigateToSubscriptionPlans,
+              icon: const Icon(Icons.payment),
+              label: const Text(
+                'عرض باقات الاشتراك',
+                style: TextStyle(fontSize: 16),
+              ),
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 32,
+                  vertical: 16,
+                ),
+                minimumSize: const Size(200, 50),
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 16),
             // Contact developer button
             OutlinedButton.icon(
               onPressed: () {
@@ -312,17 +348,17 @@ class _ActivationScreenState extends State<ActivationScreen> {
               ),
             ),
           ] else if (_trialExpired) ...[
-            // Trial expired message
-            const Text(
-              'انتهت النسخة التجريبية. يرجى التواصل مع المطور لتفعيل التطبيق.',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.red,
-              ),
-              textDirection: TextDirection.rtl,
-              textAlign: TextAlign.center,
+            // Trial expired - navigate directly to trial expired plans screen
+            Builder(
+              builder: (context) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) {
+                    Navigator.of(context).pushReplacementNamed('/trial-expired-plans');
+                  }
+                });
+                return const SizedBox.shrink();
+              },
             ),
-            const SizedBox(height: 24),
           ],
         ],
       ),

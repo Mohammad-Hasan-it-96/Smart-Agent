@@ -5,12 +5,19 @@ import 'package:share_plus/share_plus.dart';
 import '../db/database_helper.dart';
 import '../models/company.dart';
 import '../models/medicine.dart';
+import 'activation_service.dart';
 
 class DataExportService {
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
+  final ActivationService _activationService = ActivationService();
 
   /// Export companies and medicines to JSON file
   Future<File> exportData() async {
+    // Check offline limit before exporting
+    final offlineLimitExceeded = await _activationService.isOfflineLimitExceeded();
+    if (offlineLimitExceeded) {
+      throw Exception('OFFLINE_LIMIT_EXCEEDED');
+    }
     // Fetch all companies
     final companyMaps = await _dbHelper.query('companies', orderBy: 'name');
     final companies = companyMaps.map((map) => Company.fromMap(map)).toList();

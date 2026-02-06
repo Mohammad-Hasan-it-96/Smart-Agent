@@ -11,6 +11,10 @@ import 'features/splash/splash_screen.dart';
 import 'features/onboarding/onboarding_screen.dart';
 import 'features/home/home_screen.dart';
 import 'features/activation/activation_screen.dart';
+import 'features/activation/subscription_plans_screen.dart';
+import 'features/activation/trial_expired_plans_screen.dart';
+import 'features/activation/contact_method_screen.dart';
+import 'features/activation/offline_limit_screen.dart';
 import 'features/companies/companies_screen.dart';
 import 'features/medicines/medicines_screen.dart';
 import 'features/pharmacies/pharmacies_screen.dart';
@@ -92,6 +96,21 @@ class MyApp extends StatelessWidget {
                 break;
               case '/activation':
                 page = const ActivationScreen();
+                break;
+              case '/subscription-plans':
+                page = const SubscriptionPlansScreen();
+                break;
+              case '/trial-expired-plans':
+                page = const TrialExpiredPlansScreen();
+                break;
+              case '/contact-method':
+                final args = settings.arguments as Map<String, dynamic>?;
+                page = ContactMethodScreen(
+                  selectedPlanId: args?['planId'] ?? '',
+                );
+                break;
+              case '/offline-limit':
+                page = const OfflineLimitScreen();
                 break;
               case '/companies':
                 page = const CompaniesScreen();

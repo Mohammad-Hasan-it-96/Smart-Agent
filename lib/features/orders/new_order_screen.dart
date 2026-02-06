@@ -707,6 +707,16 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
   }
 
   Future<void> _saveOrder() async {
+    // Check offline limit before saving
+    final activationService = ActivationService();
+    final offlineLimitExceeded = await activationService.isOfflineLimitExceeded();
+    if (offlineLimitExceeded) {
+      if (mounted) {
+        Navigator.of(context).pushReplacementNamed('/offline-limit');
+      }
+      return;
+    }
+
     // Validation: Check pharmacy
     if (_selectedPharmacyId == null) {
       ScaffoldMessenger.of(context).showSnackBar(

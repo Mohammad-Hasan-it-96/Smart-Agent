@@ -349,6 +349,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } catch (e) {
       if (!mounted) return;
 
+      // Check if it's offline limit exceeded error
+      if (e.toString().contains('OFFLINE_LIMIT_EXCEEDED')) {
+        Navigator.of(context).pushReplacementNamed('/offline-limit');
+        return;
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('حدث خطأ أثناء التصدير: ${e.toString()}'),
