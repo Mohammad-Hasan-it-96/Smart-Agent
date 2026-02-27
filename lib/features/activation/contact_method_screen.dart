@@ -163,7 +163,7 @@ class _ContactMethodScreenState extends State<ContactMethodScreen> {
   }
 
   Future<void> _launchEmail() async {
-    const email = 'smartAgentAppSupport@gmail.com';
+    const email = 'mohamad.hasan.it.96@gmail.com';
     const subject = 'طلب تفعيل تطبيق المندوب الذكي';
     final body = Uri.encodeComponent(_activationMessage);
     
@@ -198,14 +198,14 @@ class _ContactMethodScreenState extends State<ContactMethodScreen> {
   }
 
   Future<void> _launchTelegram() async {
-    // Telegram username or bot username
-    // You can change this to your actual Telegram support username
-    const telegramUsername = 'smartAgentSupport'; // Change this to actual username
+    // Telegram phone number for direct contact
+    const telegramPhone = '963983820430'; // Syrian number without +
     final message = Uri.encodeComponent(_activationMessage);
 
     // Try native Telegram app first (tg:// scheme)
-    final tgUri = Uri.parse('tg://resolve?domain=$telegramUsername&text=$message');
-    
+    // Send direct message using phone number
+    final tgUri = Uri.parse('tg://resolve?phone=$telegramPhone&text=$message');
+
     try {
       final launched = await launchUrl(
         tgUri,
@@ -213,8 +213,8 @@ class _ContactMethodScreenState extends State<ContactMethodScreen> {
       );
 
       if (!launched) {
-        // Fallback to web Telegram
-        final webUri = Uri.parse('https://t.me/$telegramUsername?text=$message');
+        // Fallback to web Telegram using phone
+        final webUri = Uri.parse('https://t.me/+$telegramPhone?text=$message');
         final webLaunched = await launchUrl(
           webUri,
           mode: LaunchMode.externalApplication,
@@ -233,7 +233,7 @@ class _ContactMethodScreenState extends State<ContactMethodScreen> {
     } catch (e) {
       // Try web Telegram as fallback
       try {
-        final webUri = Uri.parse('https://t.me/$telegramUsername?text=$message');
+        final webUri = Uri.parse('https://wa.me/$telegramPhone?text=$message');
         await launchUrl(
           webUri,
           mode: LaunchMode.externalApplication,

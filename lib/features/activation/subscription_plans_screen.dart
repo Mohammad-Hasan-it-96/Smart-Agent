@@ -68,8 +68,13 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
       return;
     }
 
-    // Return selected plan ID to caller
-    Navigator.of(context).pop(_selectedPlanId);
+    // Navigate to contact method screen
+    Navigator.of(context).pushNamed(
+      '/contact-method',
+      arguments: {
+        'planId': _selectedPlanId,
+      },
+    );
   }
 
   @override

@@ -173,21 +173,9 @@ class _ActivationScreenState extends State<ActivationScreen> {
     Navigator.of(context).pushReplacementNamed('/home');
   }
 
-  void _navigateToSubscriptionPlans() async {
+  void _navigateToSubscriptionPlans() {
     // Navigate to subscription plans screen
-    final selectedPlanId = await Navigator.of(context).pushNamed('/subscription-plans');
-    
-    // Handle selected plan (if needed)
-    if (selectedPlanId != null && mounted) {
-      // TODO: Process subscription with selected plan ID
-      // For now, just show a message
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('تم اختيار الباقة: $selectedPlanId'),
-          backgroundColor: Colors.green,
-        ),
-      );
-    }
+    Navigator.of(context).pushNamed('/subscription-plans');
   }
 
   @override
