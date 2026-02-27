@@ -255,12 +255,7 @@ class _ActivationScreenState extends State<ActivationScreen> {
             // Contact developer button
             OutlinedButton.icon(
               onPressed: () {
-                // TODO: Open contact method (phone, email, etc.)
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('يرجى التواصل مع المطور للتفعيل'),
-                  ),
-                );
+                Navigator.of(context).pushNamed('/contact-developer');
               },
               icon: const Icon(Icons.contact_support),
               label: const Text(

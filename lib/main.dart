@@ -14,6 +14,7 @@ import 'features/activation/activation_screen.dart';
 import 'features/activation/subscription_plans_screen.dart';
 import 'features/activation/trial_expired_plans_screen.dart';
 import 'features/activation/contact_method_screen.dart';
+import 'features/activation/contact_developer_screen.dart';
 import 'features/activation/offline_limit_screen.dart';
 import 'features/companies/companies_screen.dart';
 import 'features/medicines/medicines_screen.dart';
@@ -108,6 +109,9 @@ class MyApp extends StatelessWidget {
                 page = ContactMethodScreen(
                   selectedPlanId: args?['planId'] ?? '',
                 );
+                break;
+              case '/contact-developer':
+                page = const ContactDeveloperScreen();
                 break;
               case '/offline-limit':
                 page = const OfflineLimitScreen();
