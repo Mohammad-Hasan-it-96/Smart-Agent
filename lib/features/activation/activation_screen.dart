@@ -60,31 +60,7 @@ class _ActivationScreenState extends State<ActivationScreen> {
         return;
       }
 
-      // Check if activation API has been called
-      final hasBeenCalled = await _activationService.hasActivationBeenCalled();
-      final verifiedStatus = await _activationService.getActivationVerified();
-
-      if (hasBeenCalled && verifiedStatus != null) {
-        // API was already called, use saved status
-        if (verifiedStatus) {
-          setState(() {
-            _isActivated = true;
-            _isVerified = true;
-            _isLoading = false;
-          });
-          _navigateToHome();
-        } else {
-          // is_verified = 0, show trial mode
-          setState(() {
-            _isActivated = false;
-            _isVerified = false;
-            _isLoading = false;
-          });
-        }
-        return;
-      }
-
-      // First time: Call API
+      // Get agent data
       final agentName = await _activationService.getAgentName();
       final agentPhone = await _activationService.getAgentPhone();
       final deviceId = await _activationService.getDeviceId();
@@ -97,26 +73,42 @@ class _ActivationScreenState extends State<ActivationScreen> {
         return;
       }
 
-      // Send activation request
-      final verified = await _activationService.sendActivationRequest(
-        agentName,
-        agentPhone,
-        deviceId,
-      );
+      // Always send activation request (whether it was sent before or not)
+      // This ensures we get the latest verification status from server
+      try {
+        final verified = await _activationService.sendActivationRequest(
+          agentName,
+          agentPhone,
+          deviceId,
+        );
 
-      if (verified) {
-        // is_verified = 1: Success
-        setState(() {
-          _isActivated = true;
-          _isVerified = true;
-          _isLoading = false;
-        });
-        _navigateToHome();
-      } else {
-        // is_verified = 0: Show trial mode
+        if (verified) {
+          // is_verified = 1: Success
+          // Wait a moment to ensure all data is saved
+          await Future.delayed(const Duration(milliseconds: 500));
+
+          setState(() {
+            _isActivated = true;
+            _isVerified = true;
+            _isLoading = false;
+          });
+
+          // Navigate after state update is complete
+          _navigateToHome();
+        } else {
+          // is_verified = 0: Show options (trial or contact)
+          setState(() {
+            _isActivated = false;
+            _isVerified = false;
+            _isLoading = false;
+          });
+        }
+      } catch (e) {
+        // API call failed - show error
         setState(() {
           _isActivated = false;
           _isVerified = false;
+          _errorMessage = e.toString().replaceAll('Exception: ', '');
           _isLoading = false;
         });
       }

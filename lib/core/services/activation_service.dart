@@ -106,7 +106,7 @@ class ActivationService {
         // Convert to bool (1 = true, 0 = false)
         final verified = isVerified == 1 || isVerified == true;
 
-        // Save activation_verified status
+        // Save activation_verified status FIRST
         await _saveActivationVerified(verified);
 
         // If verified, save expires_at and disable trial mode
