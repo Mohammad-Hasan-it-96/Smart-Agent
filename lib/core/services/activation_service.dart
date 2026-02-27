@@ -34,6 +34,8 @@ class ActivationService {
       'https://harrypotter.foodsalebot.com/api/create_device';
   static const String _checkDeviceApiUrl =
       'https://harrypotter.foodsalebot.com/api/check_device';
+  static const String _updateMyDataApiUrl =
+      'https://harrypotter.foodsalebot.com/api/update_my_data';
   static const int _timeTamperThresholdMinutes = 5;
   static const int _offlineLimitHours = 72;
 
@@ -418,6 +420,46 @@ class ActivationService {
         }
 
         return verified;
+      } else {
+        return false;
+      }
+    } catch (e) {
+      // Re-throw the exception to let caller know that connection failed
+      rethrow;
+    }
+  }
+
+  // Update user data on server
+  Future<bool> updateMyData(String fullName, String phone) async {
+    try {
+      final deviceId = await getDeviceId();
+
+      final requestBody = {
+        'device_id': deviceId,
+        'app_name': 'SmartAgent',
+        'full_name': fullName,
+        'phone': phone,
+      };
+
+      final response = await http
+          .post(
+        Uri.parse(_updateMyDataApiUrl),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(requestBody),
+      )
+          .timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          throw Exception('Connection timeout');
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body) as Map<String, dynamic>;
+        final success = responseData['success'] == true || responseData['success'] == 1;
+        return success;
       } else {
         return false;
       }

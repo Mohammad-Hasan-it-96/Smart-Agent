@@ -90,18 +90,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
 
     try {
+      // Save data locally first
       await _activationService.saveAgentName(_nameController.text.trim());
       await _activationService.saveAgentPhone(_phoneController.text.trim());
       await _settingsService
           .setInventoryPhone(_inventoryPhoneController.text.trim());
 
+      // Try to update data on server
+      bool serverUpdated = false;
+      String serverMessage = '';
+      try {
+        serverUpdated = await _activationService.updateMyData(
+          _nameController.text.trim(),
+          _phoneController.text.trim(),
+        );
+
+        if (serverUpdated) {
+          serverMessage = ' وتم تحديث البيانات على السيرفر';
+        } else {
+          serverMessage = ' (تعذر تحديث السيرفر - تم الحفظ محلياً فقط)';
+        }
+      } catch (e) {
+        // Server update failed - data is still saved locally
+        serverMessage = ' (تعذر الاتصال بالسيرفر - تم الحفظ محلياً فقط)';
+      }
+
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('تم حفظ البيانات بنجاح'),
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 2),
+        SnackBar(
+          content: Text('تم حفظ البيانات بنجاح$serverMessage'),
+          backgroundColor: serverUpdated ? Colors.green : Colors.orange,
+          duration: const Duration(seconds: 3),
         ),
       );
     } catch (e) {
