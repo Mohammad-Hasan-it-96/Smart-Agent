@@ -466,15 +466,16 @@ class _ContactMethodScreenState extends State<ContactMethodScreen> {
               width: double.infinity,
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.grey.shade100,
+                color: Colors.grey.shade800,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.grey.shade300),
+                border: Border.all(color: Colors.grey.shade700),
               ),
               child: SelectableText(
                 _activationMessage,
                 style: const TextStyle(
                   fontSize: 14,
                   height: 1.5,
+                  color: Colors.white,
                 ),
                 textDirection: TextDirection.rtl,
               ),

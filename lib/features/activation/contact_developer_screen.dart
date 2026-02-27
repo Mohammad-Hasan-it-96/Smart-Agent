@@ -306,7 +306,7 @@ class _ContactDeveloperScreenState extends State<ContactDeveloperScreen> {
                               width: double.infinity,
                               padding: const EdgeInsets.all(10),
                               decoration: BoxDecoration(
-                                color: Colors.grey.shade100,
+                                color: Colors.grey.shade800,
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: SelectableText(
@@ -314,6 +314,7 @@ class _ContactDeveloperScreenState extends State<ContactDeveloperScreen> {
                                 style: const TextStyle(
                                   fontSize: 12,
                                   height: 1.5,
+                                  color: Colors.white,
                                 ),
                                 textDirection: TextDirection.rtl,
                               ),
