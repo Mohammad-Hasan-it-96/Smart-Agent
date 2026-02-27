@@ -119,7 +119,12 @@ class _SplashScreenState extends State<SplashScreen>
 
     // Update device status from server (sync expires_at)
     // This should be called on every app startup
-    await _activationService.checkDeviceStatus();
+    try {
+      await _activationService.checkDeviceStatus();
+    } catch (e) {
+      // If connection fails, continue with cached activation status
+      // This allows offline operation within the 72-hour limit
+    }
 
     if (!mounted) return;
 
@@ -304,9 +309,13 @@ class _SplashScreenState extends State<SplashScreen>
             onPressed: () async {
               Navigator.of(context).pop();
               // Try to reconnect to server
-              await _activationService.checkDeviceStatus();
-              // Clear tampering flag if reconnection successful
-              await _activationService.clearTimeTamperingFlag();
+              try {
+                await _activationService.checkDeviceStatus();
+                // Clear tampering flag if reconnection successful
+                await _activationService.clearTimeTamperingFlag();
+              } catch (e) {
+                // Connection failed - tampering flag remains
+              }
               // Retry navigation
               if (mounted) {
                 _navigateToNextScreen();

@@ -403,6 +403,9 @@ class ActivationService {
           await _updateTrustedTime(serverTime);
         }
 
+        // Update last online sync timestamp (successful connection)
+        await _updateLastOnlineSync();
+
         // Convert to bool (1 = true, 0 = false)
         final verified = isVerified == 1 || isVerified == true;
 
@@ -419,8 +422,8 @@ class ActivationService {
         return false;
       }
     } catch (e) {
-      // If API fails, return current activation status
-      return await isActivated();
+      // Re-throw the exception to let caller know that connection failed
+      rethrow;
     }
   }
 

@@ -22,29 +22,41 @@ class _OfflineLimitScreenState extends State<OfflineLimitScreen> {
       // Try to reconnect to server
       final success = await _activationService.checkDeviceStatus();
       
-      if (success && mounted) {
-        // Connection successful - clear offline limit flag
-        final stillExceeded = await _activationService.isOfflineLimitExceeded();
-        
-        if (!stillExceeded) {
-          // Offline limit cleared - navigate to home
-          Navigator.of(context).pushReplacementNamed('/home');
+      if (mounted) {
+        if (success) {
+          // Connection successful and device is verified
+          // Check if offline limit is still exceeded
+          final stillExceeded = await _activationService.isOfflineLimitExceeded();
+
+          if (!stillExceeded) {
+            // Offline limit cleared - navigate to home
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('تم التحقق بنجاح! الاتصال بالسيرفر فعّال'),
+                backgroundColor: Colors.green,
+              ),
+            );
+            // Navigate after a short delay
+            Future.delayed(const Duration(seconds: 1), () {
+              if (mounted) {
+                Navigator.of(context).pushReplacementNamed('/home');
+              }
+            });
+          } else {
+            // Still exceeded - show error
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('لا يزال الوقت المتاح للعمل بدون إنترنت قد انتهى'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
         } else {
-          // Still exceeded - show error
+          // Device is not verified
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('لا يزال الوقت المتاح للعمل بدون إنترنت قد انتهى'),
+              content: Text('الجهاز غير مفعّل. يرجى تفعيل الاشتراك'),
               backgroundColor: Colors.orange,
-            ),
-          );
-        }
-      } else {
-        // Connection failed
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('فشل الاتصال بالسيرفر. يرجى التحقق من الاتصال بالإنترنت'),
-              backgroundColor: Colors.red,
             ),
           );
         }
@@ -52,8 +64,8 @@ class _OfflineLimitScreenState extends State<OfflineLimitScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('حدث خطأ: ${e.toString()}'),
+          const SnackBar(
+            content: Text('فشل الاتصال بالسيرفر. يرجى التحقق من الاتصال بالإنترنت'),
             backgroundColor: Colors.red,
           ),
         );
