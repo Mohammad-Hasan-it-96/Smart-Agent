@@ -134,7 +134,7 @@ class _TrialExpiredPlansScreenState extends State<TrialExpiredPlansScreen> {
   }
 
   Future<void> _launchEmail() async {
-    const email = 'smartAgentAppSupport@gmail.com';
+    const email = 'mohamad.hasan.it.96@gmail.com';
     const subject = 'طلب تفعيل تطبيق المندوب الذكي';
     final body = Uri.encodeComponent(_activationMessage);
     

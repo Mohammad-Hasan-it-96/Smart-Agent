@@ -357,7 +357,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         SettingTile(
           icon: Icons.email_outlined,
           title: 'البريد الإلكتروني',
-          subtitle: 'smartAgentAppSupport@gmail.com',
+          subtitle: 'mohamad.hasan.it.96@gmail.com',
           onTap: _openSupportEmail,
         ),
         SettingTile(
@@ -857,7 +857,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _openSupportEmail() async {
-    const email = 'smartAgentAppSupport@gmail.com';
+    const email = 'mohamad.hasan.it.96@gmail.com';
     try {
       final launched = await launchUrl(Uri.parse('mailto:$email'), mode: LaunchMode.externalApplication);
       if (!launched && mounted) _showCopyFallback(email, 'البريد الإلكتروني');
