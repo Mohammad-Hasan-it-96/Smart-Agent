@@ -5,7 +5,9 @@ import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:printing/printing.dart';
 import '../../core/db/database_helper.dart';
+import '../../core/services/activation_service.dart';
 import '../../core/services/settings_service.dart';
+import '../../core/utils/whatsapp_helper.dart';
 import '../../core/widgets/custom_app_bar.dart';
 import 'pdf_exporter.dart';
 
@@ -165,17 +167,82 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     }
   }
 
+  /// Send text order summary to WhatsApp inventory chat via wa.me deep link.
+  Future<void> _sendTextToInventory() async {
+    if (_orderInfo == null) return;
+    final phone = _inventoryPhone.trim();
+
+    if (phone.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('لم يتم تعيين رقم المستودع. أضفه من الإعدادات.')),
+        );
+      }
+      return;
+    }
+
+    final normalized = normalizePhone(phone);
+    if (normalized == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('رقم المستودع غير صالح. تحقق منه في الإعدادات.')),
+        );
+      }
+      return;
+    }
+
+    final agentName = await ActivationService().getAgentName();
+    final currencySymbol = _currencyMode == 'syp' ? 'ل.س' : '\$';
+
+    final message = buildOrderMessage(
+      pharmacyName: _orderInfo!['pharmacy_name'] ?? 'غير معروف',
+      representativeName: agentName,
+      orderId: widget.orderId,
+      orderDate: _formatDate(_orderInfo!['created_at'] as String),
+      items: _orderItems,
+      pricingEnabled: _pricingEnabled,
+      currencySymbol: currencySymbol,
+      currencyMode: _currencyMode,
+      exchangeRate: _exchangeRate,
+    );
+
+    final success = await openWhatsAppChat(phone: phone, message: message);
+
+    if (!success && mounted) {
+      showWhatsAppUnavailableDialog(context);
+    }
+  }
+
   /// Share order PDF directly to WhatsApp chat with inventory phone
   Future<void> _shareWithInventory() async {
     if (_orderInfo == null) return;
     final phone = _inventoryPhone.trim();
-    if (phone.isEmpty) return;
+
+    if (phone.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('لم يتم تعيين رقم المستودع. أضفه من الإعدادات.')),
+        );
+      }
+      return;
+    }
+
+    // Normalize phone number (add 963 country code if needed)
+    final normalized = normalizePhone(phone);
+    if (normalized == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('رقم المستودع غير صالح. تحقق منه في الإعدادات.')),
+        );
+      }
+      return;
+    }
 
     if (!Platform.isAndroid) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('مشاركة الواتساب مدعومة على أجهزة أندرويد فقط.'),
+            content: Text('مشاركة ملف PDF مدعومة على أجهزة أندرويد فقط.\nيمكنك إرسال رسالة نصية بدلاً من ذلك.'),
           ),
         );
       }
@@ -206,33 +273,14 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
       try {
         await _whatsAppChannel.invokeMethod('sharePdfToWhatsApp', {
           'filePath': file.path,
-          'phone': phone,
-          'message': 'هذه الطلبية الخاصة بالصيدلية',
+          'phone': normalized,
+          'message': 'طلبية صيدلية ${_orderInfo!['pharmacy_name'] ?? ''}',
         });
       } on PlatformException catch (e) {
         if (!mounted) return;
         if (e.code == 'WHATSAPP_NOT_INSTALLED' ||
             e.code == 'WHATSAPP_NOT_AVAILABLE') {
-          showDialog(
-            context: context,
-            builder: (context) => AlertDialog(
-              title: const Text(
-                'تنبيه',
-                textDirection: TextDirection.rtl,
-              ),
-              content: const Text(
-                'تعذّر فتح واتساب للمشاركة على هذا الجهاز.\n'
-                'تأكد من تثبيت واتساب وتحديثه ثم أعد المحاولة.',
-                textDirection: TextDirection.rtl,
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('حسناً'),
-                ),
-              ],
-            ),
-          );
+          showWhatsAppUnavailableDialog(context);
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -593,18 +641,58 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                           ),
                         ),
                         if (_inventoryPhone.trim().isNotEmpty) ...[
-                          const SizedBox(height: 12),
-                          OutlinedButton.icon(
-                            onPressed: _shareWithInventory,
-                            icon: const Icon(Icons.share),
-                            label: const Text(
-                              'مشاركة مع المستودع',
-                              style: TextStyle(fontSize: 16),
-                            ),
-                            style: OutlinedButton.styleFrom(
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 14),
-                            ),
+                          const SizedBox(height: 20),
+                          // Quick share header
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.rocket_launch_rounded,
+                                  size: 20, color: theme.colorScheme.primary),
+                              const SizedBox(width: 8),
+                              Text(
+                                'مشاركة سريعة مع المستودع',
+                                style: theme.textTheme.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: theme.colorScheme.primary,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              // Send PDF file button
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: _shareWithInventory,
+                                  icon: const Icon(Icons.picture_as_pdf, size: 20),
+                                  label: const Text(
+                                    'إرسال PDF',
+                                    style: TextStyle(fontSize: 14),
+                                  ),
+                                  style: OutlinedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(vertical: 14),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              // Send text message button
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: _sendTextToInventory,
+                                  icon: const Icon(Icons.chat, size: 20, color: Color(0xFF25D366)),
+                                  label: const Text(
+                                    'إرسال رسالة',
+                                    style: TextStyle(fontSize: 14),
+                                  ),
+                                  style: OutlinedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(vertical: 14),
+                                    foregroundColor: const Color(0xFF25D366),
+                                    side: const BorderSide(color: Color(0xFF25D366)),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ],
