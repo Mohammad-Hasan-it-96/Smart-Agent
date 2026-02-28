@@ -64,11 +64,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   String _planLabel(String? plan) {
     switch (plan) {
-      case '3_months':
+      case 'quarter_year':
         return '3 أشهر';
-      case '6_months':
+      case 'half_year':
         return '6 أشهر';
-      case '12_months':
+      case 'yearly':
         return 'سنة كاملة';
       default:
         return 'غير محدد';
