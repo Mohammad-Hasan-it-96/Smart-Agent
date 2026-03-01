@@ -93,6 +93,7 @@ class ActivationService {
         final responseData = jsonDecode(response.body) as Map<String, dynamic>;
         final isVerified = responseData['is_verified'];
         final expiresAt = responseData['expires_at'] as String?;
+        final plan = responseData['plan'] as String?;
         final serverTime = responseData['server_time'] as String?;
 
         // Update trusted time from server
@@ -120,6 +121,12 @@ class ActivationService {
           final prefs = await SharedPreferences.getInstance();
           await prefs.setBool(_trialActiveKey, false);
           await prefs.setBool(_trialEnabledKey, false);
+        }
+
+        // Save plan if provided by server
+        if (plan != null && plan.isNotEmpty) {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString(_selectedPlanKey, plan);
         }
 
         // Mark that API has been called
@@ -398,6 +405,7 @@ class ActivationService {
         final responseData = jsonDecode(response.body) as Map<String, dynamic>;
         final isVerified = responseData['is_verified'];
         final expiresAt = responseData['expires_at'] as String?;
+        final plan = responseData['plan'] as String?;
         final serverTime = responseData['server_time'] as String?;
 
         // Update trusted time from server
@@ -417,6 +425,12 @@ class ActivationService {
         // Update expires_at if provided
         if (expiresAt != null && expiresAt.isNotEmpty) {
           await _saveExpiresAt(expiresAt);
+        }
+
+        // Update plan if provided by server
+        if (plan != null && plan.isNotEmpty) {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString(_selectedPlanKey, plan);
         }
 
         return verified;

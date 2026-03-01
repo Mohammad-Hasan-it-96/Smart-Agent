@@ -94,6 +94,7 @@ class SettingsController extends ChangeNotifier {
     final verified = await _activation.checkDeviceStatus();
     data.isActivated = verified;
     data.expiresAt = await _activation.getExpiresAt();
+    data.selectedPlan = await _activation.getSelectedPlan();
     notifyListeners();
     return verified;
   }
