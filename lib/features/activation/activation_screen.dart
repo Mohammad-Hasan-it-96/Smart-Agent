@@ -183,6 +183,44 @@ class _ActivationScreenState extends State<ActivationScreen> {
     );
   }
 
+  Widget _buildDeviceBindingInfoCard() {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: isDark
+            ? Colors.blueGrey.shade900.withValues(alpha: 0.5)
+            : Colors.blue.shade50,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isDark ? Colors.blueGrey.shade700 : Colors.blue.shade200,
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.info_outline_rounded,
+              color: isDark ? Colors.blue.shade200 : Colors.blue.shade700,
+              size: 22),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'هذا الحساب مرتبط بهذا الجهاز فقط ولا يمكن استخدامه على جهاز آخر.',
+              style: TextStyle(
+                fontSize: 13.5,
+                height: 1.5,
+                color: isDark ? Colors.blue.shade100 : Colors.blue.shade900,
+              ),
+              textDirection: TextDirection.rtl,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildNotActivatedView() {
     return Padding(
       padding: const EdgeInsets.all(24.0),
@@ -204,6 +242,8 @@ class _ActivationScreenState extends State<ActivationScreen> {
             textDirection: TextDirection.rtl,
           ),
           const SizedBox(height: 16),
+          _buildDeviceBindingInfoCard(),
+          const SizedBox(height: 8),
           if (_errorMessage != null) ...[
             Text(
               _errorMessage!,
