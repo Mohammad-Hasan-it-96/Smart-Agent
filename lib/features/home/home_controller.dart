@@ -8,12 +8,14 @@ class HomeStats {
   final int totalOrders;
   final int activePharmacies;
   final int totalMedicines;
+  final int totalCompanies;
 
   const HomeStats({
     this.todayOrders = 0,
     this.totalOrders = 0,
     this.activePharmacies = 0,
     this.totalMedicines = 0,
+    this.totalCompanies = 0,
   });
 }
 
@@ -67,6 +69,15 @@ class HomeController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Lightweight refresh — only reloads stats from DB without
+  /// touching activation state, carousel, or agent name.
+  Future<void> refreshStats() async {
+    try {
+      stats = await _loadStats();
+      notifyListeners();
+    } catch (_) {}
+  }
+
   Future<HomeStats> _loadStats() async {
     try {
       final db = await _db.database;
@@ -89,12 +100,16 @@ class HomeController extends ChangeNotifier {
       final medicinesResult = await db.rawQuery(
         "SELECT COUNT(*) as c FROM medicines",
       );
+      final companiesResult = await db.rawQuery(
+        "SELECT COUNT(*) as c FROM companies",
+      );
 
       return HomeStats(
         todayOrders: (todayResult.first['c'] as int?) ?? 0,
         totalOrders: (totalResult.first['c'] as int?) ?? 0,
         activePharmacies: (pharmaciesResult.first['c'] as int?) ?? 0,
         totalMedicines: (medicinesResult.first['c'] as int?) ?? 0,
+        totalCompanies: (companiesResult.first['c'] as int?) ?? 0,
       );
     } catch (_) {
       return const HomeStats();

@@ -60,6 +60,7 @@ class MyApp extends StatelessWidget {
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,
           themeMode: themeProvider.themeMode,
+          navigatorObservers: [routeObserver],
           // Set RTL direction for Arabic
           locale: const Locale('ar', 'SA'),
           supportedLocales: const [

@@ -15,6 +15,10 @@ import '../orders/orders_list_screen.dart';
 import '../settings/settings_screen.dart';
 import 'home_controller.dart';
 
+/// Global RouteObserver — register once in MaterialApp's navigatorObservers.
+final RouteObserver<ModalRoute<void>> routeObserver =
+    RouteObserver<ModalRoute<void>>();
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -22,7 +26,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with RouteAware {
   late final HomeController _ctrl;
   final PageController _pageController = PageController();
   int _currentPage = 0;
@@ -40,7 +44,23 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route is ModalRoute<void>) {
+      routeObserver.subscribe(this, route);
+    }
+  }
+
+  @override
+  void didPopNext() {
+    // Another screen was popped and we're visible again → refresh stats
+    _ctrl.refreshStats();
+  }
+
+  @override
   void dispose() {
+    routeObserver.unsubscribe(this);
     _timer?.cancel();
     _pageController.dispose();
     _ctrl.dispose();
@@ -83,7 +103,10 @@ class _HomeScreenState extends State<HomeScreen> {
     Navigator.push(
       context,
       SlidePageRoute(page: page, direction: SlideDirection.rightToLeft),
-    );
+    ).then((_) {
+      // Refresh stats when returning from any sub-screen
+      _ctrl.refreshStats();
+    });
   }
 
   // ─── BUILD ────────────────────────────────────────────────────────
@@ -399,16 +422,33 @@ class _HomeScreenState extends State<HomeScreen> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return Row(
+    return Column(
       children: [
-        _statCard('طلبيات اليوم', '${ctrl.stats.todayOrders}',
-            Icons.today_rounded, const Color(0xFF1E88E5), isDark),
-        const SizedBox(width: 10),
-        _statCard('إجمالي الطلبيات', '${ctrl.stats.totalOrders}',
-            Icons.receipt_long_rounded, const Color(0xFF43A047), isDark),
-        const SizedBox(width: 10),
-        _statCard('الصيدليات', '${ctrl.stats.activePharmacies}',
-            Icons.local_pharmacy_rounded, const Color(0xFF8E24AA), isDark),
+        Row(
+          children: [
+            _statCard('طلبيات اليوم', '${ctrl.stats.todayOrders}',
+                Icons.today_rounded, const Color(0xFF1E88E5), isDark),
+            const SizedBox(width: 10),
+            _statCard('إجمالي الطلبيات', '${ctrl.stats.totalOrders}',
+                Icons.receipt_long_rounded, const Color(0xFF43A047), isDark),
+            const SizedBox(width: 10),
+            _statCard('الصيدليات', '${ctrl.stats.activePharmacies}',
+                Icons.local_pharmacy_rounded, const Color(0xFF8E24AA), isDark),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            _statCard('الأدوية', '${ctrl.stats.totalMedicines}',
+                Icons.medication_rounded, const Color(0xFFE53935), isDark),
+            const SizedBox(width: 10),
+            _statCard('الشركات', '${ctrl.stats.totalCompanies}',
+                Icons.business_rounded, const Color(0xFF7B1FA2), isDark),
+            const SizedBox(width: 10),
+            // Spacer card to keep 3-column layout balanced
+            const Expanded(child: SizedBox()),
+          ],
+        ),
       ],
     );
   }
