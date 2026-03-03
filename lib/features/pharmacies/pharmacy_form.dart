@@ -3,6 +3,7 @@ import '../../core/db/database_helper.dart';
 import '../../core/models/pharmacy.dart';
 import '../../core/widgets/custom_app_bar.dart';
 import '../../core/widgets/form_widgets.dart';
+import '../../core/utils/phone_validator.dart';
 import '../../core/services/activation_service.dart';
 import '../../core/exceptions/trial_expired_exception.dart';
 
@@ -200,6 +201,7 @@ class _PharmacyFormState extends State<PharmacyForm> {
                       textDirection: TextDirection.ltr,
                       textAlign: TextAlign.right,
                       textInputAction: TextInputAction.done,
+                      validator: (v) => validatePhone(v, required: false),
                       onFieldSubmitted: (_) {
                         if (!_isLoading) _savePharmacy();
                       },

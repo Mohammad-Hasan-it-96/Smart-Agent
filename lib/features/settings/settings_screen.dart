@@ -9,6 +9,7 @@ import '../../core/services/update_service.dart';
 import '../../core/providers/theme_provider.dart';
 import '../../core/widgets/custom_app_bar.dart';
 import '../../core/widgets/update_dialog.dart';
+import '../../core/utils/phone_validator.dart';
 import 'settings_controller.dart';
 import 'widgets/setting_tile.dart';
 
@@ -463,15 +464,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
               }),
               const SizedBox(height: 14),
               _buildTextField(phoneC, 'رقم الهاتف', Icons.phone_outlined,
-                  keyboardType: TextInputType.phone, validator: (v) {
-                if (v == null || v.trim().isEmpty) return 'مطلوب';
-                final clean = v.trim().replaceAll(RegExp(r'[\s\-\(\)\+]'), '');
-                if (!RegExp(r'^[0-9]{8,}$').hasMatch(clean)) return 'رقم هاتف غير صالح';
-                return null;
-              }),
+                  keyboardType: TextInputType.phone,
+                  validator: (v) => validatePhone(v, required: true)),
               const SizedBox(height: 14),
               _buildTextField(invC, 'رقم المستودع (واتساب)', Icons.warehouse_outlined,
-                  keyboardType: TextInputType.phone),
+                  keyboardType: TextInputType.phone,
+                  validator: (v) => validatePhone(v, required: false)),
               const SizedBox(height: 24),
               SizedBox(
                 width: double.infinity,

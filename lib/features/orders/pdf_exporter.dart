@@ -775,7 +775,7 @@ Future<Uint8List> generateOrderPdf(
               mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
               children: [
                 pw.Text(
-                  'مجموع الأقلام:',
+                  'مجموع الأدوية:',
                   style: getArabicStyle(
                     fontSize: 11,
                     fontWeight: pw.FontWeight.bold,

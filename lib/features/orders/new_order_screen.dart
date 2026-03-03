@@ -5,6 +5,7 @@ import '../../core/models/company.dart';
 import '../../core/utils/slide_page_route.dart';
 import '../../core/widgets/custom_app_bar.dart';
 import '../../core/widgets/form_widgets.dart';
+import '../../core/utils/phone_validator.dart';
 import '../../core/services/activation_service.dart';
 import 'order_details_screen.dart';
 
@@ -179,15 +180,16 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
                   controller: phoneController,
                   decoration: InputDecoration(
                     labelText: 'رقم الهاتف',
+                    hintText: '09XXXXXXXX',
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
                     prefixIcon: const Icon(Icons.phone),
                   ),
                   keyboardType: TextInputType.phone,
-                  textDirection: TextDirection.rtl,
+                  textDirection: TextDirection.ltr,
                   textAlign: TextAlign.right,
-                  // Optional
+                  validator: (v) => validatePhone(v, required: false),
                 ),
                 const SizedBox(height: 24),
                 ElevatedButton(

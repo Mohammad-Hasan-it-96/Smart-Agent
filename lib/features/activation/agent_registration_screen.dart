@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/services/activation_service.dart';
+import '../../core/utils/phone_validator.dart';
 
 class AgentRegistrationScreen extends StatefulWidget {
   const AgentRegistrationScreen({super.key});
@@ -140,17 +141,7 @@ class _AgentRegistrationScreenState extends State<AgentRegistrationScreen> {
                 keyboardType: TextInputType.phone,
                 textDirection: TextDirection.rtl,
                 textInputAction: TextInputAction.done,
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'يرجى إدخال رقم الهاتف';
-                  }
-                  // Basic phone validation (at least 8 digits)
-                  final phoneRegex = RegExp(r'^[0-9]{8,}$');
-                  if (!phoneRegex.hasMatch(value.trim().replaceAll(RegExp(r'[\s\-\(\)]'), ''))) {
-                    return 'يرجى إدخال رقم هاتف صحيح (8 أرقام على الأقل)';
-                  }
-                  return null;
-                },
+                validator: (v) => validatePhone(v, required: true),
                 onFieldSubmitted: (_) => _submitForm(),
               ),
               const SizedBox(height: 48),
