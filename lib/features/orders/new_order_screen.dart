@@ -4,6 +4,7 @@ import '../../core/models/pharmacy.dart';
 import '../../core/models/company.dart';
 import '../../core/utils/slide_page_route.dart';
 import '../../core/widgets/custom_app_bar.dart';
+import '../../core/widgets/form_widgets.dart';
 import '../../core/services/activation_service.dart';
 import 'order_details_screen.dart';
 
@@ -65,6 +66,8 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
 
   bool _isLoading = true;
   bool _isSaving = false;
+  // Tracks whether a medicine search has been executed at least once
+  // (used to distinguish "not searched yet" from "searched but no results").
   bool _hasSearched = false;
 
   @override
@@ -397,16 +400,17 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
 
       final medicineInfo = medicineData.first;
 
-      // Get companies for this medicine
+      // Get companies for this medicine (by name, to find ALL companies
+      // across all rows that share the same medicine name)
       final maps = await db.rawQuery('''
         SELECT DISTINCT
           companies.id,
           companies.name
         FROM medicines
         JOIN companies ON medicines.company_id = companies.id
-        WHERE medicines.name = ? AND medicines.id = ?
+        WHERE medicines.name = ?
         ORDER BY companies.name
-      ''', [medicine.name, medicine.medicineId]);
+      ''', [medicine.name]);
 
       final companies = maps.map((map) => Company.fromMap(map)).toList();
 
@@ -813,20 +817,19 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           // Section 1: Pharmacy Selection
-                          _buildSectionHeader(
-                              '1', 'اختيار الصيدلية', Icons.local_pharmacy),
-                          const SizedBox(height: 12),
-                          Card(
-                            child: Padding(
-                              padding: const EdgeInsets.all(16.0),
-                              child: Row(
+                          FormSection(
+                            title: 'اختيار الصيدلية',
+                            icon: Icons.local_pharmacy_rounded,
+                            children: [
+                              Row(
                                 children: [
                                   Expanded(
                                     child: DropdownButtonFormField<int>(
                                       value: _selectedPharmacyId,
                                       decoration: const InputDecoration(
-                                        labelText: 'اختر الصيدلية',
-                                        prefixIcon: Icon(Icons.local_pharmacy),
+                                        labelText: 'اختر الصيدلية *',
+                                        hintText: 'اختر صيدلية من القائمة',
+                                        prefixIcon: Icon(Icons.local_pharmacy_rounded),
                                       ),
                                       items: _pharmacies.map((pharmacy) {
                                         return DropdownMenuItem<int>(
@@ -845,40 +848,44 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
                                     ),
                                   ),
                                   const SizedBox(width: 8),
-                                  FilledButton(
-                                    onPressed: _showAddPharmacyDialog,
-                                    style: FilledButton.styleFrom(
-                                      padding: const EdgeInsets.all(12),
-                                      shape: RoundedRectangleBorder(
+                                  Tooltip(
+                                    message: 'إضافة صيدلية جديدة',
+                                    child: Material(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .primaryContainer,
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: InkWell(
+                                        onTap: _showAddPharmacyDialog,
                                         borderRadius: BorderRadius.circular(12),
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(14),
+                                          child: Icon(
+                                            Icons.add_rounded,
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .onPrimaryContainer,
+                                          ),
+                                        ),
                                       ),
                                     ),
-                                    child: const Icon(Icons.add),
                                   ),
                                 ],
                               ),
-                            ),
+                            ],
                           ),
-                          const SizedBox(height: 24),
-                          const Divider(thickness: 2),
-                          const SizedBox(height: 24),
 
                           // Section 2: Medicine Search + Selection
-                          _buildSectionHeader(
-                              '2', 'بحث وإضافة الأدوية', Icons.medication),
-                          const SizedBox(height: 12),
-                          Card(
-                            child: Padding(
-                              padding: const EdgeInsets.all(16.0),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
+                          FormSection(
+                            title: 'بحث وإضافة الأدوية',
+                            icon: Icons.medication_rounded,
+                            children: [
                                   TextField(
                                     controller: _medicineSearchController,
                                     decoration: const InputDecoration(
                                       labelText: 'بحث عن دواء',
-                                      hintText: 'أدخل اسم الدواء',
-                                      prefixIcon: Icon(Icons.search),
+                                      hintText: 'أدخل اسم الدواء للبحث...',
+                                      prefixIcon: Icon(Icons.search_rounded),
                                     ),
                                     textDirection: TextDirection.rtl,
                                   ),
@@ -1054,16 +1061,12 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
                                   ],
                                 ],
                               ),
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-                          const Divider(thickness: 2),
-                          const SizedBox(height: 24),
+                          const SizedBox(height: 8),
 
-                          // Section 3: Current Order Items
+                          // Section 3: Current Order Items — use same style header
                           _buildSectionHeader(
-                              '3', 'عناصر الطلبية', Icons.shopping_cart),
-                          const SizedBox(height: 12),
+                              '3', 'عناصر الطلبية', Icons.shopping_cart_rounded),
+                          const SizedBox(height: 8),
                           if (_orderItems.isEmpty)
                             Card(
                               child: Padding(
@@ -1269,52 +1272,53 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
                   ),
                   // Section 4: Save Button (Fixed at bottom)
                   Container(
-                    padding: const EdgeInsets.all(16.0),
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
                     decoration: BoxDecoration(
                       color: theme.colorScheme.surface,
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
-                          blurRadius: 4,
-                          offset: const Offset(0, -2),
+                          color: Colors.black.withValues(alpha: 0.08),
+                          blurRadius: 8,
+                          offset: const Offset(0, -3),
                         ),
                       ],
                     ),
                     child: SafeArea(
                       top: false,
-                      child: FilledButton(
-                        onPressed: _isSaving || _orderItems.isEmpty
-                            ? null
-                            : _saveOrder,
-                        style: FilledButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          disabledBackgroundColor:
-                              theme.colorScheme.surfaceVariant,
-                        ),
-                        child: _isSaving
-                            ? const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                      Colors.white),
-                                ),
-                              )
-                            : Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const Icon(Icons.save),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    'حفظ الطلبية ${_orderItems.isEmpty ? '' : '(${_orderItems.length})'}',
-                                    style: const TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                      child: SizedBox(
+                        height: 56,
+                        child: FilledButton.icon(
+                          onPressed: _isSaving || _orderItems.isEmpty
+                              ? null
+                              : _saveOrder,
+                          icon: _isSaving
+                              ? const SizedBox(
+                                  height: 22,
+                                  width: 22,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.5,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                        Colors.white),
                                   ),
-                                ],
-                              ),
+                                )
+                              : const Icon(Icons.save_rounded, size: 22),
+                          label: Text(
+                            _isSaving
+                                ? 'جارٍ الحفظ...'
+                                : 'حفظ الطلبية ${_orderItems.isEmpty ? '' : '(${_orderItems.length})'}',
+                            style: const TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          style: FilledButton.styleFrom(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            disabledBackgroundColor:
+                                theme.colorScheme.surfaceContainerHighest,
+                          ),
+                        ),
                       ),
                     ),
                   ),

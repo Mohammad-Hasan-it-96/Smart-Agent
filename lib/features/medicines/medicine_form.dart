@@ -5,6 +5,7 @@ import '../../core/models/company.dart';
 import '../../core/services/activation_service.dart';
 import '../../core/exceptions/trial_expired_exception.dart';
 import '../../core/widgets/custom_app_bar.dart';
+import '../../core/widgets/form_widgets.dart';
 
 class MedicineForm extends StatefulWidget {
   final Medicine? medicine;
@@ -472,133 +473,173 @@ class _MedicineFormState extends State<MedicineForm> {
 
   @override
   Widget build(BuildContext context) {
+    final isEdit = widget.medicine != null;
     return Scaffold(
       appBar: CustomAppBar(
-        title: widget.medicine == null ? 'إضافة دواء' : 'تعديل دواء',
+        title: isEdit ? 'تعديل دواء' : 'إضافة دواء',
       ),
       body: _isLoadingCompanies
           ? const Center(child: CircularProgressIndicator())
           : SafeArea(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20.0),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
                 child: Form(
                   key: _formKey,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      TextFormField(
-                        controller: _nameController,
-                        decoration: const InputDecoration(
-                          labelText: 'اسم الدواء',
-                          prefixIcon: Icon(Icons.medication),
-                        ),
-                        textDirection: TextDirection.rtl,
-                        textAlign: TextAlign.right,
-                        validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return 'يرجى إدخال اسم الدواء';
-                          }
-                          return null;
-                        },
+                      FormHeader(
+                        icon: isEdit
+                            ? Icons.edit_rounded
+                            : Icons.medication_rounded,
+                        title: isEdit ? 'تعديل بيانات الدواء' : 'دواء جديد',
+                        subtitle: isEdit
+                            ? 'عدّل البيانات ثم اضغط تحديث'
+                            : 'أدخل بيانات الدواء لإضافته',
                       ),
-                      const SizedBox(height: 20),
-                      if (_companies.isEmpty)
-                        _buildEmptyCompanyState()
-                      else
-                        _buildCompanyDropdownRow(),
-                      const SizedBox(height: 20),
-                      TextFormField(
-                        controller: _priceController,
-                        decoration: const InputDecoration(
-                          labelText: 'سعر الدواء (بالدولار \$)',
-                          hintText: '0.00',
-                          prefixIcon: Icon(Icons.attach_money),
-                        ),
-                        keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true),
-                        textDirection: TextDirection.rtl,
-                        textAlign: TextAlign.right,
-                        validator: (value) {
-                          if (value != null && value.trim().isNotEmpty) {
-                            final price = double.tryParse(value.trim());
-                            if (price == null || price < 0) {
-                              return 'يرجى إدخال سعر صحيح';
-                            }
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 20),
-                      TextFormField(
-                        controller: _sourceController,
-                        decoration: const InputDecoration(
-                          labelText: 'المصدر',
-                          hintText: 'أدخل مصدر الدواء (بلد – مستودع – أي نص)',
-                          prefixIcon: Icon(Icons.flag),
-                        ),
-                        textDirection: TextDirection.rtl,
-                        textAlign: TextAlign.right,
-                      ),
-                      const SizedBox(height: 20),
-                      DropdownButtonFormField<String>(
-                        value: _selectedForm,
-                        decoration: const InputDecoration(
-                          labelText: 'نوع الدواء',
-                          prefixIcon: Icon(Icons.category),
-                        ),
-                        items: [
-                          const DropdownMenuItem<String>(
-                            value: null,
-                            child: Text('اختر النوع'),
+
+                      // ── Basic Info ──
+                      FormSection(
+                        title: 'المعلومات الأساسية',
+                        icon: Icons.info_outline_rounded,
+                        children: [
+                          TextFormField(
+                            controller: _nameController,
+                            decoration: const InputDecoration(
+                              labelText: 'اسم الدواء *',
+                              hintText: 'مثال: أموكسيسيللين',
+                              prefixIcon: Icon(Icons.medication_rounded),
+                            ),
+                            textDirection: TextDirection.rtl,
+                            textAlign: TextAlign.right,
+                            textInputAction: TextInputAction.next,
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'يرجى إدخال اسم الدواء';
+                              }
+                              return null;
+                            },
                           ),
-                          ..._formOptions.map((form) {
-                            return DropdownMenuItem<String>(
-                              value: form,
-                              child: Text(
-                                form,
-                                textDirection: TextDirection.rtl,
+                          const SizedBox(height: 16),
+                          DropdownButtonFormField<String>(
+                            value: _selectedForm,
+                            decoration: const InputDecoration(
+                              labelText: 'الشكل الصيدلاني',
+                              prefixIcon: Icon(Icons.category_rounded),
+                            ),
+                            items: [
+                              const DropdownMenuItem<String>(
+                                value: null,
+                                child: Text('اختر النوع'),
                               ),
-                            );
-                          }),
+                              ..._formOptions.map((form) {
+                                return DropdownMenuItem<String>(
+                                  value: form,
+                                  child: Text(
+                                    form,
+                                    textDirection: TextDirection.rtl,
+                                  ),
+                                );
+                              }),
+                            ],
+                            onChanged: (value) {
+                              setState(() {
+                                _selectedForm = value;
+                              });
+                            },
+                          ),
                         ],
-                        onChanged: (value) {
-                          setState(() {
-                            _selectedForm = value;
-                          });
-                        },
                       ),
-                      const SizedBox(height: 20),
-                      TextFormField(
-                        controller: _notesController,
-                        decoration: const InputDecoration(
-                          labelText: 'ملاحظات',
-                          prefixIcon: Icon(Icons.note),
-                        ),
-                        textDirection: TextDirection.rtl,
-                        textAlign: TextAlign.right,
-                        maxLines: 3,
+
+                      // ── Company ──
+                      FormSection(
+                        title: 'الشركة المصنّعة',
+                        icon: Icons.business_rounded,
+                        children: [
+                          if (_companies.isEmpty)
+                            _buildEmptyCompanyState()
+                          else
+                            _buildCompanyDropdownRow(),
+                        ],
                       ),
-                      const SizedBox(height: 32),
-                      FilledButton(
-                        onPressed: _isLoading ? null : _saveMedicine,
-                        style: FilledButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                        ),
-                        child: _isLoading
-                            ? const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                      Colors.white),
-                                ),
-                              )
-                            : Text(
-                                widget.medicine == null ? 'إضافة' : 'تحديث',
-                                style: const TextStyle(fontSize: 18),
-                              ),
+
+                      // ── Pricing ──
+                      FormSection(
+                        title: 'السعر والمصدر',
+                        icon: Icons.attach_money_rounded,
+                        children: [
+                          TextFormField(
+                            controller: _priceController,
+                            decoration: const InputDecoration(
+                              labelText: 'سعر الدواء (بالدولار \$)',
+                              hintText: '0.00',
+                              prefixIcon: Icon(Icons.attach_money_rounded),
+                            ),
+                            keyboardType:
+                                const TextInputType.numberWithOptions(
+                                    decimal: true),
+                            textDirection: TextDirection.ltr,
+                            textAlign: TextAlign.right,
+                            textInputAction: TextInputAction.next,
+                            validator: (value) {
+                              if (value != null && value.trim().isNotEmpty) {
+                                final price = double.tryParse(value.trim());
+                                if (price == null || price < 0) {
+                                  return 'يرجى إدخال سعر صحيح';
+                                }
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            controller: _sourceController,
+                            decoration: const InputDecoration(
+                              labelText: 'المصدر',
+                              hintText:
+                                  'أدخل مصدر الدواء (بلد – مستودع – أي نص)',
+                              prefixIcon: Icon(Icons.flag_rounded),
+                            ),
+                            textDirection: TextDirection.rtl,
+                            textAlign: TextAlign.right,
+                            textInputAction: TextInputAction.next,
+                          ),
+                        ],
                       ),
+
+                      // ── Notes ──
+                      FormSection(
+                        title: 'ملاحظات إضافية',
+                        icon: Icons.note_alt_rounded,
+                        children: [
+                          TextFormField(
+                            controller: _notesController,
+                            decoration: const InputDecoration(
+                              labelText: 'ملاحظات',
+                              hintText: 'أي معلومات إضافية عن الدواء...',
+                              prefixIcon: Icon(Icons.note_rounded),
+                              alignLabelWithHint: true,
+                            ),
+                            textDirection: TextDirection.rtl,
+                            textAlign: TextAlign.right,
+                            maxLines: 3,
+                            textInputAction: TextInputAction.done,
+                            onFieldSubmitted: (_) {
+                              if (!_isLoading) _saveMedicine();
+                            },
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 12),
+                      FormSaveButton(
+                        isLoading: _isLoading,
+                        onPressed: _saveMedicine,
+                        label: isEdit ? 'تحديث الدواء' : 'إضافة الدواء',
+                        icon: isEdit ? Icons.save_rounded : Icons.add_rounded,
+                      ),
+                      const SizedBox(height: 24),
                     ],
                   ),
                 ),

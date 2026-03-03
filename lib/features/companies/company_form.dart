@@ -4,6 +4,7 @@ import '../../core/models/company.dart';
 import '../../core/services/activation_service.dart';
 import '../../core/exceptions/trial_expired_exception.dart';
 import '../../core/widgets/custom_app_bar.dart';
+import '../../core/widgets/form_widgets.dart';
 
 class CompanyForm extends StatefulWidget {
   final Company? company;
@@ -111,54 +112,60 @@ class _CompanyFormState extends State<CompanyForm> {
 
   @override
   Widget build(BuildContext context) {
+    final isEdit = widget.company != null;
     return Scaffold(
       appBar: CustomAppBar(
-        title: widget.company == null ? 'إضافة شركة' : 'تعديل شركة',
+        title: isEdit ? 'تعديل شركة' : 'إضافة شركة',
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20.0),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
           child: Form(
             key: _formKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                TextFormField(
-                  controller: _nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'اسم الشركة',
-                    prefixIcon: Icon(Icons.business),
-                  ),
-                  textDirection: TextDirection.rtl,
-                  textAlign: TextAlign.right,
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'يرجى إدخال اسم الشركة';
-                    }
-                    return null;
-                  },
+                FormHeader(
+                  icon: isEdit ? Icons.edit_rounded : Icons.add_business_rounded,
+                  title: isEdit ? 'تعديل بيانات الشركة' : 'شركة جديدة',
+                  subtitle: isEdit
+                      ? 'عدّل اسم الشركة ثم اضغط تحديث'
+                      : 'أدخل اسم الشركة لإضافتها',
                 ),
-                const SizedBox(height: 32),
-                FilledButton(
-                  onPressed: _isLoading ? null : _saveCompany,
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
-                  child: _isLoading
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor:
-                                AlwaysStoppedAnimation<Color>(Colors.white),
-                          ),
-                        )
-                      : Text(
-                          widget.company == null ? 'إضافة' : 'تحديث',
-                          style: const TextStyle(fontSize: 18),
-                        ),
+                FormSection(
+                  title: 'معلومات الشركة',
+                  icon: Icons.business_rounded,
+                  children: [
+                    TextFormField(
+                      controller: _nameController,
+                      decoration: const InputDecoration(
+                        labelText: 'اسم الشركة *',
+                        hintText: 'مثال: شركة فارما',
+                        prefixIcon: Icon(Icons.business_rounded),
+                      ),
+                      textDirection: TextDirection.rtl,
+                      textAlign: TextAlign.right,
+                      textInputAction: TextInputAction.done,
+                      onFieldSubmitted: (_) {
+                        if (!_isLoading) _saveCompany();
+                      },
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'يرجى إدخال اسم الشركة';
+                        }
+                        return null;
+                      },
+                    ),
+                  ],
                 ),
+                const SizedBox(height: 12),
+                FormSaveButton(
+                  isLoading: _isLoading,
+                  onPressed: _saveCompany,
+                  label: isEdit ? 'تحديث الشركة' : 'إضافة الشركة',
+                  icon: isEdit ? Icons.save_rounded : Icons.add_rounded,
+                ),
+                const SizedBox(height: 24),
               ],
             ),
           ),

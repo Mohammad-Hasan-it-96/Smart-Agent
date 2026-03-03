@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/db/database_helper.dart';
 import '../../core/models/pharmacy.dart';
 import '../../core/widgets/custom_app_bar.dart';
+import '../../core/widgets/form_widgets.dart';
 import '../../core/services/activation_service.dart';
 import '../../core/exceptions/trial_expired_exception.dart';
 
@@ -122,78 +123,98 @@ class _PharmacyFormState extends State<PharmacyForm> {
 
   @override
   Widget build(BuildContext context) {
+    final isEdit = widget.pharmacy != null;
     return Scaffold(
       appBar: CustomAppBar(
-        title: widget.pharmacy == null ? 'إضافة صيدلية' : 'تعديل صيدلية',
+        title: isEdit ? 'تعديل صيدلية' : 'إضافة صيدلية',
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20.0),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
           child: Form(
             key: _formKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                TextFormField(
-                  controller: _nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'اسم الصيدلية',
-                    prefixIcon: Icon(Icons.local_pharmacy),
-                  ),
-                  textDirection: TextDirection.rtl,
-                  textAlign: TextAlign.right,
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'يرجى إدخال اسم الصيدلية';
-                    }
-                    return null;
-                  },
+                FormHeader(
+                  icon: isEdit
+                      ? Icons.edit_rounded
+                      : Icons.local_pharmacy_rounded,
+                  title: isEdit ? 'تعديل بيانات الصيدلية' : 'صيدلية جديدة',
+                  subtitle: isEdit
+                      ? 'عدّل البيانات ثم اضغط تحديث'
+                      : 'أدخل بيانات الصيدلية لإضافتها',
                 ),
-                const SizedBox(height: 20),
-                TextFormField(
-                  controller: _addressController,
-                  decoration: const InputDecoration(
-                    labelText: 'العنوان',
-                    prefixIcon: Icon(Icons.location_on),
-                  ),
-                  textDirection: TextDirection.rtl,
-                  textAlign: TextAlign.right,
-                  maxLines: 2,
-                  // Optional
+
+                // ── Basic Info ──
+                FormSection(
+                  title: 'المعلومات الأساسية',
+                  icon: Icons.info_outline_rounded,
+                  children: [
+                    TextFormField(
+                      controller: _nameController,
+                      decoration: const InputDecoration(
+                        labelText: 'اسم الصيدلية *',
+                        hintText: 'مثال: صيدلية الشفاء',
+                        prefixIcon: Icon(Icons.local_pharmacy_rounded),
+                      ),
+                      textDirection: TextDirection.rtl,
+                      textAlign: TextAlign.right,
+                      textInputAction: TextInputAction.next,
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'يرجى إدخال اسم الصيدلية';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _addressController,
+                      decoration: const InputDecoration(
+                        labelText: 'العنوان',
+                        hintText: 'المدينة — الشارع — التفاصيل',
+                        prefixIcon: Icon(Icons.location_on_rounded),
+                      ),
+                      textDirection: TextDirection.rtl,
+                      textAlign: TextAlign.right,
+                      textInputAction: TextInputAction.next,
+                      maxLines: 2,
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 20),
-                TextFormField(
-                  controller: _phoneController,
-                  decoration: const InputDecoration(
-                    labelText: 'رقم الهاتف',
-                    prefixIcon: Icon(Icons.phone),
-                  ),
-                  keyboardType: TextInputType.phone,
-                  textDirection: TextDirection.rtl,
-                  textAlign: TextAlign.right,
-                  // Optional
+
+                // ── Contact Info ──
+                FormSection(
+                  title: 'معلومات التواصل',
+                  icon: Icons.phone_rounded,
+                  children: [
+                    TextFormField(
+                      controller: _phoneController,
+                      decoration: const InputDecoration(
+                        labelText: 'رقم الهاتف',
+                        hintText: '09XXXXXXXX',
+                        prefixIcon: Icon(Icons.phone_rounded),
+                      ),
+                      keyboardType: TextInputType.phone,
+                      textDirection: TextDirection.ltr,
+                      textAlign: TextAlign.right,
+                      textInputAction: TextInputAction.done,
+                      onFieldSubmitted: (_) {
+                        if (!_isLoading) _savePharmacy();
+                      },
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 32),
-                FilledButton(
-                  onPressed: _isLoading ? null : _savePharmacy,
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
-                  child: _isLoading
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor:
-                                AlwaysStoppedAnimation<Color>(Colors.white),
-                          ),
-                        )
-                      : Text(
-                          widget.pharmacy == null ? 'إضافة' : 'تحديث',
-                          style: const TextStyle(fontSize: 18),
-                        ),
+
+                const SizedBox(height: 12),
+                FormSaveButton(
+                  isLoading: _isLoading,
+                  onPressed: _savePharmacy,
+                  label: isEdit ? 'تحديث الصيدلية' : 'إضافة الصيدلية',
+                  icon: isEdit ? Icons.save_rounded : Icons.add_rounded,
                 ),
+                const SizedBox(height: 24),
               ],
             ),
           ),
