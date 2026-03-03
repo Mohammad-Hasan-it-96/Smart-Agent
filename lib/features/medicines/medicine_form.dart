@@ -182,6 +182,294 @@ class _MedicineFormState extends State<MedicineForm> {
     }
   }
 
+  // ─── Empty company state ───────────────────────────────────────
+  Widget _buildEmptyCompanyState() {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: isDark
+            ? Colors.orange.shade900.withValues(alpha: 0.15)
+            : Colors.orange.shade50,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? Colors.orange.shade800 : Colors.orange.shade200,
+        ),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Icon(Icons.info_outline_rounded,
+                  color: Colors.orange.shade700, size: 22),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'لا توجد شركات بعد — أضف شركة للمتابعة',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: isDark
+                        ? Colors.orange.shade200
+                        : Colors.orange.shade900,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  textDirection: TextDirection.rtl,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            height: 55,
+            child: FilledButton.icon(
+              onPressed: _showAddCompanySheet,
+              icon: const Icon(Icons.add_business_rounded),
+              label: const Text(
+                'إضافة شركة جديدة',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+              ),
+              style: FilledButton.styleFrom(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─── Dropdown + add button row ────────────────────────────────
+  Widget _buildCompanyDropdownRow() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: DropdownButtonFormField<int>(
+            value: _selectedCompanyId,
+            decoration: const InputDecoration(
+              labelText: 'الشركة',
+              prefixIcon: Icon(Icons.business),
+            ),
+            items: _companies.map((company) {
+              return DropdownMenuItem<int>(
+                value: company.id,
+                child: Text(
+                  company.name,
+                  textDirection: TextDirection.rtl,
+                ),
+              );
+            }).toList(),
+            onChanged: (value) {
+              setState(() {
+                _selectedCompanyId = value;
+              });
+            },
+            validator: (value) {
+              if (value == null) {
+                return 'يرجى اختيار الشركة';
+              }
+              return null;
+            },
+          ),
+        ),
+        const SizedBox(width: 8),
+        Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Tooltip(
+            message: 'إضافة شركة جديدة',
+            child: Material(
+              color: Theme.of(context).colorScheme.primaryContainer,
+              borderRadius: BorderRadius.circular(12),
+              child: InkWell(
+                onTap: _showAddCompanySheet,
+                borderRadius: BorderRadius.circular(12),
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Icon(
+                    Icons.add_business_rounded,
+                    color:
+                        Theme.of(context).colorScheme.onPrimaryContainer,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ─── Add company bottom sheet ─────────────────────────────────
+  void _showAddCompanySheet() {
+    final companyNameController = TextEditingController();
+    final sheetFormKey = GlobalKey<FormState>();
+    bool isSaving = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 24,
+                right: 24,
+                top: 20,
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+              ),
+              child: Form(
+                key: sheetFormKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Handle bar
+                    Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[400],
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Icon(Icons.add_business_rounded,
+                            color: Theme.of(ctx).colorScheme.primary),
+                        const SizedBox(width: 10),
+                        Text(
+                          'إضافة شركة جديدة',
+                          style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    TextFormField(
+                      controller: companyNameController,
+                      autofocus: true,
+                      textDirection: TextDirection.rtl,
+                      textAlign: TextAlign.right,
+                      decoration: InputDecoration(
+                        labelText: 'اسم الشركة',
+                        hintText: 'أدخل اسم الشركة',
+                        prefixIcon: const Icon(Icons.business),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        filled: true,
+                        fillColor: Theme.of(ctx)
+                            .colorScheme
+                            .surfaceContainerHighest
+                            .withValues(alpha: 0.3),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'يرجى إدخال اسم الشركة';
+                        }
+                        // Check for duplicate name
+                        final exists = _companies.any((c) =>
+                            c.name.trim().toLowerCase() ==
+                            value.trim().toLowerCase());
+                        if (exists) {
+                          return 'هذه الشركة موجودة بالفعل';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: FilledButton.icon(
+                        onPressed: isSaving
+                            ? null
+                            : () async {
+                                if (!sheetFormKey.currentState!.validate()) {
+                                  return;
+                                }
+                                setSheetState(() => isSaving = true);
+                                try {
+                                  final name =
+                                      companyNameController.text.trim();
+                                  final newCompany = Company(name: name);
+                                  final id = await _dbHelper.insert(
+                                      'companies', newCompany.toMap());
+
+                                  // Reload companies and auto-select the new one
+                                  final maps = await _dbHelper.query(
+                                      'companies',
+                                      orderBy: 'name');
+                                  if (mounted) {
+                                    setState(() {
+                                      _companies = maps
+                                          .map((m) => Company.fromMap(m))
+                                          .toList();
+                                      _selectedCompanyId = id;
+                                    });
+                                  }
+
+                                  if (ctx.mounted) {
+                                    Navigator.pop(ctx);
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                            'تمت إضافة شركة "$name" بنجاح'),
+                                        backgroundColor: Colors.green,
+                                      ),
+                                    );
+                                  }
+                                } catch (e) {
+                                  setSheetState(() => isSaving = false);
+                                  if (ctx.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                            'حدث خطأ: ${e.toString()}'),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                  }
+                                }
+                              },
+                        icon: isSaving
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.white),
+                                ),
+                              )
+                            : const Icon(Icons.check_rounded),
+                        label: Text(
+                          isSaving ? 'جارٍ الحفظ...' : 'حفظ الشركة',
+                          style: const TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -214,33 +502,10 @@ class _MedicineFormState extends State<MedicineForm> {
                         },
                       ),
                       const SizedBox(height: 20),
-                      DropdownButtonFormField<int>(
-                        value: _selectedCompanyId,
-                        decoration: const InputDecoration(
-                          labelText: 'الشركة',
-                          prefixIcon: Icon(Icons.business),
-                        ),
-                        items: _companies.map((company) {
-                          return DropdownMenuItem<int>(
-                            value: company.id,
-                            child: Text(
-                              company.name,
-                              textDirection: TextDirection.rtl,
-                            ),
-                          );
-                        }).toList(),
-                        onChanged: (value) {
-                          setState(() {
-                            _selectedCompanyId = value;
-                          });
-                        },
-                        validator: (value) {
-                          if (value == null) {
-                            return 'يرجى اختيار الشركة';
-                          }
-                          return null;
-                        },
-                      ),
+                      if (_companies.isEmpty)
+                        _buildEmptyCompanyState()
+                      else
+                        _buildCompanyDropdownRow(),
                       const SizedBox(height: 20),
                       TextFormField(
                         controller: _priceController,

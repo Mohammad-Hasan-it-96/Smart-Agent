@@ -65,6 +65,7 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
 
   bool _isLoading = true;
   bool _isSaving = false;
+  bool _hasSearched = false;
 
   @override
   void initState() {
@@ -306,6 +307,7 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
     if (query.isEmpty) {
       setState(() {
         _medicinesWithCompanies = [];
+        _hasSearched = false;
       });
       return;
     }
@@ -357,6 +359,7 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
 
       setState(() {
         _medicinesWithCompanies = medicinesList;
+        _hasSearched = true;
       });
     } catch (e) {
       // Handle error
@@ -371,6 +374,7 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
     _medicineSearchController.clear();
     setState(() {
       _medicinesWithCompanies = [];
+      _hasSearched = false;
     });
 
     // Load companies and show dialog
@@ -879,7 +883,65 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
                                     textDirection: TextDirection.rtl,
                                   ),
                                   // Medicine search results
-                                  if (_medicinesWithCompanies.isNotEmpty) ...[
+                                  if (_hasSearched &&
+                                      _medicinesWithCompanies.isEmpty) ...[
+                                    const SizedBox(height: 12),
+                                    Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 20, vertical: 24),
+                                      decoration: BoxDecoration(
+                                        color: theme.brightness ==
+                                                Brightness.dark
+                                            ? Colors.orange.shade900
+                                                .withValues(alpha: 0.15)
+                                            : Colors.orange.shade50,
+                                        borderRadius:
+                                            BorderRadius.circular(14),
+                                        border: Border.all(
+                                          color: theme.brightness ==
+                                                  Brightness.dark
+                                              ? Colors.orange.shade800
+                                              : Colors.orange.shade200,
+                                        ),
+                                      ),
+                                      child: Column(
+                                        children: [
+                                          Icon(
+                                            Icons.search_off_rounded,
+                                            size: 48,
+                                            color: Colors.orange.shade400,
+                                          ),
+                                          const SizedBox(height: 12),
+                                          Text(
+                                            'لم يتم العثور على الدواء',
+                                            style: TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.bold,
+                                              color: theme.brightness ==
+                                                      Brightness.dark
+                                                  ? Colors.orange.shade200
+                                                  : Colors.orange.shade900,
+                                            ),
+                                            textDirection: TextDirection.rtl,
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            'يمكنك إضافته من صفحة الأدوية',
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              color: theme.brightness ==
+                                                      Brightness.dark
+                                                  ? Colors.orange.shade300
+                                                  : Colors.orange.shade700,
+                                            ),
+                                            textDirection: TextDirection.rtl,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ] else if (_medicinesWithCompanies
+                                      .isNotEmpty) ...[
                                     const SizedBox(height: 12),
                                     Container(
                                       decoration: BoxDecoration(
