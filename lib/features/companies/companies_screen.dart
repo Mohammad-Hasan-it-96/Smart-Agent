@@ -8,7 +8,7 @@ import '../../core/models/company.dart';
 import '../../core/services/activation_service.dart';
 import '../../core/utils/slide_page_route.dart';
 import '../../core/widgets/custom_app_bar.dart';
-import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/index/index_design_system.dart';
 import 'company_form.dart';
 
 enum _CompanySort { aToZ, newest, mostUsed }
@@ -261,124 +261,111 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
     };
   }
 
-  Widget _buildHeader(BuildContext context) {
-    return Container(
-      color: Theme.of(context).scaffoldBackgroundColor,
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-      child: Column(
-        children: [
-          TextField(
-            controller: _searchController,
-            textDirection: TextDirection.rtl,
-            decoration: InputDecoration(
-              hintText: 'ابحث عن شركة...',
-              prefixIcon: const Icon(Icons.search_rounded),
-              suffixIcon: _searchQuery.isEmpty
-                  ? null
-                  : IconButton(
-                      onPressed: () => _searchController.clear(),
-                      icon: const Icon(Icons.close_rounded),
-                    ),
-              filled: true,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
+    Widget _buildHeader(BuildContext context) {
+    final sortField = DropdownButtonFormField<_CompanySort>(
+      initialValue: _selectedSort,
+      decoration: const InputDecoration(
+        labelText: 'الترتيب',
+        prefixIcon: Icon(Icons.sort_rounded),
+      ),
+      items: _CompanySort.values
+          .map(
+            (sort) => DropdownMenuItem<_CompanySort>(
+              value: sort,
+              child: Text(_sortLabel(sort)),
             ),
-          ),
-          const SizedBox(height: 10),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final isNarrow = constraints.maxWidth < 430;
+          )
+          .toList(),
+      onChanged: (value) {
+        if (value == null || value == _selectedSort) return;
+        setState(() => _selectedSort = value);
+        _loadCompanies(reset: true);
+      },
+    );
 
-              final sortField = DropdownButtonFormField<_CompanySort>(
-                initialValue: _selectedSort,
-                decoration: const InputDecoration(
-                  labelText: 'الترتيب',
-                  prefixIcon: Icon(Icons.sort_rounded),
+    final activityField = SegmentedButton<_CompanyActivityFilter>(
+      selected: {_activityFilter},
+      showSelectedIcon: false,
+      style: const ButtonStyle(
+        visualDensity: VisualDensity.compact,
+      ),
+      segments: const [
+        ButtonSegment<_CompanyActivityFilter>(
+          value: _CompanyActivityFilter.all,
+          label: Text('الكل'),
+        ),
+        ButtonSegment<_CompanyActivityFilter>(
+          value: _CompanyActivityFilter.active,
+          label: Text('نشطة'),
+        ),
+        ButtonSegment<_CompanyActivityFilter>(
+          value: _CompanyActivityFilter.inactive,
+          label: Text('غير نشطة'),
+        ),
+      ],
+      onSelectionChanged: (selection) {
+        final value = selection.first;
+        if (value == _activityFilter) return;
+        setState(() => _activityFilter = value);
+        _loadCompanies(reset: true);
+      },
+    );
+
+    return IndexHeaderSection(
+      searchController: _searchController,
+      searchQuery: _searchQuery,
+      hintText: 'ابحث عن شركة...',
+      controls: LayoutBuilder(
+        builder: (context, constraints) {
+          final isNarrow = constraints.maxWidth < 430;
+          if (isNarrow) {
+            return Column(
+              children: [
+                sortField,
+                const SizedBox(height: 10),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: activityField,
+                  ),
                 ),
-                items: _CompanySort.values
-                    .map(
-                      (sort) => DropdownMenuItem<_CompanySort>(
-                        value: sort,
-                        child: Text(_sortLabel(sort)),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (value) {
-                  if (value == null || value == _selectedSort) return;
-                  setState(() => _selectedSort = value);
-                  _loadCompanies(reset: true);
-                },
-              );
+              ],
+            );
+          }
 
-              final activityField = SegmentedButton<_CompanyActivityFilter>(
-                selected: {_activityFilter},
-                showSelectedIcon: false,
-                style: const ButtonStyle(
-                  visualDensity: VisualDensity.compact,
+          return Row(
+            children: [
+              Expanded(child: sortField),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: activityField,
+                  ),
                 ),
-                segments: const [
-                  ButtonSegment<_CompanyActivityFilter>(
-                    value: _CompanyActivityFilter.all,
-                    label: Text('الكل'),
-                  ),
-                  ButtonSegment<_CompanyActivityFilter>(
-                    value: _CompanyActivityFilter.active,
-                    label: Text('نشطة'),
-                  ),
-                  ButtonSegment<_CompanyActivityFilter>(
-                    value: _CompanyActivityFilter.inactive,
-                    label: Text('غير نشطة'),
-                  ),
-                ],
-                onSelectionChanged: (selection) {
-                  final value = selection.first;
-                  if (value == _activityFilter) return;
-                  setState(() => _activityFilter = value);
-                  _loadCompanies(reset: true);
-                },
-              );
-
-              if (isNarrow) {
-                return Column(
-                  children: [
-                    sortField,
-                    const SizedBox(height: 10),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: activityField,
-                      ),
-                    ),
-                  ],
-                );
-              }
-
-              return Row(
-                children: [
-                  Expanded(child: sortField),
-                  const SizedBox(width: 10),
-                  Expanded(child: activityField),
-                ],
-              );
-            },
-          ),
-        ],
+              ),
+            ],
+          );
+        },
       ),
     );
-  }
+    }
 
-  Widget _buildCompanyCard(BuildContext context, _CompanyListItem company) {
+    Widget _buildCompanyCard(BuildContext context, _CompanyListItem company) {
     final theme = Theme.of(context);
     final isActive = company.medicinesCount > 0;
 
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      margin: IndexUiTokens.cardMargin,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(IndexUiTokens.cardRadius),
+      ),
       elevation: 1.5,
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: IndexUiTokens.cardPadding,
         child: Directionality(
           textDirection: TextDirection.rtl,
           child: Row(
@@ -412,11 +399,11 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
                       spacing: 8,
                       runSpacing: 8,
                       children: [
-                        _InfoChip(
+                        IndexInfoChip(
                           icon: Icons.medication_rounded,
                           text: '${company.medicinesCount} دواء',
                         ),
-                        _InfoChip(
+                        IndexInfoChip(
                           icon: isActive
                               ? Icons.check_circle_rounded
                               : Icons.pause_circle_outline_rounded,
@@ -458,11 +445,15 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
         ),
       ),
     );
-  }
+    }
 
-  Widget _buildBody(BuildContext context) {
+    Widget _buildBody(BuildContext context) {
     if (_isInitialLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return ListView.builder(
+        padding: IndexUiTokens.listBottomPadding,
+        itemCount: 8,
+        itemBuilder: (_, __) => const IndexSkeletonCard(),
+      );
     }
 
     if (_companies.isEmpty) {
@@ -470,23 +461,20 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
           _selectedSort != _CompanySort.aToZ ||
           _activityFilter != _CompanyActivityFilter.all;
 
-      return EmptyState(
+      return IndexEmptySection(
         icon: hasSearchOrFilters ? Icons.search_off_rounded : Icons.business_rounded,
         title: hasSearchOrFilters ? 'لا توجد نتائج' : 'لا توجد شركات بعد',
         message: hasSearchOrFilters
             ? 'جرّب تغيير البحث أو خيارات التصفية.'
             : 'ابدأ بإضافة شركة جديدة لتنظيم بيانات الأدوية بسهولة.',
-        action: FilledButton.icon(
-          onPressed: () => _navigateToForm(null),
-          icon: const Icon(Icons.add_rounded),
-          label: const Text('إضافة شركة'),
-        ),
+        onAdd: () => _navigateToForm(null),
+        addLabel: 'إضافة شركة',
       );
     }
 
     return ListView.builder(
       controller: _scrollController,
-      padding: const EdgeInsets.only(bottom: 90),
+      padding: IndexUiTokens.listBottomPadding,
       itemCount: _companies.length + (_isLoadingMore ? 1 : 0),
       itemBuilder: (context, index) {
         if (index == _companies.length) {
@@ -498,7 +486,7 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
         return _buildCompanyCard(context, _companies[index]);
       },
     );
-  }
+    }
 
   @override
   Widget build(BuildContext context) {
@@ -554,42 +542,4 @@ class _CompanyListItem {
   Company toCompany() => Company(id: id, name: name);
 }
 
-class _InfoChip extends StatelessWidget {
-  final IconData icon;
-  final String text;
-  final Color? color;
-
-  const _InfoChip({
-    required this.icon,
-    required this.text,
-    this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final effectiveColor = color ?? Theme.of(context).colorScheme.primary;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: effectiveColor.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: effectiveColor),
-          const SizedBox(width: 6),
-          Text(
-            text,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: effectiveColor,
-                  fontWeight: FontWeight.w600,
-                ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 

@@ -11,7 +11,7 @@ import '../../core/services/activation_service.dart';
 import '../../core/services/settings_service.dart';
 import '../../core/utils/slide_page_route.dart';
 import '../../core/widgets/custom_app_bar.dart';
-import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/index/index_design_system.dart';
 import 'medicine_form.dart';
 
 class MedicinesScreen extends StatefulWidget {
@@ -312,7 +312,7 @@ class _MedicinesScreenState extends State<MedicinesScreen> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 18),
                       DropdownButtonFormField<int?>(
                         initialValue: draftCompanyId,
                         decoration: const InputDecoration(
@@ -659,114 +659,83 @@ class _MedicinesScreenState extends State<MedicinesScreen> {
         _activePriceRange.end < _priceSliderMax;
   }
 
-  Widget _buildHeader() {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-      color: Theme.of(context).scaffoldBackgroundColor,
-      child: Column(
+    Widget _buildHeader() {
+    return IndexHeaderSection(
+      searchController: _searchController,
+      searchQuery: _searchQuery,
+      hintText: 'ابحث باسم الدواء...',
+      controls: Row(
         children: [
-          TextField(
-            controller: _searchController,
-            textDirection: TextDirection.rtl,
-            decoration: InputDecoration(
-              hintText: 'ابحث باسم الدواء...',
-              prefixIcon: const Icon(Icons.search_rounded),
-              suffixIcon: _searchQuery.isEmpty
-                  ? null
-                  : IconButton(
-                      onPressed: () {
-                        _searchController.clear();
-                      },
-                      icon: const Icon(Icons.close_rounded),
-                    ),
-              filled: true,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
+          Expanded(
+            child: OutlinedButton.icon(
+              onPressed: _openAdvancedFilters,
+              icon: const Icon(Icons.tune_rounded),
+              label: const Text('فلاتر متقدمة'),
             ),
           ),
-          const SizedBox(height: 9),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: _openAdvancedFilters,
-                  icon: const Icon(Icons.tune_rounded),
-                  label: const Text('فلاتر متقدمة'),
-                ),
-              ),
-              const SizedBox(width: 10),
-              if (_hasActiveFilters)
-                TextButton.icon(
-                  onPressed: () {
-                    setState(() {
-                      _selectedCompanyId = null;
-                      _selectedCategory = null;
-                      _availabilityFilter = null;
-                      _activePriceRange = RangeValues(0, _priceSliderMax);
-                    });
-                    _loadMedicines();
-                  },
-                  icon: const Icon(Icons.restart_alt_rounded),
-                  label: const Text('مسح'),
-                ),
-            ],
-          ),
-          if (_hasActiveFilters) ...[
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                if (_selectedCompanyId != null)
-                  _FilterChip(
-                    text:
-                        'الشركة: ${_companies.firstWhere((c) => c.id == _selectedCompanyId).name}',
-                  ),
-                if (_selectedCategory != null)
-                  _FilterChip(text: 'الفئة: $_selectedCategory'),
-                if (_availabilityFilter != null)
-                  _FilterChip(text: 'التوفر: ${_availabilityText(_availabilityFilter)}'),
-                _FilterChip(
-                  text:
-                      'السعر: ${_activePriceRange.start.toStringAsFixed(0)} - ${_activePriceRange.end.toStringAsFixed(0)}',
-                ),
-              ],
+          const SizedBox(width: 10),
+          if (_hasActiveFilters)
+            TextButton.icon(
+              onPressed: () {
+                setState(() {
+                  _selectedCompanyId = null;
+                  _selectedCategory = null;
+                  _availabilityFilter = null;
+                  _activePriceRange = RangeValues(0, _priceSliderMax);
+                });
+                _loadMedicines();
+              },
+              icon: const Icon(Icons.restart_alt_rounded),
+              label: const Text('مسح'),
             ),
-          ],
         ],
       ),
+      filterChips: [
+        if (_selectedCompanyId != null)
+          IndexFilterChip(
+            text:
+                'الشركة: ${_companies.firstWhere((c) => c.id == _selectedCompanyId).name}',
+          ),
+        if (_selectedCategory != null)
+          IndexFilterChip(text: 'الفئة: $_selectedCategory'),
+        if (_availabilityFilter != null)
+          IndexFilterChip(text: 'التوفر: ${_availabilityText(_availabilityFilter)}'),
+        if (_hasActiveFilters)
+          IndexFilterChip(
+            text:
+                'السعر: ${_activePriceRange.start.toStringAsFixed(0)} - ${_activePriceRange.end.toStringAsFixed(0)}',
+          ),
+      ],
     );
-  }
+    }
 
-  Widget _buildEmptyState() {
+    Widget _buildEmptyState() {
     final isSearch = _searchQuery.isNotEmpty || _hasActiveFilters;
     return SliverFillRemaining(
       hasScrollBody: false,
-      child: EmptyState(
+      child: IndexEmptySection(
         icon: isSearch ? Icons.search_off_rounded : Icons.medication_outlined,
         title: isSearch ? 'لا توجد نتائج' : 'لا توجد أدوية بعد',
         message: isSearch
             ? 'جرّب تغيير البحث أو الفلاتر للوصول إلى نتائج.'
             : 'ابدأ بإضافة أول دواء ليظهر هنا.',
-        action: FilledButton.icon(
-          onPressed: () => _navigateToForm(null),
-          icon: const Icon(Icons.add_rounded),
-          label: const Text('إضافة دواء'),
-        ),
+        onAdd: () => _navigateToForm(null),
+        addLabel: 'إضافة دواء',
       ),
     );
-  }
+    }
 
-  Widget _buildMedicineCard(Map<String, dynamic> medicine) {
+    Widget _buildMedicineCard(Map<String, dynamic> medicine) {
     final theme = Theme.of(context);
 
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      margin: IndexUiTokens.cardMargin,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(IndexUiTokens.cardRadius),
+      ),
       elevation: 1.5,
       child: InkWell(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(IndexUiTokens.cardRadius),
         onTap: () => _showDetails(medicine),
         child: Padding(
           padding: const EdgeInsets.all(14),
@@ -810,17 +779,17 @@ class _MedicinesScreenState extends State<MedicinesScreen> {
                   spacing: 8,
                   runSpacing: 8,
                   children: [
-                    _InfoBadge(
+                    IndexInfoChip(
                       icon: Icons.business_rounded,
                       text: medicine['company_name']?.toString() ?? 'غير محدد',
                     ),
-                    _InfoBadge(
+                    IndexInfoChip(
                       icon: Icons.attach_money_rounded,
                       text: _pricingEnabled
                           ? _syncPriceText(medicine)
                           : 'السعر مخفي',
                     ),
-                    _InfoBadge(
+                    IndexInfoChip(
                       icon: Icons.inventory_2_rounded,
                       text: 'المخزون: ${_stockText(medicine)}',
                     ),
@@ -832,7 +801,7 @@ class _MedicinesScreenState extends State<MedicinesScreen> {
         ),
       ),
     );
-  }
+    }
 
   String _syncPriceText(Map<String, dynamic> medicine) {
     final priceUsd = (medicine['price_usd'] as num?)?.toDouble() ?? 0.0;
@@ -881,7 +850,7 @@ class _MedicinesScreenState extends State<MedicinesScreen> {
                 padding: const EdgeInsets.only(top: 8),
                 sliver: SliverList.builder(
                   itemCount: 8,
-                  itemBuilder: (context, index) => const _MedicineSkeletonCard(),
+                  itemBuilder: (context, index) => const IndexSkeletonCard(),
                 ),
               )
             else if (_medicines.isEmpty)
@@ -904,7 +873,7 @@ class _MedicinesScreenState extends State<MedicinesScreen> {
         ),
       ),
     );
-  }
+    }
 }
 
 class _FiltersResult {
@@ -967,60 +936,6 @@ class _StickyHeaderDelegate extends SliverPersistentHeaderDelegate {
   }
 }
 
-class _InfoBadge extends StatelessWidget {
-  final IconData icon;
-  final String text;
-
-  const _InfoBadge({required this.icon, required this.text});
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: colors.surfaceContainerHighest.withValues(alpha: 0.55),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: colors.primary),
-          const SizedBox(width: 6),
-          Text(
-            text,
-            style: Theme.of(context).textTheme.bodySmall,
-            textDirection: TextDirection.rtl,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _FilterChip extends StatelessWidget {
-  final String text;
-
-  const _FilterChip({required this.text});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color:
-            Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Text(
-        text,
-        style: Theme.of(context).textTheme.bodySmall,
-        textDirection: TextDirection.rtl,
-      ),
-    );
-  }
-}
-
 class _DetailsLine extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -1048,55 +963,3 @@ class _DetailsLine extends StatelessWidget {
   }
 }
 
-class _MedicineSkeletonCard extends StatelessWidget {
-  const _MedicineSkeletonCard();
-
-  @override
-  Widget build(BuildContext context) {
-    final base = Theme.of(context).colorScheme.surfaceContainerHighest;
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              height: 18,
-              width: 180,
-              decoration: BoxDecoration(
-                color: base,
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    height: 14,
-                    decoration: BoxDecoration(
-                      color: base,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Container(
-                    height: 14,
-                    decoration: BoxDecoration(
-                      color: base,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}

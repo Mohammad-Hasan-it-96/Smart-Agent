@@ -8,7 +8,7 @@ import '../../core/models/pharmacy.dart';
 import '../../core/services/activation_service.dart';
 import '../../core/utils/slide_page_route.dart';
 import '../../core/widgets/custom_app_bar.dart';
-import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/index/index_design_system.dart';
 import 'pharmacy_form.dart';
 
 enum _ActivityFilter { all, active, inactive }
@@ -365,196 +365,173 @@ class _PharmaciesScreenState extends State<PharmaciesScreen> {
   }
 
   Widget _buildHeader() {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-      color: Theme.of(context).scaffoldBackgroundColor,
-      child: Column(
-        children: [
-          TextField(
-            controller: _searchController,
-            textDirection: TextDirection.rtl,
-            decoration: InputDecoration(
-              hintText: 'بحث بالاسم، الرقم، أو الموقع...',
-              prefixIcon: const Icon(Icons.search_rounded),
-              suffixIcon: _searchQuery.isEmpty
-                  ? null
-                  : IconButton(
-                      onPressed: () => _searchController.clear(),
-                      icon: const Icon(Icons.close_rounded),
-                    ),
-              filled: true,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
+    final sortField = DropdownButtonFormField<_PharmacySort>(
+      initialValue: _sort,
+      decoration: const InputDecoration(
+        labelText: 'الترتيب',
+        prefixIcon: Icon(Icons.sort_rounded),
+      ),
+      items: _PharmacySort.values
+          .map(
+            (sort) => DropdownMenuItem<_PharmacySort>(
+              value: sort,
+              child: Text(_sortLabel(sort)),
             ),
+          )
+          .toList(),
+      onChanged: (value) {
+        if (value == null || value == _sort) return;
+        setState(() => _sort = value);
+        _loadPharmacies(reset: true);
+      },
+    );
+
+    final cityField = DropdownButtonFormField<String?>(
+      initialValue: _selectedCity,
+      decoration: const InputDecoration(
+        labelText: 'المدينة',
+        prefixIcon: Icon(Icons.location_city_rounded),
+      ),
+      items: [
+        const DropdownMenuItem<String?>(
+          value: null,
+          child: Text('كل المدن'),
+        ),
+        ..._cityOptions.map(
+          (city) => DropdownMenuItem<String?>(
+            value: city,
+            child: Text(city),
           ),
-          const SizedBox(height: 10),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final isSmall = constraints.maxWidth < 460;
+        ),
+      ],
+      onChanged: (value) {
+        if (value == _selectedCity) return;
+        setState(() => _selectedCity = value);
+        _loadPharmacies(reset: true);
+      },
+    );
 
-              final sortField = DropdownButtonFormField<_PharmacySort>(
-                initialValue: _sort,
-                decoration: const InputDecoration(
-                  labelText: 'الترتيب',
-                  prefixIcon: Icon(Icons.sort_rounded),
+    final activityFilter = SegmentedButton<_ActivityFilter>(
+      selected: {_activityFilter},
+      showSelectedIcon: false,
+      style: const ButtonStyle(
+        visualDensity: VisualDensity.compact,
+      ),
+      segments: const [
+        ButtonSegment<_ActivityFilter>(
+          value: _ActivityFilter.all,
+          label: Text('الكل'),
+        ),
+        ButtonSegment<_ActivityFilter>(
+          value: _ActivityFilter.active,
+          label: Text('نشطة'),
+        ),
+        ButtonSegment<_ActivityFilter>(
+          value: _ActivityFilter.inactive,
+          label: Text('غير نشطة'),
+        ),
+      ],
+      onSelectionChanged: (selection) {
+        final value = selection.first;
+        if (value == _activityFilter) return;
+        setState(() => _activityFilter = value);
+        _loadPharmacies(reset: true);
+      },
+    );
+
+    final volumeFilter = SegmentedButton<_OrderVolumeFilter>(
+      selected: {_orderVolumeFilter},
+      showSelectedIcon: false,
+      style: const ButtonStyle(
+        visualDensity: VisualDensity.compact,
+      ),
+      segments: const [
+        ButtonSegment<_OrderVolumeFilter>(
+          value: _OrderVolumeFilter.all,
+          label: Text('الحجم: الكل'),
+        ),
+        ButtonSegment<_OrderVolumeFilter>(
+          value: _OrderVolumeFilter.low,
+          label: Text('منخفض'),
+        ),
+        ButtonSegment<_OrderVolumeFilter>(
+          value: _OrderVolumeFilter.medium,
+          label: Text('متوسط'),
+        ),
+        ButtonSegment<_OrderVolumeFilter>(
+          value: _OrderVolumeFilter.high,
+          label: Text('مرتفع'),
+        ),
+      ],
+      onSelectionChanged: (selection) {
+        final value = selection.first;
+        if (value == _orderVolumeFilter) return;
+        setState(() => _orderVolumeFilter = value);
+        _loadPharmacies(reset: true);
+      },
+    );
+
+    return IndexHeaderSection(
+      searchController: _searchController,
+      searchQuery: _searchQuery,
+      hintText: 'بحث بالاسم، الرقم، أو الموقع...',
+      controls: LayoutBuilder(
+        builder: (context, constraints) {
+          final isSmall = constraints.maxWidth < 460;
+          if (isSmall) {
+            return Column(
+              children: [
+                sortField,
+                const SizedBox(height: 10),
+                cityField,
+                const SizedBox(height: 10),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: activityFilter,
+                  ),
                 ),
-                items: _PharmacySort.values
-                    .map(
-                      (sort) => DropdownMenuItem<_PharmacySort>(
-                        value: sort,
-                        child: Text(_sortLabel(sort)),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (value) {
-                  if (value == null || value == _sort) return;
-                  setState(() => _sort = value);
-                  _loadPharmacies(reset: true);
-                },
-              );
-
-              final cityField = DropdownButtonFormField<String?>(
-                initialValue: _selectedCity,
-                decoration: const InputDecoration(
-                  labelText: 'المدينة',
-                  prefixIcon: Icon(Icons.location_city_rounded),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: volumeFilter,
+                  ),
                 ),
-                items: [
-                  const DropdownMenuItem<String?>(
-                    value: null,
-                    child: Text('كل المدن'),
-                  ),
-                  ..._cityOptions.map(
-                    (city) => DropdownMenuItem<String?>(
-                      value: city,
-                      child: Text(city),
-                    ),
-                  ),
-                ],
-                onChanged: (value) {
-                  if (value == _selectedCity) return;
-                  setState(() => _selectedCity = value);
-                  _loadPharmacies(reset: true);
-                },
-              );
+              ],
+            );
+          }
 
-              final activityFilter = SegmentedButton<_ActivityFilter>(
-                selected: {_activityFilter},
-                showSelectedIcon: false,
-                style: const ButtonStyle(
-                  visualDensity: VisualDensity.compact,
-                ),
-                segments: const [
-                  ButtonSegment<_ActivityFilter>(
-                    value: _ActivityFilter.all,
-                    label: Text('الكل'),
-                  ),
-                  ButtonSegment<_ActivityFilter>(
-                    value: _ActivityFilter.active,
-                    label: Text('نشطة'),
-                  ),
-                  ButtonSegment<_ActivityFilter>(
-                    value: _ActivityFilter.inactive,
-                    label: Text('غير نشطة'),
-                  ),
-                ],
-                onSelectionChanged: (selection) {
-                  final value = selection.first;
-                  if (value == _activityFilter) return;
-                  setState(() => _activityFilter = value);
-                  _loadPharmacies(reset: true);
-                },
-              );
-
-              final volumeFilter = SegmentedButton<_OrderVolumeFilter>(
-                selected: {_orderVolumeFilter},
-                showSelectedIcon: false,
-                style: const ButtonStyle(
-                  visualDensity: VisualDensity.compact,
-                ),
-                segments: const [
-                  ButtonSegment<_OrderVolumeFilter>(
-                    value: _OrderVolumeFilter.all,
-                    label: Text('الحجم: الكل'),
-                  ),
-                  ButtonSegment<_OrderVolumeFilter>(
-                    value: _OrderVolumeFilter.low,
-                    label: Text('منخفض'),
-                  ),
-                  ButtonSegment<_OrderVolumeFilter>(
-                    value: _OrderVolumeFilter.medium,
-                    label: Text('متوسط'),
-                  ),
-                  ButtonSegment<_OrderVolumeFilter>(
-                    value: _OrderVolumeFilter.high,
-                    label: Text('مرتفع'),
-                  ),
-                ],
-                onSelectionChanged: (selection) {
-                  final value = selection.first;
-                  if (value == _orderVolumeFilter) return;
-                  setState(() => _orderVolumeFilter = value);
-                  _loadPharmacies(reset: true);
-                },
-              );
-
-              if (isSmall) {
-                return Column(
-                  children: [
-                    sortField,
-                    const SizedBox(height: 10),
-                    cityField,
-                    const SizedBox(height: 10),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: activityFilter,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: volumeFilter,
-                      ),
-                    ),
-                  ],
-                );
-              }
-
-              return Column(
+          return Column(
+            children: [
+              Row(
                 children: [
-                  Row(
-                    children: [
-                      Expanded(child: sortField),
-                      const SizedBox(width: 10),
-                      Expanded(child: cityField),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: activityFilter,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: volumeFilter,
-                    ),
-                  ),
+                  Expanded(child: sortField),
+                  const SizedBox(width: 10),
+                  Expanded(child: cityField),
                 ],
-              );
-            },
-          ),
-        ],
+              ),
+              const SizedBox(height: 10),
+              Align(
+                alignment: Alignment.centerRight,
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: activityFilter,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerRight,
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: volumeFilter,
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -565,10 +542,12 @@ class _PharmaciesScreenState extends State<PharmaciesScreen> {
     final volumeColor = _orderVolumeColor(context, item.totalOrders);
 
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      margin: IndexUiTokens.cardMargin,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(IndexUiTokens.cardRadius),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: IndexUiTokens.cardPadding,
         child: Directionality(
           textDirection: TextDirection.rtl,
           child: Column(
@@ -644,28 +623,28 @@ class _PharmaciesScreenState extends State<PharmaciesScreen> {
                 runSpacing: 8,
                 children: [
                   if (item.phone.trim().isNotEmpty)
-                    _StatChip(
+                    IndexInfoChip(
                       icon: Icons.phone_rounded,
                       text: item.phone,
                     ),
-                  _StatChip(
+                  IndexInfoChip(
                     icon: Icons.shopping_bag_rounded,
                     text: '${item.totalOrders} طلبية',
                     color: theme.colorScheme.primary,
                   ),
-                  _StatChip(
+                  IndexInfoChip(
                     icon: Icons.account_balance_wallet_rounded,
                     text: '${item.balance.toStringAsFixed(0)} \$',
                     color: theme.colorScheme.tertiary,
                   ),
-                  _StatChip(
+                  IndexInfoChip(
                     icon: isActive
                         ? Icons.check_circle_rounded
                         : Icons.pause_circle_outline_rounded,
                     text: isActive ? 'نشطة' : 'غير نشطة',
                     color: isActive ? Colors.green : Colors.orange,
                   ),
-                  _StatChip(
+                  IndexInfoChip(
                     icon: Icons.stacked_bar_chart_rounded,
                     text: _orderVolumeLabel(item.totalOrders),
                     color: volumeColor,
@@ -681,7 +660,11 @@ class _PharmaciesScreenState extends State<PharmaciesScreen> {
 
   Widget _buildContent() {
     if (_isInitialLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return ListView.builder(
+        padding: IndexUiTokens.listBottomPadding,
+        itemCount: 8,
+        itemBuilder: (_, __) => const IndexSkeletonCard(),
+      );
     }
 
     if (_items.isEmpty) {
@@ -690,23 +673,20 @@ class _PharmaciesScreenState extends State<PharmaciesScreen> {
           _activityFilter != _ActivityFilter.all ||
           _orderVolumeFilter != _OrderVolumeFilter.all;
 
-      return EmptyState(
+      return IndexEmptySection(
         icon: hasFilters ? Icons.search_off_rounded : Icons.local_pharmacy_rounded,
         title: hasFilters ? 'لا توجد نتائج' : 'لا توجد صيدليات بعد',
         message: hasFilters
             ? 'غيّر البحث أو الفلاتر للوصول إلى نتائج.'
             : 'ابدأ بإضافة صيدلية جديدة لإدارة الطلبات بسرعة.',
-        action: FilledButton.icon(
-          onPressed: () => _navigateToForm(null),
-          icon: const Icon(Icons.add_rounded),
-          label: const Text('إضافة صيدلية'),
-        ),
+        onAdd: () => _navigateToForm(null),
+        addLabel: 'إضافة صيدلية',
       );
     }
 
     return ListView.builder(
       controller: _scrollController,
-      padding: const EdgeInsets.only(bottom: 92),
+      padding: IndexUiTokens.listBottomPadding,
       itemCount: _items.length + (_isLoadingMore ? 1 : 0),
       itemBuilder: (context, index) {
         if (index == _items.length) {
@@ -793,41 +773,4 @@ class _PharmacyListItem {
   }
 }
 
-class _StatChip extends StatelessWidget {
-  final IconData icon;
-  final String text;
-  final Color? color;
-
-  const _StatChip({
-    required this.icon,
-    required this.text,
-    this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final c = color ?? Theme.of(context).colorScheme.primary;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: c.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: c),
-          const SizedBox(width: 6),
-          Text(
-            text,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: c,
-                  fontWeight: FontWeight.w600,
-                ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
