@@ -20,7 +20,7 @@ class DatabaseHelper {
     return await databaseFactory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 8,
+        version: 9,
         onCreate: _createDB,
         onUpgrade: _onUpgrade,
       ),
@@ -95,6 +95,14 @@ class DatabaseHelper {
     // Create index for orders table (for date filtering)
     await db.execute('''
       CREATE INDEX IF NOT EXISTS idx_orders_date ON orders(created_at)
+    ''');
+
+    // Indexes to optimize pharmacy list aggregations and search.
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS idx_orders_pharmacy ON orders(pharmacy_id)
+    ''');
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS idx_pharmacies_name ON pharmacies(name)
     ''');
   }
 
@@ -200,6 +208,23 @@ class DatabaseHelper {
         ''');
       } catch (e) {
         // Column might already exist, ignore error
+      }
+    }
+    if (oldVersion < 9) {
+      // Add indexes used by scalable pharmacy listing queries.
+      try {
+        await db.execute('''
+          CREATE INDEX IF NOT EXISTS idx_orders_pharmacy ON orders(pharmacy_id)
+        ''');
+      } catch (e) {
+        // Index might already exist, ignore error
+      }
+      try {
+        await db.execute('''
+          CREATE INDEX IF NOT EXISTS idx_pharmacies_name ON pharmacies(name)
+        ''');
+      } catch (e) {
+        // Index might already exist, ignore error
       }
     }
   }
