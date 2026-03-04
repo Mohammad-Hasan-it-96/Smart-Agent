@@ -1,12 +1,18 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+
 import '../../core/db/database_helper.dart';
+import '../../core/exceptions/trial_expired_exception.dart';
 import '../../core/models/company.dart';
 import '../../core/services/activation_service.dart';
-import '../../core/exceptions/trial_expired_exception.dart';
 import '../../core/utils/slide_page_route.dart';
 import '../../core/widgets/custom_app_bar.dart';
 import '../../core/widgets/empty_state.dart';
 import 'company_form.dart';
+
+enum _CompanySort { aToZ, newest, mostUsed }
+enum _CompanyActivityFilter { all, active, inactive }
 
 class CompaniesScreen extends StatefulWidget {
   const CompaniesScreen({super.key});
@@ -18,62 +24,155 @@ class CompaniesScreen extends StatefulWidget {
 class _CompaniesScreenState extends State<CompaniesScreen> {
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
   final ActivationService _activationService = ActivationService();
-  List<Company> _companies = [];
-  List<Company> _filteredCompanies = [];
   final TextEditingController _searchController = TextEditingController();
-  bool _isLoading = true;
+  final ScrollController _scrollController = ScrollController();
+
+  static const int _pageSize = 30;
+
+  List<_CompanyListItem> _companies = [];
+
+  int _currentPage = 0;
+  bool _isInitialLoading = true;
+  bool _isLoadingMore = false;
+  bool _hasMoreData = true;
+
+  String _searchQuery = '';
+  _CompanySort _selectedSort = _CompanySort.aToZ;
+  _CompanyActivityFilter _activityFilter = _CompanyActivityFilter.all;
+
+  Timer? _debounceTimer;
 
   @override
   void initState() {
     super.initState();
-    _loadCompanies();
-    _searchController.addListener(_filterCompanies);
+    _searchController.addListener(_onSearchChanged);
+    _scrollController.addListener(_onScroll);
+    _loadCompanies(reset: true);
   }
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
     _searchController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
-  Future<void> _loadCompanies() async {
-    setState(() {
-      _isLoading = true;
-    });
+  Future<void> _loadCompanies({required bool reset}) async {
+    if (reset) {
+      setState(() {
+        _isInitialLoading = true;
+        _isLoadingMore = false;
+        _currentPage = 0;
+        _hasMoreData = true;
+      });
+    } else {
+      if (_isLoadingMore || !_hasMoreData) return;
+      setState(() {
+        _isLoadingMore = true;
+      });
+    }
 
     try {
-      final maps = await _dbHelper.query('companies', orderBy: 'name');
+      final db = await _dbHelper.database;
+      final offset = reset ? 0 : _currentPage * _pageSize;
+
+      final whereParts = <String>[];
+      final args = <Object?>[];
+
+      if (_searchQuery.isNotEmpty) {
+        whereParts.add('companies.name LIKE ?');
+        args.add('%$_searchQuery%');
+      }
+
+      final whereClause = whereParts.isEmpty ? '' : 'WHERE ${whereParts.join(' AND ')}';
+
+      String havingClause = '';
+      if (_activityFilter == _CompanyActivityFilter.active) {
+        havingClause = 'HAVING COUNT(medicines.id) > 0';
+      } else if (_activityFilter == _CompanyActivityFilter.inactive) {
+        havingClause = 'HAVING COUNT(medicines.id) = 0';
+      }
+
+      final orderBy = switch (_selectedSort) {
+        _CompanySort.aToZ => 'companies.name COLLATE NOCASE ASC',
+        _CompanySort.newest => 'companies.id DESC',
+        _CompanySort.mostUsed => 'medicines_count DESC, companies.name COLLATE NOCASE ASC',
+      };
+
+      final rows = await db.rawQuery(
+        '''
+        SELECT
+          companies.id,
+          companies.name,
+          COUNT(medicines.id) AS medicines_count
+        FROM companies
+        LEFT JOIN medicines ON medicines.company_id = companies.id
+        $whereClause
+        GROUP BY companies.id, companies.name
+        $havingClause
+        ORDER BY $orderBy
+        LIMIT ? OFFSET ?
+        ''',
+        [...args, _pageSize, offset],
+      );
+
+      final items = rows.map(_CompanyListItem.fromMap).toList();
+
+      if (!mounted) return;
       setState(() {
-        _companies = maps.map((map) => Company.fromMap(map)).toList();
-        _filteredCompanies = _companies;
-        _isLoading = false;
+        if (reset) {
+          _companies = items;
+        } else {
+          _companies.addAll(items);
+        }
+
+        _currentPage = reset ? 1 : _currentPage + 1;
+        _hasMoreData = items.length == _pageSize;
+        _isInitialLoading = false;
+        _isLoadingMore = false;
       });
-    } catch (e) {
+    } catch (_) {
+      if (!mounted) return;
       setState(() {
-        _isLoading = false;
+        _isInitialLoading = false;
+        _isLoadingMore = false;
       });
     }
   }
 
-  void _filterCompanies() {
-    final query = _searchController.text.toLowerCase();
-    setState(() {
-      if (query.isEmpty) {
-        _filteredCompanies = _companies;
-      } else {
-        _filteredCompanies = _companies
-            .where((company) => company.name.toLowerCase().contains(query))
-            .toList();
-      }
+  void _onSearchChanged() {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 300), () {
+      if (!mounted) return;
+      final query = _searchController.text.trim();
+      if (query == _searchQuery) return;
+
+      setState(() {
+        _searchQuery = query;
+      });
+      _loadCompanies(reset: true);
     });
   }
 
-  Future<void> _deleteCompany(Company company) async {
+  void _onScroll() {
+    if (!_scrollController.hasClients || _isLoadingMore || !_hasMoreData) return;
+
+    final position = _scrollController.position;
+    if (position.pixels >= position.maxScrollExtent * 0.8) {
+      _loadCompanies(reset: false);
+    }
+  }
+
+  Future<void> _deleteCompany(_CompanyListItem company) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('تأكيد الحذف'),
-        content: Text('هل أنت متأكد من حذف ${company.name}؟'),
+        title: const Text('تأكيد الحذف', textDirection: TextDirection.rtl),
+        content: Text(
+          'هل تريد حذف ${company.name}؟',
+          textDirection: TextDirection.rtl,
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -87,61 +186,60 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
       ),
     );
 
-    if (confirm == true) {
-      try {
-        await _dbHelper.delete(
-          'companies',
-          where: 'id = ?',
-          whereArgs: [company.id],
-        );
-        _loadCompanies();
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('تم الحذف بنجاح')),
-          );
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('حدث خطأ أثناء الحذف')),
-          );
-        }
-      }
+    if (confirm != true) return;
+
+    try {
+      await _dbHelper.delete(
+        'companies',
+        where: 'id = ?',
+        whereArgs: [company.id],
+      );
+      await _loadCompanies(reset: true);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تم حذف الشركة بنجاح')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('حدث خطأ أثناء الحذف')),
+      );
     }
   }
 
   Future<void> _navigateToForm(Company? company) async {
-    // If adding new company, check trial limit first
     if (company == null) {
       try {
         await _activationService.checkTrialLimitCompanies();
       } on TrialExpiredException {
-        if (mounted) {
-          showDialog(
-            context: context,
-            builder: (context) => AlertDialog(
-              title: const Text('وصلت للحد المسموح'),
-              content: const Text(
-                  'وصلت للحد المسموح في النسخة التجريبية. يرجى التواصل مع المطور لتفعيل التطبيق.'),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    Navigator.of(context).pushNamedAndRemoveUntil(
-                      '/activation',
-                      (route) => false,
-                    );
-                  },
-                  child: const Text('تواصل مع المطور'),
-                ),
-              ],
+        if (!mounted) return;
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('وصلت للحد المسموح'),
+            content: const Text(
+              'وصلت للحد المسموح في النسخة التجريبية. يرجى التواصل مع المطور لتفعيل التطبيق.',
+              textDirection: TextDirection.rtl,
             ),
-          );
-        }
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  Navigator.of(context).pushNamedAndRemoveUntil(
+                    '/activation',
+                    (route) => false,
+                  );
+                },
+                child: const Text('تواصل مع المطور'),
+              ),
+            ],
+          ),
+        );
         return;
       }
     }
 
+    if (!mounted) return;
     final result = await Navigator.push(
       context,
       SlidePageRoute(
@@ -151,117 +249,347 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
     );
 
     if (result == true) {
-      _loadCompanies();
+      await _loadCompanies(reset: true);
     }
+  }
+
+  String _sortLabel(_CompanySort sort) {
+    return switch (sort) {
+      _CompanySort.aToZ => 'أ-ي',
+      _CompanySort.newest => 'الأحدث',
+      _CompanySort.mostUsed => 'الأكثر استخداماً',
+    };
+  }
+
+  Widget _buildHeader(BuildContext context) {
+    return Container(
+      color: Theme.of(context).scaffoldBackgroundColor,
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+      child: Column(
+        children: [
+          TextField(
+            controller: _searchController,
+            textDirection: TextDirection.rtl,
+            decoration: InputDecoration(
+              hintText: 'ابحث عن شركة...',
+              prefixIcon: const Icon(Icons.search_rounded),
+              suffixIcon: _searchQuery.isEmpty
+                  ? null
+                  : IconButton(
+                      onPressed: () => _searchController.clear(),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+              filled: true,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isNarrow = constraints.maxWidth < 430;
+
+              final sortField = DropdownButtonFormField<_CompanySort>(
+                initialValue: _selectedSort,
+                decoration: const InputDecoration(
+                  labelText: 'الترتيب',
+                  prefixIcon: Icon(Icons.sort_rounded),
+                ),
+                items: _CompanySort.values
+                    .map(
+                      (sort) => DropdownMenuItem<_CompanySort>(
+                        value: sort,
+                        child: Text(_sortLabel(sort)),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) {
+                  if (value == null || value == _selectedSort) return;
+                  setState(() => _selectedSort = value);
+                  _loadCompanies(reset: true);
+                },
+              );
+
+              final activityField = SegmentedButton<_CompanyActivityFilter>(
+                selected: {_activityFilter},
+                showSelectedIcon: false,
+                style: const ButtonStyle(
+                  visualDensity: VisualDensity.compact,
+                ),
+                segments: const [
+                  ButtonSegment<_CompanyActivityFilter>(
+                    value: _CompanyActivityFilter.all,
+                    label: Text('الكل'),
+                  ),
+                  ButtonSegment<_CompanyActivityFilter>(
+                    value: _CompanyActivityFilter.active,
+                    label: Text('نشطة'),
+                  ),
+                  ButtonSegment<_CompanyActivityFilter>(
+                    value: _CompanyActivityFilter.inactive,
+                    label: Text('غير نشطة'),
+                  ),
+                ],
+                onSelectionChanged: (selection) {
+                  final value = selection.first;
+                  if (value == _activityFilter) return;
+                  setState(() => _activityFilter = value);
+                  _loadCompanies(reset: true);
+                },
+              );
+
+              if (isNarrow) {
+                return Column(
+                  children: [
+                    sortField,
+                    const SizedBox(height: 10),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: activityField,
+                      ),
+                    ),
+                  ],
+                );
+              }
+
+              return Row(
+                children: [
+                  Expanded(child: sortField),
+                  const SizedBox(width: 10),
+                  Expanded(child: activityField),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCompanyCard(BuildContext context, _CompanyListItem company) {
+    final theme = Theme.of(context);
+    final isActive = company.medicinesCount > 0;
+
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 1.5,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Directionality(
+          textDirection: TextDirection.rtl,
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 23,
+                backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.12),
+                child: Text(
+                  company.initial,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: theme.colorScheme.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      company.name,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _InfoChip(
+                          icon: Icons.medication_rounded,
+                          text: '${company.medicinesCount} دواء',
+                        ),
+                        _InfoChip(
+                          icon: isActive
+                              ? Icons.check_circle_rounded
+                              : Icons.pause_circle_outline_rounded,
+                          text: isActive ? 'نشطة' : 'غير نشطة',
+                          color: isActive ? Colors.green : Colors.orange,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              PopupMenuButton<String>(
+                onSelected: (value) {
+                  if (value == 'edit') {
+                    _navigateToForm(company.toCompany());
+                  } else if (value == 'delete') {
+                    _deleteCompany(company);
+                  } else if (value == 'add') {
+                    _navigateToForm(null);
+                  }
+                },
+                itemBuilder: (context) => const [
+                  PopupMenuItem<String>(
+                    value: 'add',
+                    child: Text('إضافة شركة'),
+                  ),
+                  PopupMenuItem<String>(
+                    value: 'edit',
+                    child: Text('تعديل'),
+                  ),
+                  PopupMenuItem<String>(
+                    value: 'delete',
+                    child: Text('حذف'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBody(BuildContext context) {
+    if (_isInitialLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_companies.isEmpty) {
+      final hasSearchOrFilters = _searchQuery.isNotEmpty ||
+          _selectedSort != _CompanySort.aToZ ||
+          _activityFilter != _CompanyActivityFilter.all;
+
+      return EmptyState(
+        icon: hasSearchOrFilters ? Icons.search_off_rounded : Icons.business_rounded,
+        title: hasSearchOrFilters ? 'لا توجد نتائج' : 'لا توجد شركات بعد',
+        message: hasSearchOrFilters
+            ? 'جرّب تغيير البحث أو خيارات التصفية.'
+            : 'ابدأ بإضافة شركة جديدة لتنظيم بيانات الأدوية بسهولة.',
+        action: FilledButton.icon(
+          onPressed: () => _navigateToForm(null),
+          icon: const Icon(Icons.add_rounded),
+          label: const Text('إضافة شركة'),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      controller: _scrollController,
+      padding: const EdgeInsets.only(bottom: 90),
+      itemCount: _companies.length + (_isLoadingMore ? 1 : 0),
+      itemBuilder: (context, index) {
+        if (index == _companies.length) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 16),
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
+        return _buildCompanyCard(context, _companies[index]);
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Scaffold(
       appBar: const CustomAppBar(title: 'الشركات'),
       body: SafeArea(
         child: Column(
           children: [
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: TextField(
-                controller: _searchController,
-                decoration: InputDecoration(
-                  hintText: 'بحث عن شركة...',
-                  prefixIcon: const Icon(Icons.search),
-                ),
-                textDirection: TextDirection.rtl,
-              ),
-            ),
+            _buildHeader(context),
             Expanded(
-              child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _filteredCompanies.isEmpty
-                      ? EmptyState(
-                          icon: _searchController.text.isEmpty
-                              ? Icons.business
-                              : Icons.search_off,
-                          title: _searchController.text.isEmpty
-                              ? 'لا توجد شركات'
-                              : 'لا توجد نتائج',
-                          message: _searchController.text.isEmpty
-                              ? 'ابدأ بإضافة شركة جديدة'
-                              : 'لم يتم العثور على شركات تطابق البحث',
-                        )
-                      : ListView.builder(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          itemCount: _filteredCompanies.length,
-                          itemBuilder: (context, index) {
-                            final company = _filteredCompanies[index];
-                            return Card(
-                              margin: const EdgeInsets.only(bottom: 8),
-                              child: ListTile(
-                                leading: Container(
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    color: theme.colorScheme.primary
-                                        .withValues(alpha: 0.1),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Icon(
-                                    Icons.business,
-                                    color: theme.colorScheme.primary,
-                                  ),
-                                ),
-                                title: Text(
-                                  company.name,
-                                  style: theme.textTheme.titleLarge?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                  textDirection: TextDirection.rtl,
-                                ),
-                                trailing: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Material(
-                                      color: Colors.transparent,
-                                      child: InkWell(
-                                        onTap: () => _navigateToForm(company),
-                                        borderRadius: BorderRadius.circular(20),
-                                        child: Padding(
-                                          padding: const EdgeInsets.all(8.0),
-                                          child: Icon(
-                                            Icons.edit,
-                                            color: theme.colorScheme.primary,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    Material(
-                                      color: Colors.transparent,
-                                      child: InkWell(
-                                        onTap: () => _deleteCompany(company),
-                                        borderRadius: BorderRadius.circular(20),
-                                        child: const Padding(
-                                          padding: EdgeInsets.all(8.0),
-                                          child: Icon(
-                                            Icons.delete,
-                                            color: Colors.red,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
-                        ),
+              child: RefreshIndicator(
+                onRefresh: () => _loadCompanies(reset: true),
+                child: _buildBody(context),
+              ),
             ),
           ],
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _navigateToForm(null),
-        icon: const Icon(Icons.add),
+        icon: const Icon(Icons.add_rounded),
         label: const Text('إضافة شركة'),
       ),
     );
   }
 }
+
+class _CompanyListItem {
+  final int id;
+  final String name;
+  final int medicinesCount;
+
+  const _CompanyListItem({
+    required this.id,
+    required this.name,
+    required this.medicinesCount,
+  });
+
+  factory _CompanyListItem.fromMap(Map<String, dynamic> map) {
+    return _CompanyListItem(
+      id: map['id'] as int,
+      name: map['name'] as String,
+      medicinesCount: (map['medicines_count'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  String get initial {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return 'ش';
+    return trimmed.characters.first.toUpperCase();
+  }
+
+  Company toCompany() => Company(id: id, name: name);
+}
+
+class _InfoChip extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  final Color? color;
+
+  const _InfoChip({
+    required this.icon,
+    required this.text,
+    this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final effectiveColor = color ?? Theme.of(context).colorScheme.primary;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: effectiveColor.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: effectiveColor),
+          const SizedBox(width: 6),
+          Text(
+            text,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: effectiveColor,
+                  fontWeight: FontWeight.w600,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
