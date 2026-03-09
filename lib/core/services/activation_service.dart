@@ -163,11 +163,12 @@ class ActivationService {
     return prefs.getBool(_activationVerifiedKey);
   }
 
-  // Save activation status to SharedPreferences
-  Future<void> saveActivationStatus(bool value) async {
+    // Save activation status to SharedPreferences
+    Future<void> saveActivationStatus(bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_activationKey, value);
-  }
+    await prefs.setBool(_activationVerifiedKey, value);
+    }
 
   // Save expires_at to both SharedPreferences and local file
   Future<void> _saveExpiresAt(String expiresAt) async {

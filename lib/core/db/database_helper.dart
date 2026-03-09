@@ -1,8 +1,10 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
+import '../models/notification_model.dart';
 
 class DatabaseHelper {
-  static final DatabaseHelper instance = DatabaseHelper._init();
+  static DatabaseHelper _instance = DatabaseHelper._init();
+  static DatabaseHelper get instance => _instance;
   static Database? _database;
 
   DatabaseHelper._init();
@@ -20,7 +22,7 @@ class DatabaseHelper {
     return await databaseFactory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 9,
+        version: 10,
         onCreate: _createDB,
         onUpgrade: _onUpgrade,
       ),
@@ -103,6 +105,25 @@ class DatabaseHelper {
     ''');
     await db.execute('''
       CREATE INDEX IF NOT EXISTS idx_pharmacies_name ON pharmacies(name)
+    ''');
+
+    // Create notifications table
+    await db.execute('''
+      CREATE TABLE notifications(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        body TEXT NOT NULL,
+        type TEXT NOT NULL,
+        action TEXT DEFAULT '',
+        created_at TEXT NOT NULL,
+        is_read INTEGER NOT NULL DEFAULT 0
+      )
+    ''');
+    await db.execute('''
+      CREATE INDEX idx_notifications_created_at ON notifications(created_at DESC)
+    ''');
+    await db.execute('''
+      CREATE INDEX idx_notifications_is_read ON notifications(is_read)
     ''');
   }
 
@@ -227,6 +248,37 @@ class DatabaseHelper {
         // Index might already exist, ignore error
       }
     }
+    if (oldVersion < 10) {
+      try {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS notifications(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            body TEXT NOT NULL,
+            type TEXT NOT NULL,
+            action TEXT DEFAULT '',
+            created_at TEXT NOT NULL,
+            is_read INTEGER NOT NULL DEFAULT 0
+          )
+        ''');
+      } catch (e) {
+        // Table might already exist, ignore error
+      }
+      try {
+        await db.execute('''
+          CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at DESC)
+        ''');
+      } catch (e) {
+        // Index might already exist, ignore error
+      }
+      try {
+        await db.execute('''
+          CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications(is_read)
+        ''');
+      } catch (e) {
+        // Index might already exist, ignore error
+      }
+    }
   }
 
   Future<Database> openDatabase() async {
@@ -299,8 +351,15 @@ class DatabaseHelper {
   }
 
   Future<void> close() async {
-    final db = await database;
-    await db.close();
+    if (_database != null) {
+      await _database!.close();
+      _database = null;
+    }
+  }
+
+  static void resetInstance() {
+    _database = null;
+    _instance = DatabaseHelper._init();
   }
 
   /// Fetches order items with medicine and company details for PDF export
@@ -336,5 +395,52 @@ class DatabaseHelper {
     ''', [orderId]);
 
     return itemMaps;
+  }
+
+  Future<int> insertNotification(NotificationModel notification) async {
+    final db = await database;
+    return db.insert(
+      'notifications',
+      notification.toMap()..remove('id'),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<List<NotificationModel>> getNotifications({int limit = 100}) async {
+    final db = await database;
+    final maps = await db.query(
+      'notifications',
+      orderBy: 'created_at DESC',
+      limit: limit,
+    );
+    return maps.map(NotificationModel.fromMap).toList();
+  }
+
+  Future<int> getUnreadNotificationsCount() async {
+    final db = await database;
+    final result = await db.rawQuery(
+      'SELECT COUNT(*) as c FROM notifications WHERE is_read = 0',
+    );
+    return (result.first['c'] as int?) ?? 0;
+  }
+
+  Future<void> markNotificationAsRead(int id) async {
+    final db = await database;
+    await db.update(
+      'notifications',
+      {'is_read': 1},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<void> markAllNotificationsAsRead() async {
+    final db = await database;
+    await db.update('notifications', {'is_read': 1});
+  }
+
+  Future<void> clearNotifications() async {
+    final db = await database;
+    await db.delete('notifications');
   }
 }

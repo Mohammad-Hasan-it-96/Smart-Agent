@@ -23,6 +23,8 @@ import 'features/orders/new_order_screen.dart';
 import 'features/orders/orders_list_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/activation/agent_registration_screen.dart';
+import 'core/services/push_notification_service.dart';
+import 'features/settings/notification_history_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -38,6 +40,9 @@ void main() async {
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
+
+  // Initialize push notifications (FCM + local notifications)
+  await PushNotificationService.instance.initialize();
 
   runApp(
     ChangeNotifierProvider(
@@ -55,6 +60,7 @@ class MyApp extends StatelessWidget {
     return Consumer<ThemeProvider>(
       builder: (context, themeProvider, _) {
         return MaterialApp(
+          navigatorKey: AppNavigatorKey.key,
           title: 'المندوب الذكي',
           debugShowCheckedModeBanner: false,
           theme: AppTheme.lightTheme,
@@ -134,6 +140,9 @@ class MyApp extends StatelessWidget {
                 break;
               case '/settings':
                 page = const SettingsScreen();
+                break;
+              case '/notifications':
+                page = const NotificationHistoryScreen();
                 break;
               default:
                 return MaterialPageRoute(builder: (_) => const HomeScreen());

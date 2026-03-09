@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../core/services/data_export_service.dart';
 import '../../core/services/update_service.dart';
+import '../../core/services/push_notification_service.dart';
 import '../../core/providers/theme_provider.dart';
 import '../../core/widgets/custom_app_bar.dart';
 import '../../core/widgets/update_dialog.dart';
@@ -389,11 +390,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // ═══════════════════════════════════════════════════════════════════
   // 7️⃣  SUPPORT
   // ═══════════════════════════════════════════════════════════════════
-  Widget _buildSupportSection() {
+    Widget _buildSupportSection() {
     return SettingSection(
       title: 'الدعم والمساعدة',
       icon: Icons.support_agent_outlined,
       children: [
+        ValueListenableBuilder<int>(
+          valueListenable: PushNotificationService.instance.unreadCount,
+          builder: (_, unread, __) {
+            return SettingTile(
+              icon: Icons.notifications_outlined,
+              title: 'الإشعارات',
+              subtitle: unread > 0 ? 'غير مقروء: $unread' : 'عرض الإشعارات الأخيرة',
+              trailing: unread > 0
+                  ? Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primary,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        '$unread',
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                      ),
+                    )
+                  : null,
+              onTap: () => Navigator.of(context).pushNamed('/notifications'),
+            );
+          },
+        ),
         SettingTile(
           icon: Icons.email_outlined,
           title: 'البريد الإلكتروني',
@@ -416,7 +441,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ],
     );
-  }
+    }
 
   // ═══════════════════════════════════════════════════════════════════
   //  BOTTOM SHEETS & DIALOGS

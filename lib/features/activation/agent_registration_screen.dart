@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/services/activation_service.dart';
 import '../../core/utils/phone_validator.dart';
+import '../../core/services/push_notification_service.dart';
 
 class AgentRegistrationScreen extends StatefulWidget {
   const AgentRegistrationScreen({super.key});
@@ -37,6 +38,9 @@ class _AgentRegistrationScreenState extends State<AgentRegistrationScreen> {
       // Save agent data to SharedPreferences
       await _activationService.saveAgentName(_nameController.text.trim());
       await _activationService.saveAgentPhone(_phoneController.text.trim());
+
+      // Retry token registration now that identity fields are available.
+      await PushNotificationService.instance.retryTokenSync();
 
       if (!mounted) return;
 
@@ -179,4 +183,3 @@ class _AgentRegistrationScreenState extends State<AgentRegistrationScreen> {
     );
   }
 }
-

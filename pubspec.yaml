@@ -33,11 +33,20 @@ dependencies:
   package_info_plus: ^8.0.0
   url_launcher: ^6.2.5
 
+  # Google Drive backup
+  google_sign_in: ^6.2.1
+  googleapis: ^13.2.0
+
   # File sharing and picking
   share_plus: ^10.1.2
   file_picker: ^8.1.4
 
   flutter_native_splash: ^2.3.10
+
+  # Push notifications
+  firebase_core: ^3.15.2
+  firebase_messaging: ^15.2.4
+  flutter_local_notifications: ^18.0.1
 
 dev_dependencies:
   flutter_launcher_icons: ^0.13.1

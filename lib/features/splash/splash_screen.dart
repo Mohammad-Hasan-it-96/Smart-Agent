@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/services/activation_service.dart';
+import '../../core/services/push_notification_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -64,6 +65,11 @@ class _SplashScreenState extends State<SplashScreen>
 
     // Navigate after animation completes
     _navigateToNextScreen();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      PushNotificationService.instance.flushPendingNavigation(context);
+    });
   }
 
   @override
@@ -100,6 +106,9 @@ class _SplashScreenState extends State<SplashScreen>
       Navigator.of(context).pushReplacementNamed('/agent-registration');
       return;
     }
+
+    // Ensure token registration retries after agent data becomes available.
+    await PushNotificationService.instance.retryTokenSync();
 
     // Check for time tampering first
     final timeTampered = await _activationService.checkTimeTampering();
