@@ -45,23 +45,34 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
       result.add(
         Consumer<ThemeProvider>(
           builder: (context, tp, _) {
-            final isDark = tp.themeMode == ThemeMode.dark ||
-                (tp.themeMode == ThemeMode.system &&
-                    MediaQuery.platformBrightnessOf(context) == Brightness.dark);
+            final icon = switch (tp.themeMode) {
+              ThemeMode.light => Icons.light_mode_rounded,
+              ThemeMode.dark => Icons.dark_mode_rounded,
+              ThemeMode.system => Icons.brightness_auto_rounded,
+            };
+
+            final tooltip = switch (tp.themeMode) {
+              ThemeMode.light => 'الوضع الحالي: فاتح',
+              ThemeMode.dark => 'الوضع الحالي: داكن',
+              ThemeMode.system => 'الوضع الحالي: تلقائي',
+            };
+
             return IconButton(
-              icon: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 300),
-                transitionBuilder: (child, anim) =>
-                    RotationTransition(turns: Tween(begin: 0.75, end: 1.0).animate(anim), child: child),
-                child: Icon(
-                  isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
-                  key: ValueKey(isDark),
-                ),
-              ),
-              tooltip: isDark ? 'الوضع الفاتح' : 'الوضع الداكن',
+              tooltip: tooltip,
               onPressed: () {
-                tp.setThemeMode(isDark ? ThemeMode.light : ThemeMode.dark);
+                final nextMode = switch (tp.themeMode) {
+                  ThemeMode.light => ThemeMode.dark,
+                  ThemeMode.dark => ThemeMode.system,
+                  ThemeMode.system => ThemeMode.light,
+                };
+                tp.setThemeMode(nextMode);
               },
+              icon: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 250),
+                transitionBuilder: (child, anim) =>
+                    RotationTransition(turns: Tween(begin: 0.85, end: 1.0).animate(anim), child: child),
+                child: Icon(icon, key: ValueKey(tp.themeMode)),
+              ),
             );
           },
         ),
