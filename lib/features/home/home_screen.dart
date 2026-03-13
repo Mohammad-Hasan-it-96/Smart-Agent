@@ -197,11 +197,13 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                     _buildDots(),
                   ],
                   const SizedBox(height: 20),
-                  _buildStatsRow(ctrl),
-                  const SizedBox(height: 24),
-                  _buildSectionTitle('القائمة الرئيسية'),
+                  _buildSectionTitle('ابدأ من هنا'),
                   const SizedBox(height: 12),
                   _buildMenuGrid(context),
+                  const SizedBox(height: 24),
+                  _buildSectionTitle('ملخص اليوم'),
+                  const SizedBox(height: 12),
+                  _buildStatsRow(ctrl),
                 ],
               ),
             );
@@ -492,33 +494,34 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
 
   Widget _statCard(
       String label, String value, IconData icon, Color color, bool isDark) {
+    final theme = Theme.of(context);
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+          color: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF7F8FA),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.06),
+            color: isDark
+                ? Colors.white12
+                : theme.colorScheme.primary.withValues(alpha: 0.08),
           ),
-          boxShadow: isDark
-              ? []
-              : [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.04),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
         ),
         child: Column(
           children: [
-            Icon(icon, color: color, size: 24),
+            Container(
+              padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: color, size: 18),
+            ),
             const SizedBox(height: 8),
             Text(
               value,
               style: TextStyle(
-                fontSize: 20,
+                fontSize: 18,
                 fontWeight: FontWeight.bold,
                 color: color,
               ),
@@ -527,7 +530,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
             Text(
               label,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: 10,
                 color: isDark ? Colors.grey[400] : Colors.grey[600],
               ),
               textAlign: TextAlign.center,
@@ -562,6 +565,32 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
           style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
         ),
       ],
+    );
+  }
+
+  Widget _buildSectionHint({required IconData icon, required String text}) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primary.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: theme.colorScheme.primary),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              text,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.primary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
