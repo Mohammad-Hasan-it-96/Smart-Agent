@@ -4,71 +4,97 @@ import 'dart:io' show Platform;
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:http/http.dart' as http;
 
+import '../models/update_config.dart';
+import 'settings_service.dart';
+
 class UpdateInfo {
   final String version;
   final String? downloadUrl;
   final String? abi;
+  final List<String> updateNotes;
 
-  const UpdateInfo(this.version, this.downloadUrl, {this.abi});
+  const UpdateInfo(
+    this.version,
+    this.downloadUrl, {
+    this.abi,
+    this.updateNotes = const [],
+  });
 
   bool get hasDownloadUrl => downloadUrl != null && downloadUrl!.isNotEmpty;
 }
 
 class UpdateService {
   final String versionJsonUrl =
-      "https://drive.google.com/uc?export=download&id=1aMv_VNEFff1XzQeiG80s0aEL4r5_c9ao";
+      'https://drive.google.com/uc?export=download&id=1aMv_VNEFff1XzQeiG80s0aEL4r5_c9ao';
 
   Future<UpdateInfo?> checkForUpdate(String currentVersion) async {
     try {
       final response = await http.get(Uri.parse(versionJsonUrl));
       if (response.statusCode != 200) return null;
 
-      final data = json.decode(response.body) as Map<String, dynamic>;
+      var rawJson = utf8.decode(response.bodyBytes, allowMalformed: true);
+      if (rawJson.isNotEmpty && rawJson.codeUnitAt(0) == 0xFEFF) {
+        rawJson = rawJson.substring(1);
+      }
+      final data = json.decode(rawJson) as Map<String, dynamic>;
+      final config = UpdateConfig.fromJson(data);
 
-      final latest = data["latest_version"] as String?;
-      if (latest == null) return null;
+      if (config.latestVersion.isEmpty) return null;
 
-      if (!_isNewerVersion(currentVersion, latest)) {
+      if (config.apiBaseUrl != null && config.apiBaseUrl!.isNotEmpty) {
+        await SettingsService.setApiBaseUrl(config.apiBaseUrl!);
+      } else {
+        await SettingsService.setApiBaseUrl(SettingsService.defaultApiBaseUrl);
+      }
+
+      if (!_isNewerVersion(currentVersion, config.latestVersion)) {
         return null;
       }
 
-      // Backwards compatibility: support old flat 'download_url' field
-      if (data.containsKey("download_url")) {
-        final url = data["download_url"] as String?;
-        if (url != null && url.isNotEmpty) {
-          return UpdateInfo(latest, url);
-        }
+      final abi = await _detectDeviceAbi();
+      String? url;
+
+      if (abi != null) {
+        url = config.downloads[abi];
       }
 
-      // New format with per-ABI downloads
-      final downloads = data["downloads"];
-      if (downloads is Map<String, dynamic>) {
-        final abi = await _detectDeviceAbi();
-        String? url;
+      url ??= config.downloads['default'];
 
-        if (abi != null) {
-          url = downloads[abi] as String?;
-        }
-
-        // If URL is null, caller/dialog will show a support message
-        return UpdateInfo(latest, url, abi: abi);
-      }
-    } catch (e) {
-      // Silent failure: if update check fails, we just behave as "no update"
-      // You can add logging here if needed.
+      return UpdateInfo(
+        config.latestVersion,
+        url,
+        abi: abi,
+        updateNotes: config.updateNotes,
+      );
+    } catch (_) {
+      // Silent failure: if update check fails, we just behave as "no update".
     }
 
     return null;
   }
 
   bool _isNewerVersion(String current, String latest) {
-    final c = current.split('.').map(int.parse).toList();
-    final l = latest.split('.').map(int.parse).toList();
-    for (int i = 0; i < 3; i++) {
-      if (l[i] > c[i]) return true;
-      if (l[i] < c[i]) return false;
+    final currentParts = _parseVersion(current);
+    final latestParts = _parseVersion(latest);
+    final maxLength =
+        currentParts.length > latestParts.length ? currentParts.length : latestParts.length;
+
+    for (int i = 0; i < maxLength; i++) {
+      final currentPart = i < currentParts.length ? currentParts[i] : 0;
+      final latestPart = i < latestParts.length ? latestParts[i] : 0;
+
+      if (latestPart > currentPart) return true;
+      if (latestPart < currentPart) return false;
     }
+
     return false;
+  }
+
+  List<int> _parseVersion(String value) {
+    return value
+        .split('.')
+        .map((part) => int.tryParse(part.trim()) ?? 0)
+        .toList();
   }
 
   /// Detect the preferred ABI for this device.
@@ -86,7 +112,7 @@ class UpdateService {
 
       if (abis.isEmpty) return null;
 
-      // Prefer 64-bit if available
+      // Prefer 64-bit if available.
       for (final abi in abis) {
         final lower = abi.toLowerCase();
         if (lower.contains('arm64')) {
@@ -94,7 +120,7 @@ class UpdateService {
         }
       }
 
-      // Fallback to 32-bit arm
+      // Fallback to 32-bit ARM.
       for (final abi in abis) {
         final lower = abi.toLowerCase();
         if (lower.contains('armeabi-v7a') || lower.contains('armeabi')) {

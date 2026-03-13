@@ -1,15 +1,16 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/subscription_plan.dart';
+import 'settings_service.dart';
 
 class SubscriptionService {
-  static const String _apiUrl = 'https://harrypotter.foodsalebot.com/api/getPlans';
+  static const String _getPlansEndpoint = 'getPlans';
 
   Future<SubscriptionPlansResponse> fetchPlans() async {
     try {
       final response = await http
           .get(
-        Uri.parse(_apiUrl),
+        await SettingsService.buildApiUri(_getPlansEndpoint),
         headers: {
           'Content-Type': 'application/json',
         },

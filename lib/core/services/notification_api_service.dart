@@ -2,11 +2,11 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import 'settings_service.dart';
+
 class NotificationApiService {
-  static const String _createDeviceApiUrl =
-      'https://harrypotter.foodsalebot.com/api/create_device';
-  static const String _updateMyDataApiUrl =
-      'https://harrypotter.foodsalebot.com/api/update_my_data';
+  static const String _createDeviceEndpoint = 'create_device';
+  static const String _updateMyDataEndpoint = 'update_my_data';
 
   Future<bool> sendCreateDeviceWithToken({
     required String appName,
@@ -17,7 +17,7 @@ class NotificationApiService {
   }) async {
     final response = await http
         .post(
-          Uri.parse(_createDeviceApiUrl),
+          await SettingsService.buildApiUri(_createDeviceEndpoint),
           headers: const {'Content-Type': 'application/json'},
           body: jsonEncode({
             'app_name': appName,
@@ -43,7 +43,7 @@ class NotificationApiService {
   }) async {
     final response = await http
         .post(
-          Uri.parse(_updateMyDataApiUrl),
+          await SettingsService.buildApiUri(_updateMyDataEndpoint),
           headers: const {'Content-Type': 'application/json'},
           body: jsonEncode({
             'device_id': deviceId,

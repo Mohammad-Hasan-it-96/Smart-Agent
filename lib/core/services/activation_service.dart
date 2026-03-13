@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../db/database_helper.dart';
 import '../exceptions/trial_expired_exception.dart';
+import 'settings_service.dart';
 
 enum ActivationState {
   checking,
@@ -30,14 +31,13 @@ class ActivationService {
   static const String _agentNameKey = 'agent_full_name';
   static const String _agentPhoneKey = 'agent_phone';
   static const String _expiresAtFileName = 'activation_expires_at.txt';
-  static const String _apiUrl =
-      'https://harrypotter.foodsalebot.com/api/create_device';
-  static const String _checkDeviceApiUrl =
-      'https://harrypotter.foodsalebot.com/api/check_device';
-  static const String _updateMyDataApiUrl =
-      'https://harrypotter.foodsalebot.com/api/update_my_data';
+  static const String _createDeviceEndpoint = 'create_device';
+  static const String _checkDeviceEndpoint = 'check_device';
+  static const String _updateMyDataEndpoint = 'update_my_data';
   static const int _timeTamperThresholdMinutes = 5;
   static const int _offlineLimitHours = 72;
+
+  Future<Uri> _apiUri(String endpoint) => SettingsService.buildApiUri(endpoint);
 
   // Get device ID using device_info_plus or fallback
   Future<String> getDeviceId() async {
@@ -75,7 +75,7 @@ class ActivationService {
 
       final response = await http
           .post(
-        Uri.parse(_apiUrl),
+        await _apiUri(_createDeviceEndpoint),
         headers: {
           'Content-Type': 'application/json',
         },
@@ -389,7 +389,7 @@ class ActivationService {
 
       final response = await http
           .post(
-        Uri.parse(_checkDeviceApiUrl),
+        await _apiUri(_checkDeviceEndpoint),
         headers: {
           'Content-Type': 'application/json',
         },
@@ -458,7 +458,7 @@ class ActivationService {
 
       final response = await http
           .post(
-        Uri.parse(_updateMyDataApiUrl),
+        await _apiUri(_updateMyDataEndpoint),
         headers: {
           'Content-Type': 'application/json',
         },
@@ -783,7 +783,7 @@ class ActivationService {
 
       final response = await http
           .post(
-        Uri.parse(_apiUrl),
+        await _apiUri(_createDeviceEndpoint),
         headers: {
           'Content-Type': 'application/json',
         },

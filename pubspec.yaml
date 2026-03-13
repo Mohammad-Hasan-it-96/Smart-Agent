@@ -59,17 +59,16 @@ flutter_icons:
   ios: true
   image_path: "assets/images/app_logo.png"
   adaptive_icon_background: "#FFFFFF"
-  adaptive_icon_foreground: "assets/images/app_logo.png"
+  adaptive_icon_foreground: "assets/images/app_logo_safe.png"
 
 flutter_native_splash:
   color: "#FFFFFF"
   image: assets/images/app_logo.png
-  branding: assets/images/app_logo.png
   android: true
   ios: true
   web: false
   android_12:
-    image: assets/images/app_logo.png
+    image: assets/images/app_logo_safe.png
     icon_background_color: "#FFFFFF"
 
 flutter:
@@ -85,4 +84,5 @@ flutter:
   assets:
     - assets/fonts/Cairo-Regular.ttf
     - assets/images/app_logo.png
+    - assets/images/app_logo_safe.png
 
