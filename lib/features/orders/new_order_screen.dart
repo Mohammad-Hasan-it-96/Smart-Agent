@@ -7,6 +7,7 @@ import '../../core/widgets/custom_app_bar.dart';
 import '../../core/widgets/form_widgets.dart';
 import '../../core/utils/phone_validator.dart';
 import '../../core/services/activation_service.dart';
+import '../../core/services/settings_service.dart';
 import 'order_details_screen.dart';
 
 class OrderItemData {
@@ -52,6 +53,7 @@ class NewOrderScreen extends StatefulWidget {
 
 class _NewOrderScreenState extends State<NewOrderScreen> {
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
+  final SettingsService _settingsService = SettingsService();
 
   // Pharmacy selection
   List<Pharmacy> _pharmacies = [];
@@ -67,6 +69,7 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
 
   bool _isLoading = true;
   bool _isSaving = false;
+  String _currencyMode = 'usd';
   // Tracks whether a medicine search has been executed at least once
   // (used to distinguish "not searched yet" from "searched but no results").
   bool _hasSearched = false;
@@ -74,8 +77,17 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
   @override
   void initState() {
     super.initState();
+    _loadPricingSettings();
     _loadPharmacies();
     _medicineSearchController.addListener(_searchMedicines);
+  }
+
+  Future<void> _loadPricingSettings() async {
+    final mode = await _settingsService.getCurrencyMode();
+    if (!mounted) return;
+    setState(() {
+      _currencyMode = mode;
+    });
   }
 
   @override
@@ -393,7 +405,7 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
 
       // Get medicine with price
       final medicineData = await db.rawQuery('''
-        SELECT id, name, price_usd
+        SELECT id, name, price_usd, price_syp
         FROM medicines
         WHERE id = ?
       ''', [medicine.medicineId]);
@@ -423,6 +435,7 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
         'id': medicineInfo['id'] as int,
         'name': medicineInfo['name'] as String,
         'price_usd': medicineInfo['price_usd'] as num?,
+        'price_syp': medicineInfo['price_syp'] as num?,
       };
 
       // Show dialog with companies and quantity input
@@ -692,9 +705,43 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
                     (c) => c.id == selectedCompanyId,
                   );
 
-                  // Use price from medicine record (USD)
                   final medicinePriceUsd =
-                      (medicine['price_usd'] as num?)?.toDouble() ?? 0.0;
+                      (medicine['price_usd'] as num?)?.toDouble();
+                  final medicinePriceSyp =
+                      (medicine['price_syp'] as num?)?.toDouble();
+
+                  double selectedUnitPrice = 0.0;
+                  if (_currencyMode == 'syp') {
+                    if ((medicinePriceSyp ?? 0) > 0) {
+                      selectedUnitPrice = medicinePriceSyp!;
+                    } else if ((medicinePriceUsd ?? 0) > 0) {
+                      selectedUnitPrice = medicinePriceUsd!;
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'سعر الليرة غير محدد لهذا الدواء، تم استخدام سعر الدولار كبديل.',
+                            ),
+                          ),
+                        );
+                      }
+                    }
+                  } else {
+                    if ((medicinePriceUsd ?? 0) > 0) {
+                      selectedUnitPrice = medicinePriceUsd!;
+                    } else if ((medicinePriceSyp ?? 0) > 0) {
+                      selectedUnitPrice = medicinePriceSyp!;
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'سعر الدولار غير محدد لهذا الدواء، تم استخدام سعر الليرة كبديل.',
+                            ),
+                          ),
+                        );
+                      }
+                    }
+                  }
 
                   // Gift-only rows are marked with isGift=true; mixed rows stay paid.
                   final isGiftOnly = paidQty == 0 && giftQty > 0;
@@ -707,7 +754,7 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
                         companyId: selectedCompanyId!,
                         companyName: company.name,
                         qty: paidQty,
-                        price: medicinePriceUsd,
+                        price: selectedUnitPrice,
                         isGift: isGiftOnly,
                         giftQty: giftQty,
                       ),

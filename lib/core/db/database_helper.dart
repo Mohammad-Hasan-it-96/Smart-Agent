@@ -22,7 +22,7 @@ class DatabaseHelper {
     return await databaseFactory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 10,
+        version: 11,
         onCreate: _createDB,
         onUpgrade: _onUpgrade,
       ),
@@ -45,6 +45,7 @@ class DatabaseHelper {
         name TEXT,
         company_id INTEGER,
         price_usd REAL DEFAULT 0,
+        price_syp REAL,
         source TEXT,
         form TEXT,
         notes TEXT
@@ -279,6 +280,16 @@ class DatabaseHelper {
         // Index might already exist, ignore error
       }
     }
+    if (oldVersion < 11) {
+      // Add dedicated SYP price column to medicines table.
+      try {
+        await db.execute('''
+          ALTER TABLE medicines ADD COLUMN price_syp REAL
+        ''');
+      } catch (e) {
+        // Column might already exist, ignore error
+      }
+    }
   }
 
   Future<Database> openDatabase() async {
@@ -379,6 +390,7 @@ class DatabaseHelper {
           WHEN order_items.is_gift = 1 THEN 0 
           ELSE COALESCE(medicines.price_usd, order_items.price, 0) 
         END as price_usd,
+        medicines.price_syp as price_syp,
         order_items.price as price,
         order_items.is_gift as is_gift,
         order_items.gift_qty as gift_qty,

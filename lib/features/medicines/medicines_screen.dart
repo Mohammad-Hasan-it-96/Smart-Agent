@@ -104,8 +104,10 @@ class _MedicinesScreenState extends State<MedicinesScreen> {
   Future<void> _refreshFiltersMetadata() async {
     try {
       final db = await _dbHelper.database;
+      final activePriceColumn =
+          _currencyMode == 'syp' ? 'price_syp' : 'price_usd';
       final maxPriceResult = await db.rawQuery('''
-        SELECT MAX(COALESCE(price_usd, 0)) as max_price
+        SELECT MAX(COALESCE($activePriceColumn, 0)) as max_price
         FROM medicines
       ''');
       final maxPrice =
@@ -183,16 +185,20 @@ class _MedicinesScreenState extends State<MedicinesScreen> {
       }
 
       if (_availabilityFilter != null) {
+        final activePriceColumn =
+            _currencyMode == 'syp' ? 'medicines.price_syp' : 'medicines.price_usd';
         if (_availabilityFilter == true) {
-          whereParts.add('COALESCE(medicines.price_usd, 0) > 0');
+          whereParts.add('COALESCE($activePriceColumn, 0) > 0');
         } else {
-          whereParts.add('COALESCE(medicines.price_usd, 0) <= 0');
+          whereParts.add('COALESCE($activePriceColumn, 0) <= 0');
         }
       }
 
-      whereParts.add('COALESCE(medicines.price_usd, 0) >= ?');
+      final activePriceColumn =
+          _currencyMode == 'syp' ? 'medicines.price_syp' : 'medicines.price_usd';
+      whereParts.add('COALESCE($activePriceColumn, 0) >= ?');
       args.add(_activePriceRange.start);
-      whereParts.add('COALESCE(medicines.price_usd, 0) <= ?');
+      whereParts.add('COALESCE($activePriceColumn, 0) <= ?');
       args.add(_activePriceRange.end);
 
       final whereClause =
@@ -205,12 +211,13 @@ class _MedicinesScreenState extends State<MedicinesScreen> {
           medicines.name,
           medicines.company_id,
           medicines.price_usd,
+          medicines.price_syp,
           medicines.form,
           medicines.source,
           medicines.notes,
           companies.name AS company_name,
           COALESCE(medicines.form, '') AS category,
-          CASE WHEN COALESCE(medicines.price_usd, 0) > 0 THEN 1 ELSE 0 END AS is_available,
+          CASE WHEN COALESCE($activePriceColumn, 0) > 0 THEN 1 ELSE 0 END AS is_available,
           NULL AS stock_qty
         FROM medicines
         LEFT JOIN companies ON companies.id = medicines.company_id
@@ -383,7 +390,7 @@ class _MedicinesScreenState extends State<MedicinesScreen> {
                       ),
                       const SizedBox(height: 20),
                       Text(
-                        'نطاق السعر (USD)',
+                        'نطاق السعر (${_currencyMode == 'syp' ? 'ل.س' : 'USD'})',
                         style: Theme.of(context).textTheme.titleSmall,
                       ),
                       const SizedBox(height: 8),
@@ -804,16 +811,23 @@ class _MedicinesScreenState extends State<MedicinesScreen> {
     }
 
   String _syncPriceText(Map<String, dynamic> medicine) {
-    final priceUsd = (medicine['price_usd'] as num?)?.toDouble() ?? 0.0;
-    if (priceUsd <= 0) return 'السعر غير محدد';
+    final usd = (medicine['price_usd'] as num?)?.toDouble();
+    final syp = (medicine['price_syp'] as num?)?.toDouble();
+    final isSypMode = _currencyMode == 'syp';
+    final selected = isSypMode ? syp : usd;
 
-    var displayPrice = priceUsd;
-    if (_currencyMode == 'syp') {
-      displayPrice = priceUsd * _exchangeRate;
+    if (selected != null && selected > 0) {
+      final symbol = isSypMode ? 'ل.س' : '\$';
+      return '${selected.toStringAsFixed(2)} $symbol';
     }
 
-    final symbol = _currencyMode == 'syp' ? 'ل.س' : '\$';
-    return '${displayPrice.toStringAsFixed(2)} $symbol';
+    final fallback = isSypMode ? usd : syp;
+    if (fallback != null && fallback > 0) {
+      final fallbackSymbol = isSypMode ? '\$' : 'ل.س';
+      return '${fallback.toStringAsFixed(2)} $fallbackSymbol (بديل)';
+    }
+
+    return 'السعر غير محدد';
   }
 
   Future<String> _getPriceDisplay(Map<String, dynamic> medicine) async {

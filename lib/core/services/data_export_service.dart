@@ -40,6 +40,7 @@ class DataExportService {
             'company_id': m.companyId,
             'company_name': _getCompanyName(companies, m.companyId),
             'price_usd': m.priceUsd,
+            'price_syp': m.priceSyp,
             'source': m.source,
             'form': m.form,
             'notes': m.notes,
@@ -192,6 +193,7 @@ class DataExportService {
           'name': medicineName.trim(),
           'company_id': companyId,
           'price_usd': (medicineMap['price_usd'] as num?)?.toDouble() ?? 0.0,
+          'price_syp': (medicineMap['price_syp'] as num?)?.toDouble(),
           'source': (medicineMap['source'] as String?)?.trim().isEmpty == true
               ? null
               : (medicineMap['source'] as String?)?.trim(),

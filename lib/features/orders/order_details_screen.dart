@@ -92,6 +92,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
             WHEN order_items.is_gift = 1 THEN 0 
             ELSE COALESCE(medicines.price_usd, order_items.price, 0) 
           END as price_usd,
+          medicines.price_syp as price_syp,
           order_items.price as price,
           order_items.is_gift as is_gift,
           order_items.gift_qty as gift_qty,
@@ -402,15 +403,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                                   final item = _orderItems[index];
                                   final itemNumber =
                                       index + 1; // 1-based numbering
-                                  // Use price_usd from medicine record (fallback to order_items.price for backward compatibility)
-                                  final priceUsd =
-                                      (item['price_usd'] as num?)?.toDouble() ??
-                                          0.0;
-                                  double displayPrice = priceUsd;
-                                  if (_pricingEnabled &&
-                                      _currencyMode == 'syp') {
-                                    displayPrice = priceUsd * _exchangeRate;
-                                  }
+                                  final displayPrice = _resolveUnitPrice(item);
                                   final qty =
                                       (item['qty'] as num?)?.toInt() ?? 0;
                                   final giftQty =
@@ -659,6 +652,22 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                             ],
                           ),
                           const SizedBox(height: 10),
+                            if (_pricingEnabled && _hasMissingSelectedCurrencyPrice()) ...[
+                              Card(
+                                color: theme.colorScheme.secondaryContainer,
+                                child: Padding(
+                                  padding: const EdgeInsets.all(12.0),
+                                  child: Text(
+                                    'بعض الأدوية لا تملك سعرًا بالعملة المحددة، لذلك تم استخدام سعر بديل بشكل آمن.',
+                                    style: theme.textTheme.bodyMedium?.copyWith(
+                                      color: theme.colorScheme.onSecondaryContainer,
+                                    ),
+                                    textDirection: TextDirection.rtl,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                            ],
                           Row(
                             children: [
                               // Send PDF file button
@@ -703,25 +712,46 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
   }
 
   String _calculateTotal() {
-    double totalUsd = 0.0;
+    double total = 0.0;
     for (final item in _orderItems) {
       final isGiftOnly = (item['is_gift'] as int? ?? 0) == 1;
       if (isGiftOnly) continue;
-      // Use price_usd from medicine record (fallback to order_items.price for backward compatibility)
-      final priceUsd = (item['price_usd'] as num?)?.toDouble() ??
-          (item['price'] as num?)?.toDouble() ??
-          0.0;
+      final unitPrice = _resolveUnitPrice(item);
       final qty = (item['qty'] as num?)?.toInt() ?? 0;
-      totalUsd += priceUsd * qty;
-    }
-
-    double displayTotal = totalUsd;
-    if (_currencyMode == 'syp') {
-      displayTotal = totalUsd * _exchangeRate;
+      total += unitPrice * qty;
     }
 
     final currencySymbol = _currencyMode == 'syp' ? 'ل.س' : '\$';
-    return '${displayTotal.toStringAsFixed(2)} $currencySymbol';
+    return '${total.toStringAsFixed(2)} $currencySymbol';
+  }
+
+  double _resolveUnitPrice(Map<String, dynamic> item) {
+    final priceUsd = (item['price_usd'] as num?)?.toDouble();
+    final priceSyp = (item['price_syp'] as num?)?.toDouble();
+    final fallbackPrice = (item['price'] as num?)?.toDouble() ?? 0.0;
+
+    if (_currencyMode == 'syp') {
+      if ((priceSyp ?? 0) > 0) return priceSyp!;
+      if ((priceUsd ?? 0) > 0) return priceUsd!;
+      return fallbackPrice;
+    }
+
+    if ((priceUsd ?? 0) > 0) return priceUsd!;
+    if ((priceSyp ?? 0) > 0) return priceSyp!;
+    return fallbackPrice;
+  }
+
+  bool _hasMissingSelectedCurrencyPrice() {
+    for (final item in _orderItems) {
+      final priceUsd = (item['price_usd'] as num?)?.toDouble();
+      final priceSyp = (item['price_syp'] as num?)?.toDouble();
+      if (_currencyMode == 'syp') {
+        if ((priceSyp ?? 0) <= 0 && (priceUsd ?? 0) > 0) return true;
+      } else {
+        if ((priceUsd ?? 0) <= 0 && (priceSyp ?? 0) > 0) return true;
+      }
+    }
+    return false;
   }
 
   Widget _buildInfoRow(String label, String value, ThemeData theme) {

@@ -81,12 +81,16 @@ String buildOrderMessage({
     final qty = (item['qty'] as num?)?.toInt() ?? 0;
     final giftQty = (item['gift_qty'] as num?)?.toInt() ?? 0;
     final isGift = (item['is_gift'] as int? ?? 0) == 1;
-    final priceUsd = (item['price_usd'] as num?)?.toDouble() ?? 0.0;
-
-    double displayPrice = priceUsd;
-    if (pricingEnabled && currencyMode == 'syp') {
-      displayPrice = priceUsd * exchangeRate;
-    }
+    final priceUsd = (item['price_usd'] as num?)?.toDouble();
+    final priceSyp = (item['price_syp'] as num?)?.toDouble();
+    final fallbackPrice = (item['price'] as num?)?.toDouble() ?? 0.0;
+    final displayPrice = currencyMode == 'syp'
+        ? ((priceSyp ?? 0) > 0
+            ? priceSyp!
+            : ((priceUsd ?? 0) > 0 ? priceUsd! : fallbackPrice))
+        : ((priceUsd ?? 0) > 0
+            ? priceUsd!
+            : ((priceSyp ?? 0) > 0 ? priceSyp! : fallbackPrice));
     final lineTotal = displayPrice * qty;
     if (!isGift) grandTotal += lineTotal;
 

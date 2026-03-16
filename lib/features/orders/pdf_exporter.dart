@@ -57,7 +57,6 @@ Future<Uint8List> generateOrderPdf(
   final settingsService = SettingsService();
   final pricingEnabled = await settingsService.isPricingEnabled();
   final currencyMode = await settingsService.getCurrencyMode();
-  final exchangeRate = await settingsService.getExchangeRate();
   final currencySymbol = currencyMode == 'syp' ? 'ل.س' : '\$';
 
   final pdf = pw.Document();
@@ -469,15 +468,17 @@ Future<Uint8List> generateOrderPdf(
                       final item = entry.value;
                       final globalIndex =
                           startIndex + itemIndex + 1; // 1-based numbering
-                      // Use price_usd from medicine record (fallback to order_items.price for backward compatibility)
-                      final priceUsd =
-                          (item['price_usd'] as num?)?.toDouble() ??
-                              (item['price'] as num?)?.toDouble() ??
-                              0.0;
-                      double displayPrice = priceUsd;
-                      if (pricingEnabled && currencyMode == 'syp') {
-                        displayPrice = priceUsd * exchangeRate;
-                      }
+                      final priceUsd = (item['price_usd'] as num?)?.toDouble();
+                      final priceSyp = (item['price_syp'] as num?)?.toDouble();
+                      final fallbackPrice =
+                          (item['price'] as num?)?.toDouble() ?? 0.0;
+                      final displayPrice = currencyMode == 'syp'
+                          ? ((priceSyp ?? 0) > 0
+                              ? priceSyp!
+                              : ((priceUsd ?? 0) > 0 ? priceUsd! : fallbackPrice))
+                          : ((priceUsd ?? 0) > 0
+                              ? priceUsd!
+                              : ((priceSyp ?? 0) > 0 ? priceSyp! : fallbackPrice));
                       final qty = (item['qty'] as num?)?.toInt() ?? 0;
                       final giftQty = (item['gift_qty'] as num?)?.toInt() ?? 0;
                       final isGiftOnly = (item['is_gift'] as int? ?? 0) == 1;
@@ -740,7 +741,7 @@ Future<Uint8List> generateOrderPdf(
     if (itemsCount == 0) return pw.SizedBox.shrink();
 
     final totalText =
-        _calculateTotal(items, currencyMode, exchangeRate, currencySymbol);
+        _calculateTotal(items, currencyMode, currencySymbol);
 
     return pw.Directionality(
       textDirection: pw.TextDirection.rtl,
@@ -872,27 +873,27 @@ String _formatDate(String dateString) {
 String _calculateTotal(
   List<Map<String, dynamic>> items,
   String currencyMode,
-  double exchangeRate,
   String currencySymbol,
 ) {
-  double totalUsd = 0.0;
+  double total = 0.0;
   for (final item in items) {
     // Gift-only rows do not affect total price (gift_qty also does not affect totals)
     final isGiftOnly = (item['is_gift'] as int? ?? 0) == 1;
     if (isGiftOnly) continue;
 
-    // Use price_usd from medicine record (fallback to order_items.price for backward compatibility)
-    final priceUsd = (item['price_usd'] as num?)?.toDouble() ??
-        (item['price'] as num?)?.toDouble() ??
-        0.0;
+    final priceUsd = (item['price_usd'] as num?)?.toDouble();
+    final priceSyp = (item['price_syp'] as num?)?.toDouble();
+    final fallbackPrice = (item['price'] as num?)?.toDouble() ?? 0.0;
+    final unitPrice = currencyMode == 'syp'
+        ? ((priceSyp ?? 0) > 0
+            ? priceSyp!
+            : ((priceUsd ?? 0) > 0 ? priceUsd! : fallbackPrice))
+        : ((priceUsd ?? 0) > 0
+            ? priceUsd!
+            : ((priceSyp ?? 0) > 0 ? priceSyp! : fallbackPrice));
     final qty = (item['qty'] as num?)?.toInt() ?? 0;
-    totalUsd += priceUsd * qty;
+    total += unitPrice * qty;
   }
 
-  double displayTotal = totalUsd;
-  if (currencyMode == 'syp') {
-    displayTotal = totalUsd * exchangeRate;
-  }
-
-  return '${displayTotal.toStringAsFixed(2)} $currencySymbol';
+  return '${total.toStringAsFixed(2)} $currencySymbol';
 }

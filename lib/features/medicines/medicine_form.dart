@@ -3,6 +3,7 @@ import '../../core/db/database_helper.dart';
 import '../../core/models/medicine.dart';
 import '../../core/models/company.dart';
 import '../../core/services/activation_service.dart';
+import '../../core/services/settings_service.dart';
 import '../../core/exceptions/trial_expired_exception.dart';
 import '../../core/widgets/custom_app_bar.dart';
 import '../../core/widgets/form_widgets.dart';
@@ -19,16 +20,21 @@ class MedicineForm extends StatefulWidget {
 class _MedicineFormState extends State<MedicineForm> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
-  final _priceController = TextEditingController();
+  final _priceUsdController = TextEditingController();
+  final _priceSypController = TextEditingController();
   final _sourceController = TextEditingController();
   final _notesController = TextEditingController();
   final _dbHelper = DatabaseHelper.instance;
   final _activationService = ActivationService();
+  final _settingsService = SettingsService();
   List<Company> _companies = [];
   int? _selectedCompanyId;
   String? _selectedForm;
   bool _isLoading = false;
   bool _isLoadingCompanies = true;
+  String _currencyMode = 'usd';
+  double _exchangeRate = 0.0;
+  bool _isSyncingPrices = false;
 
   final List<String> _formOptions = [
     'ظرف',
@@ -43,12 +49,16 @@ class _MedicineFormState extends State<MedicineForm> {
   @override
   void initState() {
     super.initState();
+    _loadPricingSettings();
     _loadCompanies();
     if (widget.medicine != null) {
       _nameController.text = widget.medicine!.name;
       _selectedCompanyId = widget.medicine!.companyId;
       if (widget.medicine!.priceUsd > 0) {
-        _priceController.text = widget.medicine!.priceUsd.toString();
+        _priceUsdController.text = widget.medicine!.priceUsd.toString();
+      }
+      if ((widget.medicine!.priceSyp ?? 0) > 0) {
+        _priceSypController.text = widget.medicine!.priceSyp.toString();
       }
       _sourceController.text = widget.medicine!.source ?? '';
       _selectedForm = widget.medicine!.form;
@@ -59,10 +69,52 @@ class _MedicineFormState extends State<MedicineForm> {
   @override
   void dispose() {
     _nameController.dispose();
-    _priceController.dispose();
+    _priceUsdController.dispose();
+    _priceSypController.dispose();
     _sourceController.dispose();
     _notesController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadPricingSettings() async {
+    final mode = await _settingsService.getCurrencyMode();
+    final rate = await _settingsService.getExchangeRate();
+    if (!mounted) return;
+    setState(() {
+      _currencyMode = mode;
+      _exchangeRate = rate;
+    });
+  }
+
+  double? _parseOptionalPrice(String raw) {
+    final value = raw.trim();
+    if (value.isEmpty) return null;
+    return double.tryParse(value);
+  }
+
+  String _formatPrice(double value) {
+    if (value == value.roundToDouble()) {
+      return value.toStringAsFixed(0);
+    }
+    return value.toStringAsFixed(2);
+  }
+
+  void _syncFromUsd(String raw) {
+    if (_isSyncingPrices || _exchangeRate <= 0) return;
+    final usd = _parseOptionalPrice(raw);
+    if (usd == null || usd < 0) return;
+    _isSyncingPrices = true;
+    _priceSypController.text = _formatPrice(usd * _exchangeRate);
+    _isSyncingPrices = false;
+  }
+
+  void _syncFromSyp(String raw) {
+    if (_isSyncingPrices || _exchangeRate <= 0) return;
+    final syp = _parseOptionalPrice(raw);
+    if (syp == null || syp < 0) return;
+    _isSyncingPrices = true;
+    _priceUsdController.text = _formatPrice(syp / _exchangeRate);
+    _isSyncingPrices = false;
   }
 
   Future<void> _loadCompanies() async {
@@ -96,14 +148,22 @@ class _MedicineFormState extends State<MedicineForm> {
     });
 
     try {
-      double? priceUsd;
-      if (_priceController.text.trim().isNotEmpty) {
-        priceUsd = double.tryParse(_priceController.text.trim());
-        if (priceUsd == null || priceUsd < 0) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('يرجى إدخال سعر صحيح')),
-          );
-          return;
+      double? priceUsd = _parseOptionalPrice(_priceUsdController.text);
+      double? priceSyp = _parseOptionalPrice(_priceSypController.text);
+
+      if (priceUsd != null && priceUsd < 0 || priceSyp != null && priceSyp < 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('يرجى إدخال سعر صحيح')),
+        );
+        return;
+      }
+
+      if (_exchangeRate > 0) {
+        // Auto-complete the other currency to keep both prices available.
+        if (priceUsd != null && priceSyp == null) {
+          priceSyp = priceUsd * _exchangeRate;
+        } else if (priceSyp != null && priceUsd == null) {
+          priceUsd = priceSyp / _exchangeRate;
         }
       }
 
@@ -112,6 +172,7 @@ class _MedicineFormState extends State<MedicineForm> {
         name: _nameController.text.trim(),
         companyId: _selectedCompanyId!,
         priceUsd: priceUsd ?? 0.0,
+        priceSyp: priceSyp,
         source: _sourceController.text.trim().isEmpty
             ? null
             : _sourceController.text.trim(),
@@ -570,9 +631,9 @@ class _MedicineFormState extends State<MedicineForm> {
                         icon: Icons.attach_money_rounded,
                         children: [
                           TextFormField(
-                            controller: _priceController,
-                            decoration: const InputDecoration(
-                              labelText: 'سعر الدواء (بالدولار \$)',
+                            controller: _priceUsdController,
+                            decoration: InputDecoration(
+                              labelText: 'سعر الدواء بالدولار (اختياري)',
                               hintText: '0.00',
                               prefixIcon: Icon(Icons.attach_money_rounded),
                             ),
@@ -582,6 +643,7 @@ class _MedicineFormState extends State<MedicineForm> {
                             textDirection: TextDirection.ltr,
                             textAlign: TextAlign.right,
                             textInputAction: TextInputAction.next,
+                            onChanged: _syncFromUsd,
                             validator: (value) {
                               if (value != null && value.trim().isNotEmpty) {
                                 final price = double.tryParse(value.trim());
@@ -591,6 +653,39 @@ class _MedicineFormState extends State<MedicineForm> {
                               }
                               return null;
                             },
+                          ),
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            controller: _priceSypController,
+                            decoration: const InputDecoration(
+                              labelText: 'سعر الدواء بالليرة السورية (اختياري)',
+                              hintText: '0',
+                              prefixIcon: Icon(Icons.currency_exchange_rounded),
+                            ),
+                            keyboardType:
+                                const TextInputType.numberWithOptions(
+                                    decimal: true),
+                            textDirection: TextDirection.ltr,
+                            textAlign: TextAlign.right,
+                            textInputAction: TextInputAction.next,
+                            onChanged: _syncFromSyp,
+                            validator: (value) {
+                              if (value != null && value.trim().isNotEmpty) {
+                                final price = double.tryParse(value.trim());
+                                if (price == null || price < 0) {
+                                  return 'يرجى إدخال سعر صحيح';
+                                }
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            _exchangeRate > 0
+                                ? 'سعر الصرف الحالي: ${_exchangeRate.toStringAsFixed(2)} (الوضع الحالي: ${_currencyMode == 'syp' ? 'ل.س' : 'USD'})'
+                                : 'ملاحظة: أدخل السعرين يدويًا أو حدّد سعر صرف من الإعدادات للتحويل التلقائي.',
+                            style: Theme.of(context).textTheme.bodySmall,
+                            textDirection: TextDirection.rtl,
                           ),
                           const SizedBox(height: 16),
                           TextFormField(
