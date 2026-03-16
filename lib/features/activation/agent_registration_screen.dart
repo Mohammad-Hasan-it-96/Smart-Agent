@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../core/services/activation_service.dart';
 import '../../core/utils/phone_validator.dart';
 import '../../core/services/push_notification_service.dart';
@@ -143,6 +144,8 @@ class _AgentRegistrationScreenState extends State<AgentRegistrationScreen> {
                   ),
                 ),
                 keyboardType: TextInputType.phone,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                maxLength: 12,
                 textDirection: TextDirection.rtl,
                 textInputAction: TextInputAction.done,
                 validator: (v) => validatePhone(v, required: true),

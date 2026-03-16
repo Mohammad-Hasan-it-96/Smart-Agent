@@ -23,9 +23,9 @@ String? validatePhone(String? value, {bool required = true}) {
     return 'رقم الهاتف يجب أن يحتوي على أرقام فقط';
   }
 
-  // Length check: 9–12 digits
-  if (digits.length < 9 || digits.length > 12) {
-    return 'رقم الهاتف يجب أن يكون بين 9 و 12 رقم';
+  // Length check: 10 digits for local (09...) or 12 digits for intl (9639...)
+  if (digits.length != 10 && digits.length != 12) {
+    return 'رقم الهاتف يجب أن يكون 10 أرقام (09...) أو 12 رقماً (9639...)';
   }
 
   // Must start with 09 or 9639
