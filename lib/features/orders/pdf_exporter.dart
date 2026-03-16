@@ -250,19 +250,19 @@ Future<Uint8List> generateOrderPdf(
                   border: pw.TableBorder.all(color: PdfColors.grey),
                   columnWidths: pricingEnabled
                       ? {
-                          // Reversed for RTL: المجموع, السعر, الكمية, هدية, الشركة, الدواء, الرقم
+                          // Reversed for RTL visual reading: المجموع, السعر, هدية, الكمية, الشركة, الدواء, الرقم
                           0: const pw.FlexColumnWidth(1.5), // المجموع
                           1: const pw.FlexColumnWidth(1.5), // السعر
-                          2: const pw.FlexColumnWidth(1), // الكمية
-                          3: const pw.FlexColumnWidth(1), // هدية
+                          2: const pw.FlexColumnWidth(1), // هدية
+                          3: const pw.FlexColumnWidth(1), // الكمية
                           4: const pw.FlexColumnWidth(1.5), // الشركة
                           5: const pw.FlexColumnWidth(2), // الدواء
                           6: const pw.FixedColumnWidth(35), // الرقم
                         }
                       : {
-                          // Reversed for RTL: الكمية, هدية, الشركة, الدواء, الرقم
-                          0: const pw.FlexColumnWidth(1), // الكمية
-                          1: const pw.FlexColumnWidth(1), // هدية
+                          // Reversed for RTL visual reading: هدية, الكمية, الشركة, الدواء, الرقم
+                          0: const pw.FlexColumnWidth(1), // هدية
+                          1: const pw.FlexColumnWidth(1), // الكمية
                           2: const pw.FlexColumnWidth(1.5), // الشركة
                           3: const pw.FlexColumnWidth(2), // الدواء
                           4: const pw.FixedColumnWidth(35), // الرقم
@@ -275,7 +275,7 @@ Future<Uint8List> generateOrderPdf(
                       ),
                       children: pricingEnabled
                           ? [
-                              // Reversed order for RTL: المجموع, السعر, الكمية, هدية, الشركة, الدواء, الرقم
+                              // Reversed order for RTL visual reading: المجموع, السعر, هدية, الكمية, الشركة, الدواء, الرقم
                               // (Visually: الرقم appears on RIGHT, المجموع appears on LEFT)
                               // المجموع - FIRST in array (leftmost visually in RTL)
                               pw.Padding(
@@ -307,13 +307,13 @@ Future<Uint8List> generateOrderPdf(
                                   ),
                                 ),
                               ),
-                              // الكمية - THIRD in array
+                              // هدية - THIRD in array
                               pw.Padding(
                                 padding: const pw.EdgeInsets.all(4),
                                 child: pw.Directionality(
                                   textDirection: pw.TextDirection.rtl,
                                   child: pw.Text(
-                                    'الكمية',
+                                    'هدية',
                                     style: getArabicStyle(
                                       fontWeight: pw.FontWeight.bold,
                                       fontSize: 9,
@@ -322,13 +322,13 @@ Future<Uint8List> generateOrderPdf(
                                   ),
                                 ),
                               ),
-                              // هدية - FOURTH in array
+                              // الكمية - FOURTH in array
                               pw.Padding(
                                 padding: const pw.EdgeInsets.all(4),
                                 child: pw.Directionality(
                                   textDirection: pw.TextDirection.rtl,
                                   child: pw.Text(
-                                    'هدية',
+                                    'الكمية',
                                     style: getArabicStyle(
                                       fontWeight: pw.FontWeight.bold,
                                       fontSize: 9,
@@ -384,15 +384,15 @@ Future<Uint8List> generateOrderPdf(
                               ),
                             ]
                           : [
-                              // Reversed order for RTL: الكمية, هدية, الشركة, الدواء, الرقم
+                              // Reversed order for RTL visual reading: هدية, الكمية, الشركة, الدواء, الرقم
                               // (Visually: الرقم appears on RIGHT, الكمية appears on LEFT)
-                              // الكمية - FIRST in array (leftmost visually in RTL)
+                              // هدية - FIRST in array (leftmost visually in RTL)
                               pw.Padding(
                                 padding: const pw.EdgeInsets.all(6),
                                 child: pw.Directionality(
                                   textDirection: pw.TextDirection.rtl,
                                   child: pw.Text(
-                                    'الكمية',
+                                    'هدية',
                                     style: getArabicStyle(
                                       fontWeight: pw.FontWeight.bold,
                                       fontSize: 10,
@@ -401,13 +401,13 @@ Future<Uint8List> generateOrderPdf(
                                   ),
                                 ),
                               ),
-                              // هدية - SECOND in array
+                              // الكمية - SECOND in array
                               pw.Padding(
                                 padding: const pw.EdgeInsets.all(6),
                                 child: pw.Directionality(
                                   textDirection: pw.TextDirection.rtl,
                                   child: pw.Text(
-                                    'هدية',
+                                    'الكمية',
                                     style: getArabicStyle(
                                       fontWeight: pw.FontWeight.bold,
                                       fontSize: 10,
@@ -481,6 +481,10 @@ Future<Uint8List> generateOrderPdf(
                       final qty = (item['qty'] as num?)?.toInt() ?? 0;
                       final giftQty = (item['gift_qty'] as num?)?.toInt() ?? 0;
                       final isGiftOnly = (item['is_gift'] as int? ?? 0) == 1;
+                      final effectiveGiftQty =
+                          giftQty > 0 ? giftQty : (isGiftOnly ? qty : 0);
+                      final giftDisplayText =
+                          effectiveGiftQty > 0 ? effectiveGiftQty.toString() : '';
                       final total = displayPrice * qty;
 
                       final medicineName = item['medicine_name'] ?? 'غير معروف';
@@ -489,8 +493,12 @@ Future<Uint8List> generateOrderPdf(
                       final form = item['medicine_form'] as String?;
                       final notes = item['medicine_notes'] as String?;
 
-                      // Build description string with optional fields (source, form, notes, gift)
+                      // Build description string: show paid quantity first, then gift quantity if available.
                       final List<String> descriptionParts = [];
+                      descriptionParts.add('الكمية: $qty');
+                      if (effectiveGiftQty > 0) {
+                        descriptionParts.add('الهدية: $effectiveGiftQty');
+                      }
                       if (source != null && source.isNotEmpty) {
                         descriptionParts.add('المصدر: $source');
                       }
@@ -500,10 +508,6 @@ Future<Uint8List> generateOrderPdf(
                       if (notes != null && notes.isNotEmpty) {
                         descriptionParts.add('ملاحظات: $notes');
                       }
-                      if (isGiftOnly || giftQty > 0) {
-                        descriptionParts
-                            .add(giftQty > 0 ? 'هدية: $giftQty' : 'هدية');
-                      }
                       final description = descriptionParts.isNotEmpty
                           ? '(${descriptionParts.join(' — ')})'
                           : '';
@@ -511,7 +515,7 @@ Future<Uint8List> generateOrderPdf(
                       return pw.TableRow(
                         children: pricingEnabled
                             ? [
-                                // Reversed order for RTL: المجموع, السعر, الكمية, هدية, الشركة, الدواء, الرقم
+                                // Reversed order for RTL visual reading: المجموع, السعر, هدية, الكمية, الشركة, الدواء, الرقم
                                 // (Visually: الرقم appears on RIGHT, المجموع appears on LEFT)
                                 // المجموع - FIRST in array (leftmost visually in RTL)
                                 pw.Padding(
@@ -540,25 +544,25 @@ Future<Uint8List> generateOrderPdf(
                                     ),
                                   ),
                                 ),
-                                // الكمية - THIRD in array
+                                // هدية - THIRD in array
+                                pw.Padding(
+                                  padding: const pw.EdgeInsets.all(4),
+                                  child: pw.Directionality(
+                                    textDirection: pw.TextDirection.rtl,
+                                    child: pw.Text(
+                                      giftDisplayText,
+                                      style: getArabicStyle(fontSize: 9),
+                                      textAlign: pw.TextAlign.right,
+                                    ),
+                                  ),
+                                ),
+                                // الكمية - FOURTH in array
                                 pw.Padding(
                                   padding: const pw.EdgeInsets.all(4),
                                   child: pw.Directionality(
                                     textDirection: pw.TextDirection.rtl,
                                     child: pw.Text(
                                       qty.toString(),
-                                      style: getArabicStyle(fontSize: 9),
-                                      textAlign: pw.TextAlign.right,
-                                    ),
-                                  ),
-                                ),
-                                // هدية - FOURTH in array
-                                pw.Padding(
-                                  padding: const pw.EdgeInsets.all(4),
-                                  child: pw.Directionality(
-                                    textDirection: pw.TextDirection.rtl,
-                                    child: pw.Text(
-                                      (isGiftOnly ? qty : giftQty).toString(),
                                       style: getArabicStyle(fontSize: 9),
                                       textAlign: pw.TextAlign.right,
                                     ),
@@ -625,27 +629,27 @@ Future<Uint8List> generateOrderPdf(
                                 ),
                               ]
                             : [
-                                // Reversed order for RTL: الكمية, هدية, الشركة, الدواء, الرقم
+                                // Reversed order for RTL visual reading: هدية, الكمية, الشركة, الدواء, الرقم
                                 // (Visually: الرقم appears on RIGHT, الكمية appears on LEFT)
-                                // الكمية - FIRST in array (leftmost visually in RTL)
+                                // هدية - FIRST in array (leftmost visually in RTL)
+                                pw.Padding(
+                                  padding: const pw.EdgeInsets.all(6),
+                                  child: pw.Directionality(
+                                    textDirection: pw.TextDirection.rtl,
+                                    child: pw.Text(
+                                      giftDisplayText,
+                                      style: getArabicStyle(fontSize: 10),
+                                      textAlign: pw.TextAlign.right,
+                                    ),
+                                  ),
+                                ),
+                                // الكمية - SECOND in array
                                 pw.Padding(
                                   padding: const pw.EdgeInsets.all(6),
                                   child: pw.Directionality(
                                     textDirection: pw.TextDirection.rtl,
                                     child: pw.Text(
                                       qty.toString(),
-                                      style: getArabicStyle(fontSize: 10),
-                                      textAlign: pw.TextAlign.right,
-                                    ),
-                                  ),
-                                ),
-                                // هدية - SECOND in array
-                                pw.Padding(
-                                  padding: const pw.EdgeInsets.all(6),
-                                  child: pw.Directionality(
-                                    textDirection: pw.TextDirection.rtl,
-                                    child: pw.Text(
-                                      (isGiftOnly ? qty : giftQty).toString(),
                                       style: getArabicStyle(fontSize: 10),
                                       textAlign: pw.TextAlign.right,
                                     ),
