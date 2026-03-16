@@ -447,267 +447,293 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
       return;
     }
 
-    int? selectedCompanyId;
-    final qtyController = TextEditingController();
-    final giftQtyController = TextEditingController();
-    final formKey = GlobalKey<FormState>();
-    bool isGift = false;
+    int? selectedCompanyId = companies.first.id;
+    int paidQty = 1;
+    int giftQty = 1;
+    bool hasGift = false;
 
-    await showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Text(
-                  medicine['name'] as String,
-                  style: const TextStyle(fontSize: 18),
-                  textDirection: TextDirection.rtl,
+    final paidQtyController = TextEditingController(text: '1');
+    final giftQtyController = TextEditingController(text: '1');
+
+    int parseQty(String text) {
+      final value = int.tryParse(text.trim()) ?? 0;
+      return value < 0 ? 0 : value;
+    }
+
+    void syncController(TextEditingController controller, int value) {
+      controller.value = TextEditingValue(
+        text: value.toString(),
+        selection: TextSelection.collapsed(offset: value.toString().length),
+      );
+    }
+
+    try {
+      await showDialog(
+        context: context,
+        builder: (context) => StatefulBuilder(
+          builder: (context, setDialogState) => AlertDialog(
+            titlePadding: const EdgeInsets.fromLTRB(16, 14, 8, 8),
+            contentPadding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            actionsPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            title: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        medicine['name'] as String,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textDirection: TextDirection.rtl,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        companies.length > 1
+                            ? 'اختر الشركة والكمية بسرعة'
+                            : 'تم اختيار الشركة تلقائياً',
+                        style: Theme.of(context).textTheme.bodySmall,
+                        textDirection: TextDirection.rtl,
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.close),
-                onPressed: () => Navigator.pop(context),
-              ),
-            ],
-          ),
-          content: Form(
-            key: formKey,
-            child: SingleChildScrollView(
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+            content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Text(
-                    'اختر الشركة:',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    textDirection: TextDirection.rtl,
-                  ),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<int>(
-                    value: selectedCompanyId,
-                    decoration: InputDecoration(
-                      border: OutlineInputBorder(
+                  if (companies.length > 1)
+                    DropdownButtonFormField<int>(
+                      value: selectedCompanyId,
+                      decoration: InputDecoration(
+                        labelText: 'الشركة',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        prefixIcon: const Icon(Icons.business),
+                      ),
+                      items: companies.map((company) {
+                        return DropdownMenuItem<int>(
+                          value: company.id,
+                          child: Text(
+                            company.name,
+                            textDirection: TextDirection.rtl,
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        if (value == null) return;
+                        setDialogState(() {
+                          selectedCompanyId = value;
+                        });
+                      },
+                    )
+                  else
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .surfaceContainerHighest,
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      prefixIcon: const Icon(Icons.business),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.business),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              companies.first.name,
+                              textDirection: TextDirection.rtl,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    items: companies.map((company) {
-                      return DropdownMenuItem<int>(
-                        value: company.id,
-                        child: Text(
-                          company.name,
-                          textDirection: TextDirection.rtl,
-                        ),
-                      );
-                    }).toList(),
-                    onChanged: (value) {
+                  const SizedBox(height: 14),
+                  _QuantityStepperField(
+                    label: 'الكمية',
+                    icon: Icons.shopping_bag_outlined,
+                    controller: paidQtyController,
+                    onIncrement: () {
                       setDialogState(() {
-                        selectedCompanyId = value;
+                        paidQty += 1;
+                        syncController(paidQtyController, paidQty);
                       });
                     },
-                    validator: (value) {
-                      if (value == null) {
-                        return 'يرجى اختيار الشركة';
-                      }
-                      return null;
+                    onDecrement: () {
+                      setDialogState(() {
+                        if (paidQty > 0) paidQty -= 1;
+                        syncController(paidQtyController, paidQty);
+                      });
+                    },
+                    onManualChanged: (value) {
+                      setDialogState(() {
+                        paidQty = parseQty(value);
+                      });
                     },
                   ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'الكمية:',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    textDirection: TextDirection.rtl,
-                  ),
-                  const SizedBox(height: 8),
-                  TextFormField(
-                    controller: qtyController,
-                    decoration: InputDecoration(
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      prefixIcon: const Icon(Icons.numbers),
-                    ),
-                    keyboardType: TextInputType.number,
-                    textDirection: TextDirection.rtl,
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'يرجى إدخال الكمية';
-                      }
-                      final qty = int.tryParse(value.trim());
-                      if (qty == null || qty <= 0) {
-                        return 'يرجى إدخال كمية صحيحة';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
                   Container(
                     decoration: BoxDecoration(
                       color: Theme.of(context)
                           .colorScheme
-                          .surfaceVariant
-                          .withValues(alpha: 0.4),
+                          .surfaceContainerHighest
+                          .withValues(alpha: 0.35),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: CheckboxListTile(
-                      value: isGift,
+                      value: hasGift,
                       onChanged: (value) {
                         setDialogState(() {
-                          isGift = value ?? false;
-                          if (!isGift) {
-                            giftQtyController.clear();
+                          hasGift = value ?? false;
+                          if (!hasGift) {
+                            giftQty = 0;
+                            syncController(giftQtyController, giftQty);
+                          } else if (giftQty == 0) {
+                            giftQty = 1;
+                            syncController(giftQtyController, giftQty);
                           }
                         });
                       },
                       controlAffinity: ListTileControlAffinity.leading,
                       title: const Text(
-                        'هدية',
+                        'يوجد هدية',
                         textDirection: TextDirection.rtl,
                       ),
                       subtitle: const Text(
-                        'لا يتم احتساب سعر هذا العنصر في المجموع',
+                        'الهدية لا تؤثر على إجمالي السعر',
                         textDirection: TextDirection.rtl,
                       ),
                     ),
                   ),
-                  if (isGift) ...[
-                    const SizedBox(height: 12),
-                    const Text(
-                      'كمية الهدية:',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      textDirection: TextDirection.rtl,
-                    ),
-                    const SizedBox(height: 8),
-                    TextFormField(
+                  const SizedBox(height: 10),
+                  if (hasGift)
+                    _QuantityStepperField(
+                      label: 'الهدية',
+                      icon: Icons.card_giftcard,
                       controller: giftQtyController,
-                      decoration: InputDecoration(
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        prefixIcon: const Icon(Icons.card_giftcard),
-                      ),
-                      keyboardType: TextInputType.number,
-                      textDirection: TextDirection.rtl,
-                      validator: (value) {
-                        if (!isGift) return null;
-                        if (value == null || value.trim().isEmpty) {
-                          return 'يرجى إدخال كمية الهدية';
-                        }
-                        final qty = int.tryParse(value.trim());
-                        if (qty == null || qty <= 0) {
-                          return 'يرجى إدخال كمية هدية صحيحة';
-                        }
-                        return null;
+                      onIncrement: () {
+                        setDialogState(() {
+                          giftQty += 1;
+                          syncController(giftQtyController, giftQty);
+                        });
+                      },
+                      onDecrement: () {
+                        setDialogState(() {
+                          if (giftQty > 0) giftQty -= 1;
+                          syncController(giftQtyController, giftQty);
+                        });
+                      },
+                      onManualChanged: (value) {
+                        setDialogState(() {
+                          giftQty = parseQty(value);
+                        });
                       },
                     ),
-                  ],
                 ],
               ),
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('إلغاء'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                if (!formKey.currentState!.validate()) {
-                  return;
-                }
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('إلغاء'),
+              ),
+              FilledButton.icon(
+                icon: const Icon(Icons.add_shopping_cart_rounded),
+                label: const Text('إضافة للطلبية'),
+                onPressed: () {
+                  paidQty = parseQty(paidQtyController.text);
+                  giftQty = hasGift ? parseQty(giftQtyController.text) : 0;
 
-                if (selectedCompanyId == null) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('يرجى اختيار الشركة')),
-                  );
-                  return;
-                }
-
-                final qtyText = qtyController.text.trim();
-                final qty = int.tryParse(qtyText);
-                if (qty == null || qty <= 0) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('يرجى إدخال كمية صحيحة')),
-                  );
-                  return;
-                }
-
-                int giftQty = 0;
-                if (isGift) {
-                  final giftQtyText = giftQtyController.text.trim();
-                  giftQty = int.tryParse(giftQtyText) ?? 0;
-                  if (giftQty <= 0) {
+                  if (paidQty == 0 && giftQty == 0) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('يرجى إدخال كمية هدية صحيحة')),
+                      const SnackBar(
+                        content: Text(
+                          'يرجى إدخال كمية أو تفعيل الهدية ثم تحديد كميتها',
+                        ),
+                      ),
                     );
                     return;
                   }
-                }
 
-                // Check if pharmacy is selected
-                if (_selectedPharmacyId == null) {
+                  // Check if pharmacy is selected
+                  if (_selectedPharmacyId == null) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('يرجى اختيار الصيدلية أولاً')),
+                    );
+                    return;
+                  }
+
+                  if (selectedCompanyId == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('يرجى اختيار الشركة')),
+                    );
+                    return;
+                  }
+
+                  final company = companies.firstWhere(
+                    (c) => c.id == selectedCompanyId,
+                  );
+
+                  // Use price from medicine record (USD)
+                  final medicinePriceUsd =
+                      (medicine['price_usd'] as num?)?.toDouble() ?? 0.0;
+
+                  // Gift-only rows are marked with isGift=true; mixed rows stay paid.
+                  final isGiftOnly = paidQty == 0 && giftQty > 0;
+
+                  setState(() {
+                    _orderItems.add(
+                      OrderItemData(
+                        medicineId: medicine['id'] as int,
+                        medicineName: medicine['name'] as String,
+                        companyId: selectedCompanyId!,
+                        companyName: company.name,
+                        qty: paidQty,
+                        price: medicinePriceUsd,
+                        isGift: isGiftOnly,
+                        giftQty: giftQty,
+                      ),
+                    );
+                  });
+
                   Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('يرجى اختيار الصيدلية أولاً')),
-                  );
-                  return;
-                }
 
-                // Find company name
-                final company = companies.firstWhere(
-                  (c) => c.id == selectedCompanyId,
-                );
-
-                // Get price directly from medicine record (always in USD)
-                final medicinePriceUsd =
-                    (medicine['price_usd'] as num?)?.toDouble() ?? 0.0;
-
-                // Add to order list
-                setState(() {
-                  _orderItems.add(
-                    OrderItemData(
-                      medicineId: medicine['id'] as int,
-                      medicineName: medicine['name'] as String,
-                      companyId: selectedCompanyId!,
-                      companyName: company.name,
-                      qty: qty,
-                      // If item is a gift, store price as 0 (will not affect totals)
-                      price: medicinePriceUsd,
-                      isGift: false,
-                      giftQty: giftQty,
-                    ),
-                  );
-                });
-
-                Navigator.pop(context);
-
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('تمت إضافة ${medicine['name']} للطلبية'),
-                      duration: const Duration(seconds: 1),
-                    ),
-                  );
-                }
-              },
-              child: const Text('إضافة'),
-            ),
-          ],
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('تمت إضافة ${medicine['name']} للطلبية'),
+                        duration: const Duration(seconds: 1),
+                      ),
+                    );
+                  }
+                },
+              ),
+            ],
+          ),
         ),
-      ),
-    );
+      );
+    } finally {
+      paidQtyController.dispose();
+      giftQtyController.dispose();
+    }
   }
 
   void _removeItem(int index) {
@@ -1211,7 +1237,11 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
                                             ),
                                             child: Center(
                                               child: Text(
-                                                item.qty.toString(),
+                                                item.qty > 0
+                                                    ? item.qty.toString()
+                                                    : (item.giftQty > 0
+                                                        ? '🎁'
+                                                        : '0'),
                                                 style: TextStyle(
                                                   fontWeight: FontWeight.bold,
                                                   color: Theme.of(context)
@@ -1369,3 +1399,72 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
     );
   }
 }
+
+class _QuantityStepperField extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final TextEditingController controller;
+  final VoidCallback onIncrement;
+  final VoidCallback onDecrement;
+  final ValueChanged<String> onManualChanged;
+
+  const _QuantityStepperField({
+    required this.label,
+    required this.icon,
+    required this.controller,
+    required this.onIncrement,
+    required this.onDecrement,
+    required this.onManualChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        border: Border.all(
+          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
+        ),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              label,
+              textDirection: TextDirection.rtl,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
+          IconButton(
+            onPressed: onDecrement,
+            icon: const Icon(Icons.remove_circle_outline),
+            tooltip: 'تنقيص',
+          ),
+          SizedBox(
+            width: 64,
+            child: TextField(
+              controller: controller,
+              keyboardType: TextInputType.number,
+              textAlign: TextAlign.center,
+              onChanged: onManualChanged,
+              decoration: const InputDecoration(
+                isDense: true,
+                contentPadding: EdgeInsets.symmetric(vertical: 10),
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ),
+          IconButton(
+            onPressed: onIncrement,
+            icon: const Icon(Icons.add_circle_outline),
+            tooltip: 'زيادة',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
