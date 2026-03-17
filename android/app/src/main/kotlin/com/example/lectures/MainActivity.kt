@@ -8,15 +8,57 @@ import android.content.pm.PackageManager
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import io.flutter.plugin.common.EventChannel
 import androidx.core.content.FileProvider
 import java.io.File
 
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "smart_agent/whatsapp_share"
+    private val FILE_IMPORT_CHANNEL = "smart_agent/file_import"
+
+    private var pendingFileBytes: ByteArray? = null
+    private var pendingFileName: String? = null
+    private var fileImportEventSink: EventChannel.EventSink? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
+        // ── File import event channel (stream to Flutter) ──
+        EventChannel(flutterEngine.dartExecutor.binaryMessenger, "$FILE_IMPORT_CHANNEL/events")
+            .setStreamHandler(object : EventChannel.StreamHandler {
+                override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
+                    fileImportEventSink = events
+                    // If a file was received before Flutter was ready, send it now
+                    pendingFileBytes?.let { bytes ->
+                        events?.success(mapOf(
+                            "bytes" to bytes,
+                            "fileName" to (pendingFileName ?: "unknown.smartagent")
+                        ))
+                        pendingFileBytes = null
+                        pendingFileName = null
+                    }
+                }
+                override fun onCancel(arguments: Any?) {
+                    fileImportEventSink = null
+                }
+            })
+
+        // ── File import method channel (pull-based fallback) ──
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, FILE_IMPORT_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                if (call.method == "getInitialFile") {
+                    val fileData = readFileFromIntent(intent)
+                    if (fileData != null) {
+                        result.success(fileData)
+                    } else {
+                        result.success(null)
+                    }
+                } else {
+                    result.notImplemented()
+                }
+            }
+
+        // ── WhatsApp share channel (existing) ──
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
             .setMethodCallHandler { call, result ->
                 if (call.method == "sharePdfToWhatsApp") {
@@ -135,5 +177,74 @@ class MainActivity : FlutterActivity() {
                     result.notImplemented()
                 }
             }
+    }
+
+    // ── Handle re-launch with new intent (singleTop) ──
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleIncomingFile(intent)
+    }
+
+    private fun handleIncomingFile(intent: Intent) {
+        val fileData = readFileFromIntent(intent)
+        if (fileData != null) {
+            val sink = fileImportEventSink
+            if (sink != null) {
+                sink.success(fileData)
+            } else {
+                // Flutter not listening yet, store for later
+                pendingFileBytes = fileData["bytes"] as? ByteArray
+                pendingFileName = fileData["fileName"] as? String
+            }
+        }
+    }
+
+    private fun readFileFromIntent(intent: Intent): Map<String, Any>? {
+        val uri: Uri? = when (intent.action) {
+            Intent.ACTION_VIEW -> intent.data
+            Intent.ACTION_SEND -> {
+                @Suppress("DEPRECATION")
+                intent.getParcelableExtra(Intent.EXTRA_STREAM) as? Uri
+            }
+            else -> null
+        }
+
+        if (uri == null) return null
+
+        return try {
+            // Read all bytes from the content URI
+            val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                ?: return null
+
+            // Try to extract file name
+            var fileName = "unknown.smartagent"
+            try {
+                val cursor = contentResolver.query(uri, null, null, null, null)
+                cursor?.use {
+                    if (it.moveToFirst()) {
+                        val nameIdx = it.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                        if (nameIdx >= 0) {
+                            fileName = it.getString(nameIdx) ?: fileName
+                        }
+                    }
+                }
+            } catch (_: Exception) {}
+
+            // Only accept .smartagent files
+            if (!fileName.endsWith(".smartagent", ignoreCase = true)) {
+                // Check if the raw bytes look like our JSON structure (fallback)
+                val preview = String(bytes.take(100).toByteArray(), Charsets.UTF_8)
+                if (!preview.contains("\"companies\"") && !preview.contains("\"medicines\"")) {
+                    return null
+                }
+            }
+
+            mapOf(
+                "bytes" to bytes,
+                "fileName" to fileName
+            )
+        } catch (_: Exception) {
+            null
+        }
     }
 }

@@ -24,6 +24,7 @@ import 'features/orders/orders_list_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/activation/agent_registration_screen.dart';
 import 'core/services/push_notification_service.dart';
+import 'core/services/file_import_handler.dart';
 import 'features/settings/notification_history_screen.dart';
 
 void main() async {
@@ -52,8 +53,22 @@ void main() async {
   );
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  @override
+  void initState() {
+    super.initState();
+    // Initialize file import handler after first frame so navigator is ready
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      FileImportHandler.instance.initialize();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {

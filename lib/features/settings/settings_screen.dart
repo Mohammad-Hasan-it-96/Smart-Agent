@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -309,7 +310,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         SettingTile(
           icon: Icons.file_upload_outlined,
           title: 'تصدير البيانات',
-          subtitle: 'حفظ الشركات والأدوية كملف JSON',
+          subtitle: 'حفظ الشركات والأدوية كملف .smartagent',
           trailing: _isExporting
               ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
               : null,
@@ -319,7 +320,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           icon: Icons.file_download_outlined,
           iconColor: Colors.green,
           title: 'استيراد البيانات',
-          subtitle: 'استيراد الشركات والأدوية من ملف JSON',
+          subtitle: 'استيراد الشركات والأدوية من ملف .smartagent',
           showDivider: false,
           trailing: _isImporting
               ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
@@ -858,13 +859,105 @@ class _SettingsScreenState extends State<SettingsScreen> {
     try {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ['json'],
+        allowedExtensions: ['smartagent', 'json'],
         withData: true,
       );
       if (result == null || result.files.single.bytes == null) return;
 
+      final fileName = result.files.single.name;
+      final bytes = result.files.single.bytes!;
+
+      // Validate file content
+      try {
+        final decoded = utf8.decode(bytes);
+        final data = jsonDecode(decoded) as Map<String, dynamic>;
+        if (!data.containsKey('companies') || !data.containsKey('medicines')) {
+          _snack('الملف غير صالح: لا يحتوي على بيانات شركات أو أدوية', bg: Colors.red);
+          return;
+        }
+      } catch (_) {
+        _snack('الملف تالف أو غير صالح. تأكد من أنه ملف بيانات المندوب الذكي.', bg: Colors.red);
+        return;
+      }
+
+      // Show confirmation dialog
+      if (!mounted) return;
+      final confirmed = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogCtx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          icon: const Icon(Icons.file_present_rounded, size: 48, color: Colors.blueAccent),
+          title: const Text('استيراد بيانات', textDirection: TextDirection.rtl),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('هل تريد استيراد البيانات من هذا الملف؟',
+                  textAlign: TextAlign.center, textDirection: TextDirection.rtl),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.grey.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.insert_drive_file_rounded, size: 18, color: Colors.blueGrey),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(fileName,
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                          overflow: TextOverflow.ellipsis),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.info_outline_rounded, size: 18, color: Colors.orange),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'سيتم إضافة الشركات والأدوية الجديدة فقط.\nالبيانات المتكررة لن تُستورد.',
+                        style: TextStyle(fontSize: 12),
+                        textDirection: TextDirection.rtl,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actionsAlignment: MainAxisAlignment.center,
+          actions: [
+            OutlinedButton(
+              onPressed: () => Navigator.pop(dialogCtx, false),
+              child: const Text('إلغاء'),
+            ),
+            const SizedBox(width: 8),
+            FilledButton.icon(
+              onPressed: () => Navigator.pop(dialogCtx, true),
+              icon: const Icon(Icons.download_rounded, size: 18),
+              label: const Text('استيراد'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmed != true) return;
+
       setState(() => _isImporting = true);
-      final importResult = await _dataExport.importData(result.files.single.bytes!);
+      final importResult = await _dataExport.importData(bytes);
       if (!mounted) return;
 
       showDialog(

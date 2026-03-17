@@ -52,8 +52,10 @@ class DataExportService {
 
     // Get temporary directory
     final tempDir = await getTemporaryDirectory();
-    final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final file = File('${tempDir.path}/smart_agent_data_$timestamp.json');
+    final now = DateTime.now();
+    final dateStamp =
+        '${now.year}_${now.month.toString().padLeft(2, '0')}_${now.day.toString().padLeft(2, '0')}';
+    final file = File('${tempDir.path}/smartagent_backup_$dateStamp.smartagent');
 
     // Write to file using UTF-8 encoding (write bytes, NOT plain String)
     final utf8Bytes = utf8.encode(jsonString);
