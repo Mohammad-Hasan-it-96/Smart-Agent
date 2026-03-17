@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/theme_provider.dart';
+import '../services/push_notification_service.dart';
 
 class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
@@ -8,16 +9,35 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   final bool automaticallyImplyLeading;
   final bool showThemeToggle;
 
+  /// Show a notifications bell.
+  /// • When [automaticallyImplyLeading] is false (root screens) → placed in
+  ///   leading (right side in RTL).
+  /// • When the screen has a back button → placed as the first action item.
+  final bool showNotifications;
+
+  /// Show a settings gear icon in the action bar (before the theme toggle).
+  /// Should be false on the settings screen itself.
+  final bool showSettings;
+
   const CustomAppBar({
     super.key,
     required this.title,
     this.actions,
     this.automaticallyImplyLeading = true,
     this.showThemeToggle = true,
+    this.showNotifications = false,
+    this.showSettings = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    // For root screens (no back button): place notifications bell in leading
+    // so it appears on the RIGHT in RTL.
+    final Widget? leadingWidget =
+        (showNotifications && !automaticallyImplyLeading)
+            ? _buildNotificationsBell(context)
+            : null;
+
     return AppBar(
       title: Text(
         title,
@@ -27,20 +47,85 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
       ),
       centerTitle: true,
       automaticallyImplyLeading: automaticallyImplyLeading,
+      leading: leadingWidget,
       actions: _buildActions(context),
       elevation: 0,
     );
   }
 
+  // ── Notifications bell widget ──────────────────────────────────────
+  Widget _buildNotificationsBell(BuildContext context) {
+    return ValueListenableBuilder<int>(
+      valueListenable: PushNotificationService.instance.unreadCount,
+      builder: (context, count, _) {
+        return Stack(
+          clipBehavior: Clip.none,
+          children: [
+            IconButton(
+              tooltip: 'الإشعارات',
+              onPressed: () =>
+                  Navigator.pushNamed(context, '/notifications'),
+              icon: const Icon(Icons.notifications_none_rounded),
+            ),
+            if (count > 0)
+              Positioned(
+                top: 6,
+                left: 6,   // left in widget coords = RIGHT in RTL screen
+                child: IgnorePointer(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 5, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    constraints: const BoxConstraints(
+                        minWidth: 16, minHeight: 16),
+                    child: Text(
+                      count > 99 ? '99+' : '$count',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        height: 1.1,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  // ── Actions list ───────────────────────────────────────────────────
   List<Widget>? _buildActions(BuildContext context) {
     final List<Widget> result = [];
 
-    // Custom actions first (e.g. trial badge)
+    // 1. Notifications bell for screens that HAVE a back button
+    if (showNotifications && automaticallyImplyLeading) {
+      result.add(_buildNotificationsBell(context));
+    }
+
+    // 2. Custom actions (e.g. trial badge)
     if (actions != null) {
       result.addAll(actions!);
     }
 
-    // Theme toggle
+    // 3. Settings shortcut
+    if (showSettings) {
+      result.add(
+        IconButton(
+          tooltip: 'الإعدادات',
+          onPressed: () => Navigator.pushNamed(context, '/settings'),
+          icon: const Icon(Icons.settings_outlined),
+        ),
+      );
+    }
+
+    // 4. Theme toggle (always last)
     if (showThemeToggle) {
       result.add(
         Consumer<ThemeProvider>(
@@ -69,8 +154,10 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
               },
               icon: AnimatedSwitcher(
                 duration: const Duration(milliseconds: 250),
-                transitionBuilder: (child, anim) =>
-                    RotationTransition(turns: Tween(begin: 0.85, end: 1.0).animate(anim), child: child),
+                transitionBuilder: (child, anim) => RotationTransition(
+                    turns:
+                        Tween(begin: 0.85, end: 1.0).animate(anim),
+                    child: child),
                 child: Icon(icon, key: ValueKey(tp.themeMode)),
               ),
             );

@@ -91,7 +91,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return ChangeNotifierProvider.value(
       value: _ctrl,
       child: Scaffold(
-        appBar: const CustomAppBar(title: 'الإعدادات'),
+        appBar: const CustomAppBar(
+          title: 'الإعدادات',
+          showNotifications: true,
+          showSettings: false,
+        ),
         body: Consumer<SettingsController>(
           builder: (context, ctrl, _) {
             if (ctrl.isLoading) {

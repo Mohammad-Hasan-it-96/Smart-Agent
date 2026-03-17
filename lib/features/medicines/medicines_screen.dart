@@ -837,7 +837,11 @@ class _MedicinesScreenState extends State<MedicinesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const CustomAppBar(title: 'الأدوية'),
+      appBar: const CustomAppBar(
+        title: 'الأدوية',
+        showNotifications: true,
+        showSettings: true,
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _navigateToForm(null),
         icon: const Icon(Icons.add_rounded),

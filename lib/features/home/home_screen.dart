@@ -7,7 +7,6 @@ import '../../core/widgets/custom_app_bar.dart';
 import '../../core/widgets/update_dialog.dart';
 import '../../core/utils/slide_page_route.dart';
 import '../../core/services/update_service.dart';
-import '../../core/services/push_notification_service.dart';
 import '../companies/companies_screen.dart';
 import '../medicines/medicines_screen.dart';
 import '../pharmacies/pharmacies_screen.dart';
@@ -120,11 +119,14 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
         appBar: CustomAppBar(
           title: 'المندوب الذكي',
           automaticallyImplyLeading: false,
+          showNotifications: true,
+          showSettings: true,
           actions: [
             if (_ctrl.status == AccountStatus.trial)
               Container(
                 margin: const EdgeInsets.only(left: 8),
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                   color: Colors.orange,
                   borderRadius: BorderRadius.circular(10),
@@ -138,44 +140,6 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                   ),
                 ),
               ),
-            ValueListenableBuilder<int>(
-              valueListenable: PushNotificationService.instance.unreadCount,
-              builder: (context, unreadCount, _) {
-                return Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    IconButton(
-                      tooltip: 'الإشعارات',
-                      onPressed: () => Navigator.pushNamed(context, '/notifications'),
-                      icon: const Icon(Icons.notifications_none_rounded),
-                    ),
-                    if (unreadCount > 0)
-                      Positioned(
-                        top: 6,
-                        right: 6,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                          decoration: BoxDecoration(
-                            color: Colors.red,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                          child: Text(
-                            unreadCount > 99 ? '99+' : '$unreadCount',
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                              height: 1.1,
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                );
-              },
-            ),
           ],
         ),
         body: Consumer<HomeController>(

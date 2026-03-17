@@ -491,7 +491,11 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const CustomAppBar(title: 'الشركات'),
+      appBar: const CustomAppBar(
+        title: 'الشركات',
+        showNotifications: true,
+        showSettings: true,
+      ),
       body: SafeArea(
         child: Column(
           children: [

@@ -703,7 +703,11 @@ class _PharmaciesScreenState extends State<PharmaciesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const CustomAppBar(title: 'الصيدليات'),
+      appBar: const CustomAppBar(
+        title: 'الصيدليات',
+        showNotifications: true,
+        showSettings: true,
+      ),
       body: SafeArea(
         child: Column(
           children: [

@@ -128,7 +128,11 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: const CustomAppBar(title: 'الطلبيات السابقة'),
+      appBar: const CustomAppBar(
+        title: 'الطلبيات السابقة',
+        showNotifications: true,
+        showSettings: true,
+      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
