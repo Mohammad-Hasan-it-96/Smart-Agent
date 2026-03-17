@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:android_id/android_id.dart';
+import 'package:crypto/crypto.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
@@ -39,23 +41,27 @@ class ActivationService {
 
   Future<Uri> _apiUri(String endpoint) => SettingsService.buildApiUri(endpoint);
 
-  // Get device ID using device_info_plus or fallback
+  // Get a stable, app-unique device identifier.
+  // Android: sha256(ANDROID_ID + "smart_agent_app") — survives reinstalls.
+  // iOS: identifierForVendor.
   Future<String> getDeviceId() async {
     try {
-      final deviceInfo = DeviceInfoPlugin();
-
       if (Platform.isAndroid) {
-        final androidInfo = await deviceInfo.androidInfo;
-        return androidInfo.id; // Android ID
+        // Use Settings.Secure.ANDROID_ID — stable across reinstalls for same signing key
+        const androidIdPlugin = AndroidId();
+        final rawId = await androidIdPlugin.getId() ?? '';
+        if (rawId.isEmpty) return 'fallback_device_id';
+        final bytes = utf8.encode('${rawId}smart_agent_app');
+        final digest = sha256.convert(bytes);
+        return digest.toString();
       } else if (Platform.isIOS) {
+        final deviceInfo = DeviceInfoPlugin();
         final iosInfo = await deviceInfo.iosInfo;
         return iosInfo.identifierForVendor ?? 'unknown';
       } else {
-        // Fallback for other platforms
         return 'unknown_device';
       }
     } catch (e) {
-      // Fallback if device_info_plus fails
       return 'fallback_device_id';
     }
   }
