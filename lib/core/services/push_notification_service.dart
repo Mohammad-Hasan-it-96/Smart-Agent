@@ -55,6 +55,7 @@ class PushNotificationService {
     _messaging = FirebaseMessaging.instance;
 
     await _initLocalNotifications();
+    await NotificationHistoryService.instance.purgeInvalidNotifications();
     await _refreshUnreadCount();
 
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
@@ -119,8 +120,9 @@ class PushNotificationService {
     bool markRead = false,
   }) async {
     final data = message.data;
-    final title = message.notification?.title ?? (data['title'] ?? 'إشعار جديد').toString();
-    final body = message.notification?.body ?? (data['body'] ?? '').toString();
+    final title = (message.notification?.title ?? data['title']?.toString() ?? '').trim();
+    final body = (message.notification?.body ?? data['body']?.toString() ?? '').trim();
+    if (!_isValidNotification(title, body)) return;
     final type = (data['type'] ?? 'general').toString();
     final action = (data['action'] ?? '').toString();
 
@@ -252,8 +254,9 @@ class PushNotificationService {
 
   Future<void> _showForegroundNotification(RemoteMessage message) async {
     final data = message.data;
-    final title = message.notification?.title ?? (data['title'] ?? 'إشعار جديد').toString();
-    final body = message.notification?.body ?? (data['body'] ?? '').toString();
+    final title = (message.notification?.title ?? data['title']?.toString() ?? '').trim();
+    final body = (message.notification?.body ?? data['body']?.toString() ?? '').trim();
+    if (!_isValidNotification(title, body)) return;
     final type = (data['type'] ?? 'general').toString();
     final action = (data['action'] ?? '').toString();
 
@@ -308,6 +311,12 @@ class PushNotificationService {
   }
 
   BuildContext? get _currentContext => AppNavigatorKey.key.currentContext;
+
+  bool _isValidNotification(String? title, String? body) {
+    final safeTitle = (title ?? '').trim();
+    final safeBody = (body ?? '').trim();
+    return safeTitle.isNotEmpty && safeBody.isNotEmpty;
+  }
 }
 
 class AppNavigatorKey {

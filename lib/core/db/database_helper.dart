@@ -455,4 +455,12 @@ class DatabaseHelper {
     final db = await database;
     await db.delete('notifications');
   }
+
+  Future<int> deleteInvalidNotifications() async {
+    final db = await database;
+    return db.delete(
+      'notifications',
+      where: "TRIM(COALESCE(title, '')) = '' OR TRIM(COALESCE(body, '')) = ''",
+    );
+  }
 }
