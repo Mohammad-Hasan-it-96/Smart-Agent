@@ -828,7 +828,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     try {
       final verified = await ctrl.recheckActivation();
       if (!mounted) return;
-      showDialog(
+      await showDialog(
         context: context,
         builder: (_) => AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -853,6 +853,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ],
         ),
       );
+
+      if (!mounted) return;
+      if (verified) {
+        Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
+      } else {
+        Navigator.of(context).pushNamedAndRemoveUntil('/activation', (route) => false);
+      }
     } catch (e) {
       if (!mounted) return;
       _snack('تعذر الاتصال بالسيرفر: ${e.toString()}', bg: Colors.red);

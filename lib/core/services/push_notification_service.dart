@@ -327,7 +327,7 @@ class PushNotificationService {
 
     bool verified = false;
     try {
-      verified = await _activationService.checkDeviceStatus();
+      verified = await _activationService.recheckActivationStatus();
     } catch (_) {
       return;
     }

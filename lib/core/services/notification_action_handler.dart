@@ -15,7 +15,7 @@ class NotificationActionHandler {
         final activationService = ActivationService();
         bool verified = false;
         try {
-          verified = await activationService.checkDeviceStatus();
+          verified = await activationService.recheckActivationStatus();
         } catch (_) {}
         if (!context.mounted) return;
         if (verified) {

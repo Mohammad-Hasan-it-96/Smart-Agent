@@ -91,8 +91,8 @@ class SettingsController extends ChangeNotifier {
   }
 
   Future<bool> recheckActivation() async {
-    final verified = await _activation.checkDeviceStatus();
-    data.isActivated = verified;
+    final verified = await _activation.recheckActivationStatus();
+    data.isActivated = await _activation.isActivated();
     data.expiresAt = await _activation.getExpiresAt();
     data.selectedPlan = await _activation.getSelectedPlan();
     notifyListeners();

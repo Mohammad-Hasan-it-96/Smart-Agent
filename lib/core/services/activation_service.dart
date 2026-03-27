@@ -450,6 +450,24 @@ class ActivationService {
     }
   }
 
+  /// Re-check activation status from API and keep local state in sync.
+  ///
+  /// - Calls the activation check endpoint immediately.
+  /// - Saves `activation_verified` true/false based on server response.
+  /// - Returns the final effective activation state.
+  Future<bool> recheckActivationStatus() async {
+    final verified = await checkDeviceStatus();
+    await saveActivationStatus(verified);
+
+    if (verified) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_trialActiveKey, false);
+      await prefs.setBool(_trialEnabledKey, false);
+    }
+
+    return isActivated();
+  }
+
   // Update user data on server
   Future<bool> updateMyData(String fullName, String phone) async {
     try {
