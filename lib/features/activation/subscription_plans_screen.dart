@@ -13,6 +13,7 @@ class SubscriptionPlansScreen extends StatefulWidget {
 
 class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
   final SubscriptionService _subscriptionService = SubscriptionService();
+  static const double _launchDiscountRate = 0.10;
   bool _isLoading = true;
   String? _errorMessage;
   List<SubscriptionPlan> _plans = [];
@@ -237,23 +238,56 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
   // ───────────────────── Plans List ─────────────────────
 
   Widget _buildPlansList(ThemeData theme) {
-    return ListView.builder(
+    return ListView(
       padding: const EdgeInsets.all(16),
-      itemCount: _plans.length,
-      itemBuilder: (context, index) {
-        final plan = _plans[index];
-        final isSelected = _selectedPlanId == plan.id;
-        final isRecommended = plan.recommended;
+      children: [
+        _buildPromotionNote(theme),
+        const SizedBox(height: 12),
+        ..._plans.map((plan) {
+          final isSelected = _selectedPlanId == plan.id;
+          final isRecommended = plan.recommended;
+          return _PlanCard(
+            plan: plan,
+            isSelected: isSelected,
+            isRecommended: isRecommended,
+            currencySymbol: _currencySymbol,
+            launchDiscountRate: _launchDiscountRate,
+            onTap: () => _onPlanSelected(plan.id),
+            selectedPlanId: _selectedPlanId,
+          );
+        }),
+      ],
+    );
+  }
 
-        return _PlanCard(
-          plan: plan,
-          isSelected: isSelected,
-          isRecommended: isRecommended,
-          currencySymbol: _currencySymbol,
-          onTap: () => _onPlanSelected(plan.id),
-          selectedPlanId: _selectedPlanId,
-        );
-      },
+  Widget _buildPromotionNote(ThemeData theme) {
+    final isDark = theme.brightness == Brightness.dark;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.orange.shade900.withValues(alpha: 0.3) : Colors.orange.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark ? Colors.orange.shade400 : Colors.orange.shade300,
+        ),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.local_offer_rounded, color: Colors.orange, size: 20),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'خصم 10% لشركات الأدوية والمستودعات بمناسبة افتتاح التطبيق',
+              style: TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w600,
+                height: 1.3,
+              ),
+              textDirection: TextDirection.rtl,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -267,6 +301,7 @@ class _PlanCard extends StatelessWidget {
   final bool isSelected;
   final bool isRecommended;
   final String currencySymbol;
+  final double launchDiscountRate;
   final VoidCallback onTap;
   final String? selectedPlanId;
 
@@ -275,6 +310,7 @@ class _PlanCard extends StatelessWidget {
     required this.isSelected,
     required this.isRecommended,
     required this.currencySymbol,
+    required this.launchDiscountRate,
     required this.onTap,
     required this.selectedPlanId,
   });
@@ -283,6 +319,16 @@ class _PlanCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final apiDiscountValue = plan.priceAfterDiscount;
+    final computedDiscountedPrice = plan.price * (1 - launchDiscountRate);
+    final discountedPrice = apiDiscountValue != null
+        ? (apiDiscountValue < plan.price ? apiDiscountValue : plan.price)
+        : computedDiscountedPrice;
+    final originalPrice = apiDiscountValue != null
+        ? (apiDiscountValue > plan.price ? apiDiscountValue : plan.price)
+        : plan.price;
+    final hasDiscount = discountedPrice != originalPrice;
+    final discountPercent = (launchDiscountRate * 100).round();
 
     // ── Determine visual style based on state ──
     final Color borderColor;
@@ -492,24 +538,77 @@ class _PlanCard extends StatelessWidget {
 
                       const SizedBox(height: 14),
 
-                      // Price
+                      if (hasDiscount)
+                        Align(
+                          alignment: AlignmentDirectional.centerEnd,
+                          child: Container(
+                            margin: const EdgeInsets.only(bottom: 10),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.green.withValues(alpha: isDark ? 0.25 : 0.12),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              '-$discountPercent%',
+                              style: const TextStyle(
+                                color: Colors.green,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 12.5,
+                              ),
+                            ),
+                          ),
+                        ),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.end,
-                        crossAxisAlignment: CrossAxisAlignment.baseline,
-                        textBaseline: TextBaseline.alphabetic,
+                        crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          Text(
-                            '$currencySymbol${plan.price.toStringAsFixed(2)}',
-                            style: TextStyle(
-                              fontSize: 28,
-                              fontWeight: FontWeight.w800,
-                              color: isSelected
-                                  ? theme.colorScheme.primary
-                                  : isDark
-                                      ? Colors.white
-                                      : Colors.grey.shade800,
-                            ),
-                            textDirection: TextDirection.ltr,
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              if (hasDiscount) ...[
+                                Text(
+                                  '$currencySymbol${originalPrice.toStringAsFixed(2)}',
+                                  style: TextStyle(
+                                    fontSize: 13.5,
+                                    color: isDark
+                                        ? Colors.red.shade300
+                                        : Colors.red.shade700,
+                                    decoration: TextDecoration.lineThrough,
+                                    decorationColor: isDark
+                                        ? Colors.red.shade200
+                                        : Colors.red.shade700,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                  textDirection: TextDirection.rtl,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '$currencySymbol${discountedPrice.toStringAsFixed(2)}',
+                                  style: TextStyle(
+                                    fontSize: 23,
+                                    fontWeight: FontWeight.w800,
+                                    color: isSelected
+                                        ? theme.colorScheme.primary
+                                        : Colors.green.shade600,
+                                  ),
+                                  textDirection: TextDirection.rtl,
+                                ),
+                              ] else
+                                Text(
+                                  '$currencySymbol${originalPrice.toStringAsFixed(2)}',
+                                  style: TextStyle(
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.w800,
+                                    color: isSelected
+                                        ? theme.colorScheme.primary
+                                        : isDark
+                                            ? Colors.white
+                                            : Colors.grey.shade800,
+                                  ),
+                                  textDirection: TextDirection.ltr,
+                                ),
+                            ],
                           ),
                         ],
                       ),
