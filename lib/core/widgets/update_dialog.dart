@@ -45,11 +45,15 @@ void showUpdateDialog(BuildContext context, UpdateInfo info) {
           onPressed: () async {
             Navigator.pop(context);
             if (hasDownload) {
-              final uri = Uri.parse(info.downloadUrl!);
-              await launchUrl(
-                uri,
-                mode: LaunchMode.externalApplication,
-              );
+              final rawUrl = info.downloadUrl!.trim();
+              final uri = Uri.tryParse(rawUrl) ??
+                  Uri.tryParse('https://$rawUrl');
+              if (uri != null) {
+                await launchUrl(
+                  uri,
+                  mode: LaunchMode.externalApplication,
+                );
+              }
             }
           },
         ),

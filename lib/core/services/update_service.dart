@@ -24,12 +24,12 @@ class UpdateInfo {
 }
 
 class UpdateService {
-  final String versionJsonUrl =
+  final String updateConfigUrl =
       'https://drive.google.com/uc?export=download&id=1aMv_VNEFff1XzQeiG80s0aEL4r5_c9ao';
 
   Future<UpdateInfo?> checkForUpdate(String currentVersion) async {
     try {
-      final response = await http.get(Uri.parse(versionJsonUrl));
+      final response = await http.get(Uri.parse(updateConfigUrl));
       if (response.statusCode != 200) return null;
 
       var rawJson = utf8.decode(response.bodyBytes, allowMalformed: true);
@@ -55,10 +55,13 @@ class UpdateService {
       String? url;
 
       if (abi != null) {
+        // Prefer exact ABI match from the remote JSON.
         url = config.downloads[abi];
       }
 
+      // Fallback to generic default link from remote JSON.
       url ??= config.downloads['default'];
+      url = _normalizeDownloadUrl(url);
 
       return UpdateInfo(
         config.latestVersion,
@@ -95,6 +98,20 @@ class UpdateService {
         .split('.')
         .map((part) => int.tryParse(part.trim()) ?? 0)
         .toList();
+  }
+
+  String? _normalizeDownloadUrl(String? url) {
+    if (url == null) return null;
+    final trimmed = url.trim();
+    if (trimmed.isEmpty) return null;
+
+    final parsed = Uri.tryParse(trimmed);
+    if (parsed != null && parsed.hasScheme) {
+      return trimmed;
+    }
+
+    // Keep URL handling provider-agnostic (MEGA, direct CDN, etc.).
+    return 'https://$trimmed';
   }
 
   /// Detect the preferred ABI for this device.

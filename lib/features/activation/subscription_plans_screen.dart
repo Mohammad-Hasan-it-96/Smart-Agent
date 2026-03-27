@@ -13,7 +13,6 @@ class SubscriptionPlansScreen extends StatefulWidget {
 
 class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
   final SubscriptionService _subscriptionService = SubscriptionService();
-  static const double _launchDiscountRate = 0.10;
   bool _isLoading = true;
   String? _errorMessage;
   List<SubscriptionPlan> _plans = [];
@@ -251,7 +250,6 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
             isSelected: isSelected,
             isRecommended: isRecommended,
             currencySymbol: _currencySymbol,
-            launchDiscountRate: _launchDiscountRate,
             onTap: () => _onPlanSelected(plan.id),
             selectedPlanId: _selectedPlanId,
           );
@@ -277,7 +275,7 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
           SizedBox(width: 8),
           Expanded(
             child: Text(
-              'خصم 10% لشركات الأدوية والمستودعات بمناسبة افتتاح التطبيق',
+              'خصم 10% اضافي لشركات الأدوية والمستودعات بمناسبة افتتاح التطبيق',
               style: TextStyle(
                 fontSize: 13.5,
                 fontWeight: FontWeight.w600,
@@ -301,7 +299,6 @@ class _PlanCard extends StatelessWidget {
   final bool isSelected;
   final bool isRecommended;
   final String currencySymbol;
-  final double launchDiscountRate;
   final VoidCallback onTap;
   final String? selectedPlanId;
 
@@ -310,7 +307,6 @@ class _PlanCard extends StatelessWidget {
     required this.isSelected,
     required this.isRecommended,
     required this.currencySymbol,
-    required this.launchDiscountRate,
     required this.onTap,
     required this.selectedPlanId,
   });
@@ -320,15 +316,16 @@ class _PlanCard extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final apiDiscountValue = plan.priceAfterDiscount;
-    final computedDiscountedPrice = plan.price * (1 - launchDiscountRate);
     final discountedPrice = apiDiscountValue != null
         ? (apiDiscountValue < plan.price ? apiDiscountValue : plan.price)
-        : computedDiscountedPrice;
+        : plan.price;
     final originalPrice = apiDiscountValue != null
         ? (apiDiscountValue > plan.price ? apiDiscountValue : plan.price)
         : plan.price;
     final hasDiscount = discountedPrice != originalPrice;
-    final discountPercent = (launchDiscountRate * 100).round();
+    final discountPercent = hasDiscount && originalPrice > 0
+        ? (((originalPrice - discountedPrice) / originalPrice) * 100).round()
+        : 0;
 
     // ── Determine visual style based on state ──
     final Color borderColor;
@@ -538,77 +535,61 @@ class _PlanCard extends StatelessWidget {
 
                       const SizedBox(height: 14),
 
-                      if (hasDiscount)
-                        Align(
-                          alignment: AlignmentDirectional.centerEnd,
-                          child: Container(
-                            margin: const EdgeInsets.only(bottom: 10),
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: Colors.green.withValues(alpha: isDark ? 0.25 : 0.12),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text(
-                              '-$discountPercent%',
-                              style: const TextStyle(
-                                color: Colors.green,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 12.5,
-                              ),
-                            ),
-                          ),
-                        ),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.end,
-                        crossAxisAlignment: CrossAxisAlignment.end,
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              if (hasDiscount) ...[
-                                Text(
-                                  '$currencySymbol${originalPrice.toStringAsFixed(2)}',
-                                  style: TextStyle(
-                                    fontSize: 13.5,
-                                    color: isDark
-                                        ? Colors.red.shade300
-                                        : Colors.red.shade700,
-                                    decoration: TextDecoration.lineThrough,
-                                    decorationColor: isDark
-                                        ? Colors.red.shade200
-                                        : Colors.red.shade700,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                  textDirection: TextDirection.rtl,
+                          if (hasDiscount)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.green.withValues(alpha: isDark ? 0.25 : 0.12),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                '-$discountPercent%',
+                                style: const TextStyle(
+                                  color: Colors.green,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 12.5,
                                 ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  '$currencySymbol${discountedPrice.toStringAsFixed(2)}',
-                                  style: TextStyle(
-                                    fontSize: 23,
-                                    fontWeight: FontWeight.w800,
-                                    color: isSelected
-                                        ? theme.colorScheme.primary
-                                        : Colors.green.shade600,
-                                  ),
-                                  textDirection: TextDirection.rtl,
-                                ),
-                              ] else
-                                Text(
-                                  '$currencySymbol${originalPrice.toStringAsFixed(2)}',
-                                  style: TextStyle(
-                                    fontSize: 28,
-                                    fontWeight: FontWeight.w800,
-                                    color: isSelected
-                                        ? theme.colorScheme.primary
-                                        : isDark
-                                            ? Colors.white
-                                            : Colors.grey.shade800,
-                                  ),
-                                  textDirection: TextDirection.ltr,
-                                ),
-                            ],
+                              ),
+                            ),
+                          if (hasDiscount) const SizedBox(width: 10),
+                          if (hasDiscount)
+                            Text(
+                              '$currencySymbol${originalPrice.toStringAsFixed(2)}',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: isDark
+                                    ? Colors.red.shade300
+                                    : Colors.red.shade700,
+                                decoration: TextDecoration.lineThrough,
+                                decorationColor: isDark
+                                    ? Colors.red.shade200
+                                    : Colors.red.shade700,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              textDirection: TextDirection.ltr,
+                            ),
+                          if (hasDiscount) const SizedBox(width: 10),
+                          Text(
+                            '$currencySymbol${(hasDiscount ? discountedPrice : originalPrice).toStringAsFixed(2)}',
+                            style: TextStyle(
+                              fontSize: hasDiscount ? 23 : 28,
+                              fontWeight: FontWeight.w800,
+                              color: hasDiscount
+                                  ? (isSelected
+                                      ? theme.colorScheme.primary
+                                      : Colors.green.shade600)
+                                  : (isSelected
+                                      ? theme.colorScheme.primary
+                                      : isDark
+                                          ? Colors.white
+                                          : Colors.grey.shade800),
+                            ),
+                            textDirection: TextDirection.ltr,
                           ),
                         ],
                       ),
