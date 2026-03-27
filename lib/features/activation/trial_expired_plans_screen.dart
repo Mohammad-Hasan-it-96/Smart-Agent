@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../core/widgets/custom_app_bar.dart';
 import '../../core/services/activation_service.dart';
+import '../../core/services/contact_launcher_service.dart';
 import '../../core/services/settings_service.dart';
 
 class TrialExpiredPlansScreen extends StatefulWidget {
@@ -14,6 +14,7 @@ class TrialExpiredPlansScreen extends StatefulWidget {
 
 class _TrialExpiredPlansScreenState extends State<TrialExpiredPlansScreen> {
   final ActivationService _activationService = ActivationService();
+  final ContactLauncherService _contactLauncher = const ContactLauncherService();
   String? _selectedPlanId;
   bool _isLoading = true;
   bool _requestAlreadySent = false;
@@ -142,79 +143,39 @@ class _TrialExpiredPlansScreenState extends State<TrialExpiredPlansScreen> {
   }
 
   Future<void> _launchEmail() async {
-    final email = _support.email;
-    const subject = 'طلب تفعيل تطبيق المندوب الذكي';
-    final body = Uri.encodeComponent(_activationMessage);
-    
-    final emailUri = Uri.parse('mailto:$email?subject=${Uri.encodeComponent(subject)}&body=$body');
-
-    try {
-      final launched = await launchUrl(
-        emailUri,
-        mode: LaunchMode.externalApplication,
-      );
-
-      if (!launched && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('تعذر فتح تطبيق البريد الإلكتروني. يرجى نسخ الرسالة وإرسالها يدوياً.'),
-            backgroundColor: Colors.orange,
-            duration: Duration(seconds: 4),
-          ),
-        );
-      } else {
-        // Save activation request state and send to API
-        await _sendActivationRequest('email');
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('تعذر فتح تطبيق البريد الإلكتروني. يرجى نسخ الرسالة وإرسالها يدوياً.'),
-            backgroundColor: Colors.orange,
-            duration: Duration(seconds: 4),
-          ),
-        );
-      }
-    }
+    await _launchContactMethod('email');
   }
 
   Future<void> _launchTelegram() async {
-    final message = Uri.encodeComponent(_activationMessage);
-    final separator = _support.telegram.contains('?') ? '&' : '?';
-    final tgUri = Uri.parse('${_support.telegram}$separator'
-        'text=$message');
-    
-    try {
-      final launched = await launchUrl(
-        tgUri,
-        mode: LaunchMode.externalApplication,
-      );
+    await _launchContactMethod('telegram');
+  }
 
-      if (!launched) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('تعذر فتح تطبيق تيليجرام. يرجى نسخ الرسالة وإرسالها يدوياً.'),
-              backgroundColor: Colors.orange,
-              duration: Duration(seconds: 4),
-            ),
-          );
-        }
-      } else {
-        await _sendActivationRequest('telegram');
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('تعذر فتح تطبيق تيليجرام. يرجى نسخ الرسالة وإرسالها يدوياً.'),
-            backgroundColor: Colors.orange,
-            duration: Duration(seconds: 4),
-          ),
-        );
-      }
+  Future<void> _launchWhatsApp() async {
+    await _launchContactMethod('whatsapp');
+  }
+
+  Future<void> _launchContactMethod(String methodId) async {
+    final method = methodId == 'email'
+        ? ContactMethodType.email
+        : methodId == 'telegram'
+            ? ContactMethodType.telegram
+            : ContactMethodType.whatsapp;
+    final result = await _contactLauncher.launch(
+      method: method,
+      support: _support,
+      message: _activationMessage,
+      emailSubject: 'طلب تفعيل تطبيق المندوب الذكي',
+    );
+    if (!mounted) return;
+    if (result.success) {
+      await _sendActivationRequest(methodId);
+      return;
     }
+    _contactLauncher.showLaunchError(
+      context,
+      method: method,
+      result: result,
+    );
   }
 
   Future<void> _sendActivationRequest(String contactMethod) async {
@@ -683,6 +644,49 @@ class _TrialExpiredPlansScreenState extends State<TrialExpiredPlansScreen> {
                 foregroundColor: Colors.white,
                 disabledBackgroundColor: Colors.grey.shade400,
                 disabledForegroundColor: Colors.grey.shade600,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+            decoration: _contactButtonsEnabled
+                ? BoxDecoration(
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.green.withOpacity(0.2),
+                        blurRadius: 6,
+                        spreadRadius: 1,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  )
+                : null,
+            child: OutlinedButton.icon(
+              onPressed: _contactButtonsEnabled && !_isLoadingAgentData
+                  ? _launchWhatsApp
+                  : null,
+              icon: Icon(
+                Icons.chat_outlined,
+                color: _contactButtonsEnabled ? Colors.green : Colors.grey,
+              ),
+              label: Text(
+                'واتساب',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: _contactButtonsEnabled ? Colors.green : Colors.grey,
+                ),
+              ),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                foregroundColor: _contactButtonsEnabled ? Colors.green : Colors.grey,
+                side: BorderSide(
+                  color: _contactButtonsEnabled ? Colors.green : Colors.grey,
+                  width: 2,
+                ),
+                disabledForegroundColor: Colors.grey,
               ),
             ),
           ),

@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../core/services/data_export_service.dart';
+import '../../core/services/contact_launcher_service.dart';
 import '../../core/services/update_service.dart';
 import '../../core/services/push_notification_service.dart';
 import '../../core/services/settings_service.dart';
@@ -25,6 +25,7 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   late final SettingsController _ctrl;
+  final ContactLauncherService _contactLauncher = const ContactLauncherService();
   final _dataExport = DataExportService();
   String _appVersion = '';
   bool _isExporting = false;
@@ -130,7 +131,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   _buildDataSection(),
                   _buildUpdatesSection(),
                   _buildAppearanceSection(ctrl),
-                  _buildSupportSection(),
+                  _buildSupportSection(ctrl),
                   const SizedBox(height: 32),
                 ],
               ),
@@ -411,7 +412,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // ═══════════════════════════════════════════════════════════════════
   // 7️⃣  SUPPORT
   // ═══════════════════════════════════════════════════════════════════
-    Widget _buildSupportSection() {
+    Widget _buildSupportSection(SettingsController ctrl) {
     return SettingSection(
       title: 'الدعم والمساعدة',
       icon: Icons.support_agent_outlined,
@@ -441,24 +442,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
           },
         ),
         SettingTile(
-          icon: Icons.email_outlined,
-          title: 'البريد الإلكتروني',
-          subtitle: _support.email,
-          onTap: _openSupportEmail,
+          icon: Icons.support_agent,
+          title: 'تواصل مع المطور',
+          subtitle: 'إرسال استفسار أو مشكلة',
+          onTap: () => _showSupportActionSheet(
+            actionTitle: 'تواصل مع المطور',
+            emailSubject: 'تواصل من تطبيق المندوب الذكي',
+            messageTemplate: _buildSupportMessageTemplate(ctrl),
+          ),
         ),
         SettingTile(
-          icon: Icons.telegram,
-          iconColor: const Color(0xFF0088CC),
-          title: 'تلجرام',
-          subtitle: _support.telegram,
-          onTap: _openTelegram,
-        ),
-        SettingTile(
-          icon: Icons.chat_outlined,
-          iconColor: Colors.green,
-          title: 'واتساب',
-          subtitle: _support.whatsapp,
-          onTap: _openWhatsApp,
+          icon: Icons.lightbulb_outline,
+          iconColor: Colors.amber.shade700,
+          title: 'طلب ميزة جديدة',
+          subtitle: 'شاركنا اقتراحك لتطوير التطبيق',
+          onTap: () => _showSupportActionSheet(
+            actionTitle: 'طلب ميزة جديدة',
+            emailSubject: 'اقتراح ميزة جديدة - تطبيق المندوب الذكي',
+            messageTemplate: _buildFeatureRequestMessageTemplate(ctrl),
+          ),
         ),
         SettingTile(
           icon: Icons.info_outline,
@@ -1039,45 +1041,210 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  Future<void> _openSupportEmail() async {
-    final email = _support.email;
-    try {
-      final launched = await launchUrl(Uri.parse('mailto:$email'), mode: LaunchMode.externalApplication);
-      if (!launched && mounted) _showCopyFallback(email, 'البريد الإلكتروني');
-    } catch (_) {
-      if (mounted) _showCopyFallback(email, 'البريد الإلكتروني');
-    }
+  String _buildSupportMessageTemplate(SettingsController ctrl) {
+    return '''مرحباً،
+لدي استفسار/مشكلة بخصوص تطبيق المندوب الذكي.
+
+تفاصيل الطلب:
+
+---
+اسم المندوب: ${ctrl.data.agentName}
+رقم الهاتف: ${ctrl.data.agentPhone}
+معرّف الجهاز: ${ctrl.data.deviceId}
+إصدار التطبيق: $_appVersion
+---''';
   }
 
-  Future<void> _openTelegram() async {
-    final url = _support.telegram;
-    try {
-      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-    } catch (_) {
-      _showCopyFallback(url, 'تلجرام');
-    }
+  String _buildFeatureRequestMessageTemplate(SettingsController ctrl) {
+    return '''مرحباً،
+لدي اقتراح ميزة جديدة لتطبيق المندوب الذكي.
+
+اسم الميزة:
+وصف مختصر:
+الفائدة المتوقعة:
+
+---
+اسم المندوب: ${ctrl.data.agentName}
+رقم الهاتف: ${ctrl.data.agentPhone}
+معرّف الجهاز: ${ctrl.data.deviceId}
+إصدار التطبيق: $_appVersion
+---''';
   }
 
-  Future<void> _openWhatsApp() async {
-    final phone = _support.whatsapp;
-    final uri = Uri.parse('https://wa.me/$phone');
-    try {
-      final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
-      if (!launched && mounted) _showCopyFallback(phone, 'واتساب');
-    } catch (_) {
-      _showCopyFallback(phone, 'واتساب');
-    }
-  }
-
-  void _showCopyFallback(String text, String label) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$label: $text'),
-        action: SnackBarAction(
-          label: 'نسخ',
-          onPressed: () => Clipboard.setData(ClipboardData(text: text)),
+  void _showSupportActionSheet({
+    required String actionTitle,
+    required String emailSubject,
+    required String messageTemplate,
+  }) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.fromLTRB(16, 14, 16, MediaQuery.of(ctx).padding.bottom + 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 42,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 14),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade400,
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+            Text(
+              actionTitle,
+              style: Theme.of(ctx).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+              textDirection: TextDirection.rtl,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'اختر طريقة التواصل المناسبة',
+              style: TextStyle(color: Colors.grey.shade600, fontSize: 13.5),
+              textDirection: TextDirection.rtl,
+            ),
+            const SizedBox(height: 14),
+            _buildContactMethodTile(
+              ctx: ctx,
+              icon: Icons.email_outlined,
+              title: 'البريد الإلكتروني',
+              subtitle: _support.email,
+              color: Colors.blue,
+              onTap: () async {
+                Navigator.pop(ctx);
+                await _launchSupportByEmail(emailSubject, messageTemplate);
+              },
+            ),
+            const SizedBox(height: 10),
+            _buildContactMethodTile(
+              ctx: ctx,
+              icon: Icons.telegram,
+              title: 'تلجرام',
+              subtitle: _support.telegram,
+              color: const Color(0xFF0088CC),
+              onTap: () async {
+                Navigator.pop(ctx);
+                await _launchSupportByTelegram(messageTemplate);
+              },
+            ),
+            const SizedBox(height: 10),
+            _buildContactMethodTile(
+              ctx: ctx,
+              icon: Icons.chat_outlined,
+              title: 'واتساب',
+              subtitle: _support.whatsapp,
+              color: Colors.green,
+              onTap: () async {
+                Navigator.pop(ctx);
+                await _launchSupportByWhatsApp(messageTemplate);
+              },
+            ),
+          ],
         ),
       ),
+    );
+  }
+
+  Widget _buildContactMethodTile({
+    required BuildContext ctx,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Color color,
+    required Future<void> Function() onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Ink(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: color.withValues(alpha: 0.35)),
+            color: color.withValues(alpha: 0.08),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.16),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: color, size: 20),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                      textDirection: TextDirection.rtl,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: TextStyle(fontSize: 12.5, color: Colors.grey.shade700),
+                      textDirection: TextDirection.rtl,
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_left_rounded, color: Colors.grey.shade700),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _launchSupportByEmail(String subject, String message) async {
+    await _launchSupportMethod(
+      method: ContactMethodType.email,
+      message: message,
+      emailSubject: subject,
+    );
+  }
+
+  Future<void> _launchSupportByTelegram(String message) async {
+    await _launchSupportMethod(
+      method: ContactMethodType.telegram,
+      message: message,
+    );
+  }
+
+  Future<void> _launchSupportByWhatsApp(String message) async {
+    await _launchSupportMethod(
+      method: ContactMethodType.whatsapp,
+      message: message,
+    );
+  }
+
+  Future<void> _launchSupportMethod({
+    required ContactMethodType method,
+    required String message,
+    String? emailSubject,
+  }) async {
+    final result = await _contactLauncher.launch(
+      method: method,
+      support: _support,
+      message: message,
+      emailSubject: emailSubject,
+    );
+    if (!mounted || result.success) return;
+    _contactLauncher.showLaunchError(
+      context,
+      method: method,
+      result: result,
     );
   }
 

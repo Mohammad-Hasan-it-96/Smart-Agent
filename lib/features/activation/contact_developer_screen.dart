@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../core/widgets/custom_app_bar.dart';
 import '../../core/services/activation_service.dart';
+import '../../core/services/contact_launcher_service.dart';
 import '../../core/services/settings_service.dart';
 
 class ContactDeveloperScreen extends StatefulWidget {
@@ -14,6 +14,7 @@ class ContactDeveloperScreen extends StatefulWidget {
 
 class _ContactDeveloperScreenState extends State<ContactDeveloperScreen> {
   final ActivationService _activationService = ActivationService();
+  final ContactLauncherService _contactLauncher = const ContactLauncherService();
   final TextEditingController _messageController = TextEditingController();
   String? _selectedMethod;
   String _agentName = '';
@@ -81,114 +82,6 @@ class _ContactDeveloperScreenState extends State<ContactDeveloperScreen> {
     );
   }
 
-  Future<void> _sendViaEmail() async {
-    if (_messageController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('يرجى كتابة الرسالة أولاً'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
-
-    setState(() {
-      _isSending = true;
-    });
-
-    try {
-      final email = _support.email;
-      const subject = 'تواصل من المندوب الذكي';
-      final body = Uri.encodeComponent(_buildMessageWithDetails());
-
-      final emailUri = Uri.parse(
-        'mailto:$email?subject=${Uri.encodeComponent(subject)}&body=$body',
-      );
-
-      final launched = await launchUrl(
-        emailUri,
-        mode: LaunchMode.externalApplication,
-      );
-
-      if (!launched && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('تعذر فتح البريد الإلكتروني. يرجى نسخ الرسالة وإرسالها يدويًا.'),
-            backgroundColor: Colors.orange,
-            duration: Duration(seconds: 4),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('حدث خطأ أثناء فتح البريد'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isSending = false;
-        });
-      }
-    }
-  }
-
-  Future<void> _sendViaTelegram() async {
-    if (_messageController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('يرجى كتابة الرسالة أولاً'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
-
-    setState(() {
-      _isSending = true;
-    });
-
-    try {
-      final message = Uri.encodeComponent(_buildMessageWithDetails());
-      final separator = _support.telegram.contains('?') ? '&' : '?';
-      final telegramUrl = '${_support.telegram}$separator'
-          'text=$message';
-      final launched = await launchUrl(
-        Uri.parse(telegramUrl),
-        mode: LaunchMode.externalApplication,
-      );
-
-      if (!launched && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('تعذر فتح تليجرام. يرجى نسخ الرسالة وإرسالها يدويًا.'),
-            backgroundColor: Colors.orange,
-            duration: Duration(seconds: 4),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('حدث خطأ أثناء فتح تليجرام'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isSending = false;
-        });
-      }
-    }
-  }
-
   Future<void> _onSend() async {
     if (_selectedMethod == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -200,10 +93,44 @@ class _ContactDeveloperScreenState extends State<ContactDeveloperScreen> {
       return;
     }
 
-    if (_selectedMethod == 'email') {
-      await _sendViaEmail();
-    } else if (_selectedMethod == 'telegram') {
-      await _sendViaTelegram();
+    if (_messageController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('يرجى كتابة الرسالة أولاً'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isSending = true;
+    });
+
+    try {
+      final method = _selectedMethod == 'email'
+          ? ContactMethodType.email
+          : _selectedMethod == 'telegram'
+              ? ContactMethodType.telegram
+              : ContactMethodType.whatsapp;
+      final result = await _contactLauncher.launch(
+        method: method,
+        support: _support,
+        message: _buildMessageWithDetails(),
+        emailSubject: 'تواصل من المندوب الذكي',
+      );
+      if (!mounted || result.success) return;
+      _contactLauncher.showLaunchError(
+        context,
+        method: method,
+        result: result,
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSending = false;
+        });
+      }
     }
   }
 
@@ -354,6 +281,16 @@ class _ContactDeveloperScreenState extends State<ContactDeveloperScreen> {
                       description: _support.telegram,
                       isSelected: _selectedMethod == 'telegram',
                       onTap: () => setState(() => _selectedMethod = 'telegram'),
+                    ),
+                    const SizedBox(height: 12),
+                    _buildMethodCard(
+                      theme: theme,
+                      methodId: 'whatsapp',
+                      title: 'واتساب',
+                      icon: Icons.chat_outlined,
+                      description: _support.whatsapp,
+                      isSelected: _selectedMethod == 'whatsapp',
+                      onTap: () => setState(() => _selectedMethod = 'whatsapp'),
                     ),
                   ],
                 ),

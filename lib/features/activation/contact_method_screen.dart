@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../core/widgets/custom_app_bar.dart';
 import '../../core/services/activation_service.dart';
+import '../../core/services/contact_launcher_service.dart';
 import '../../core/services/settings_service.dart';
 
 class ContactMethodScreen extends StatefulWidget {
@@ -19,6 +19,7 @@ class ContactMethodScreen extends StatefulWidget {
 
 class _ContactMethodScreenState extends State<ContactMethodScreen> {
   final ActivationService _activationService = ActivationService();
+  final ContactLauncherService _contactLauncher = const ContactLauncherService();
   String? _selectedMethod;
   String _agentName = '';
   String _agentPhone = '';
@@ -114,11 +115,7 @@ class _ContactMethodScreenState extends State<ContactMethodScreen> {
 
     // Launch contact app
     try {
-      if (_selectedMethod == 'email') {
-        await _launchEmail();
-      } else if (_selectedMethod == 'telegram') {
-        await _launchTelegram();
-      }
+      await _launchSelectedContactMethod();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -170,75 +167,25 @@ class _ContactMethodScreenState extends State<ContactMethodScreen> {
     }
   }
 
-  Future<void> _launchEmail() async {
-    final email = _support.email;
-    const subject = 'طلب تفعيل تطبيق المندوب الذكي';
-    final body = Uri.encodeComponent(_activationMessage);
-    
-    final emailUri = Uri.parse('mailto:$email?subject=${Uri.encodeComponent(subject)}&body=$body');
-
-    try {
-      final launched = await launchUrl(
-        emailUri,
-        mode: LaunchMode.externalApplication,
-      );
-
-      if (!launched && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('تعذر فتح تطبيق البريد الإلكتروني. يرجى نسخ الرسالة وإرسالها يدوياً.'),
-            backgroundColor: Colors.orange,
-            duration: Duration(seconds: 4),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('تعذر فتح تطبيق البريد الإلكتروني. يرجى نسخ الرسالة وإرسالها يدوياً.'),
-            backgroundColor: Colors.orange,
-            duration: Duration(seconds: 4),
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _launchTelegram() async {
-    final message = Uri.encodeComponent(_activationMessage);
-    final separator = _support.telegram.contains('?') ? '&' : '?';
-    final telegramUri = Uri.parse('${_support.telegram}$separator'
-        'text=$message');
-
-    try {
-      final launched = await launchUrl(
-        telegramUri,
-        mode: LaunchMode.externalApplication,
-      );
-
-      if (!launched) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('تعذر فتح تطبيق تيليجرام. يرجى نسخ الرسالة وإرسالها يدوياً.'),
-              backgroundColor: Colors.orange,
-              duration: Duration(seconds: 4),
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('تعذر فتح تطبيق تيليجرام. يرجى نسخ الرسالة وإرسالها يدوياً.'),
-            backgroundColor: Colors.orange,
-            duration: Duration(seconds: 4),
-          ),
-        );
-      }
-    }
+  Future<void> _launchSelectedContactMethod() async {
+    if (_selectedMethod == null) return;
+    final method = _selectedMethod == 'email'
+        ? ContactMethodType.email
+        : _selectedMethod == 'telegram'
+            ? ContactMethodType.telegram
+            : ContactMethodType.whatsapp;
+    final result = await _contactLauncher.launch(
+      method: method,
+      support: _support,
+      message: _activationMessage,
+      emailSubject: 'طلب تفعيل تطبيق المندوب الذكي',
+    );
+    if (!mounted || result.success) return;
+    _contactLauncher.showLaunchError(
+      context,
+      method: method,
+      result: result,
+    );
   }
 
   @override
@@ -296,6 +243,16 @@ class _ContactMethodScreenState extends State<ContactMethodScreen> {
                       description: _support.telegram,
                       isSelected: _selectedMethod == 'telegram',
                       onTap: () => _onMethodSelected('telegram'),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildMethodCard(
+                      theme: theme,
+                      methodId: 'whatsapp',
+                      title: 'واتساب',
+                      icon: Icons.chat_outlined,
+                      description: _support.whatsapp,
+                      isSelected: _selectedMethod == 'whatsapp',
+                      onTap: () => _onMethodSelected('whatsapp'),
                     ),
                     if (_selectedMethod != null) ...[
                       const SizedBox(height: 32),
@@ -471,7 +428,8 @@ class _ContactMethodScreenState extends State<ContactMethodScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'يمكنك نسخ الرسالة وإرسالها عبر ${_selectedMethod == 'email' ? 'البريد الإلكتروني' : 'تيليجرام'}',
+              'يمكنك نسخ الرسالة وإرسالها عبر '
+              '${_selectedMethod == 'email' ? 'البريد الإلكتروني' : _selectedMethod == 'telegram' ? 'تيليجرام' : 'واتساب'}',
               style: TextStyle(
                 fontSize: 12,
                 color: Colors.grey[600],
