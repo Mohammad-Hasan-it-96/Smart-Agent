@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../../core/widgets/custom_app_bar.dart';
 import '../../core/services/activation_service.dart';
 import '../../core/services/contact_launcher_service.dart';
+import '../../core/services/push_notification_service.dart';
 import '../../core/services/settings_service.dart';
 
 class TrialExpiredPlansScreen extends StatefulWidget {
@@ -36,12 +37,23 @@ class _TrialExpiredPlansScreenState extends State<TrialExpiredPlansScreen> {
   void initState() {
     super.initState();
     _checkActivationRequestStatus();
+    PushNotificationService.instance.activationRefreshEvents
+        .addListener(_onActivationRefreshEvent);
   }
 
   @override
   void dispose() {
+    PushNotificationService.instance.activationRefreshEvents
+        .removeListener(_onActivationRefreshEvent);
     _scrollController.dispose();
     super.dispose();
+  }
+
+  Future<void> _onActivationRefreshEvent() async {
+    if (!mounted) return;
+    final activated = await _activationService.isActivated();
+    if (!activated || !mounted) return;
+    Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
   }
 
   Future<void> _checkActivationRequestStatus() async {

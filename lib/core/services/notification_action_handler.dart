@@ -12,6 +12,34 @@ class NotificationActionHandler {
   }) async {
     switch (type) {
       case 'new_plan_activated':
+        final activationService = ActivationService();
+        bool verified = false;
+        try {
+          verified = await activationService.checkDeviceStatus();
+        } catch (_) {}
+        if (!context.mounted) return;
+        if (verified) {
+          await showDialog<void>(
+            context: context,
+            builder: (_) => AlertDialog(
+              icon: const Icon(Icons.check_circle, color: Colors.green, size: 32),
+              title: const Text(
+                'تم تفعيل اشتراكك بنجاح',
+                textDirection: TextDirection.rtl,
+              ),
+              actionsAlignment: MainAxisAlignment.center,
+              actions: [
+                FilledButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('حسناً'),
+                ),
+              ],
+            ),
+          );
+          if (!context.mounted) return;
+          Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
+          return;
+        }
         Navigator.of(context).pushNamed('/subscription-plans');
         return;
       case 'still_7_days':

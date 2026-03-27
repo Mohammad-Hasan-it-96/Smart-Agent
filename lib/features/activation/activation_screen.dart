@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/services/activation_service.dart';
+import '../../core/services/push_notification_service.dart';
 
 class ActivationScreen extends StatefulWidget {
   const ActivationScreen({super.key});
@@ -21,6 +22,30 @@ class _ActivationScreenState extends State<ActivationScreen> {
     super.initState();
     _checkActivation();
     _checkTrialExpiration();
+    PushNotificationService.instance.activationRefreshEvents
+        .addListener(_onActivationRefreshEvent);
+  }
+
+  @override
+  void dispose() {
+    PushNotificationService.instance.activationRefreshEvents
+        .removeListener(_onActivationRefreshEvent);
+    super.dispose();
+  }
+
+  Future<void> _onActivationRefreshEvent() async {
+    if (!mounted) return;
+    final activated = await _activationService.isActivated();
+    if (!activated) return;
+    setState(() {
+      _isActivated = true;
+      _isVerified = true;
+      _isLoading = false;
+      _errorMessage = null;
+      _trialExpired = false;
+    });
+    if (!mounted) return;
+    _navigateToHome();
   }
 
   Future<void> _checkTrialExpiration() async {

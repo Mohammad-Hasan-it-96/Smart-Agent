@@ -37,8 +37,10 @@ class PushNotificationService {
   final NotificationApiService _apiService = NotificationApiService();
 
   final ValueNotifier<int> unreadCount = ValueNotifier<int>(0);
+  final ValueNotifier<int> activationRefreshEvents = ValueNotifier<int>(0);
 
   bool _initialized = false;
+  bool _isShowingActivationDialog = false;
   RemoteMessage? _pendingOpenedMessage;
   Map<String, dynamic>? _pendingLocalPayload;
 
@@ -70,6 +72,7 @@ class PushNotificationService {
 
     FirebaseMessaging.onMessage.listen((message) async {
       await storeMessageToHistory(message);
+      await _handleForegroundActivationMessage(message);
       await _showForegroundNotification(message);
       await _refreshUnreadCount();
     });
@@ -316,6 +319,52 @@ class PushNotificationService {
     final safeTitle = (title ?? '').trim();
     final safeBody = (body ?? '').trim();
     return safeTitle.isNotEmpty && safeBody.isNotEmpty;
+  }
+
+  Future<void> _handleForegroundActivationMessage(RemoteMessage message) async {
+    final type = (message.data['type'] ?? '').toString().trim();
+    if (type != 'new_plan_activated') return;
+
+    bool verified = false;
+    try {
+      verified = await _activationService.checkDeviceStatus();
+    } catch (_) {
+      return;
+    }
+    if (!verified) return;
+
+    activationRefreshEvents.value++;
+    await _showActivationSuccessDialog();
+  }
+
+  Future<void> _showActivationSuccessDialog() async {
+    final context = _currentContext;
+    if (context == null || _isShowingActivationDialog) return;
+    _isShowingActivationDialog = true;
+    try {
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: true,
+        builder: (_) => AlertDialog(
+          icon: const Icon(Icons.check_circle, color: Colors.green, size: 32),
+          title: const Text(
+            'تم تفعيل اشتراكك بنجاح',
+            textDirection: TextDirection.rtl,
+          ),
+          actionsAlignment: MainAxisAlignment.center,
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('حسناً'),
+            ),
+          ],
+        ),
+      );
+    } catch (_) {
+      // Ignore UI errors if context changes while dialog is open.
+    } finally {
+      _isShowingActivationDialog = false;
+    }
   }
 }
 
