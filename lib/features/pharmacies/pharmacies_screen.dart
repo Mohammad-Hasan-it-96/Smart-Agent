@@ -306,7 +306,7 @@ class _PharmaciesScreenState extends State<PharmaciesScreen> {
           builder: (context) => AlertDialog(
             title: const Text('وصلت للحد المسموح'),
             content: const Text(
-              'وصلت للحد المسموح في النسخة التجريبية. يرجى التواصل مع المطور لتفعيل التطبيق.',
+              'وصلت للحد المسموح في النسخة التجريبية. يرجى التواصل مع خدمة العملاء لتفعيل التطبيق.',
               textDirection: TextDirection.rtl,
             ),
             actions: [
@@ -318,7 +318,7 @@ class _PharmaciesScreenState extends State<PharmaciesScreen> {
                     (route) => false,
                   );
                 },
-                child: const Text('تواصل مع المطور'),
+                child: const Text('تواصل مع خدمة العملاء'),
               ),
             ],
           ),

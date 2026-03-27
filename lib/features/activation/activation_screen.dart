@@ -32,7 +32,7 @@ class _ActivationScreenState extends State<ActivationScreen> {
         setState(() {
           _trialExpired = true;
           _errorMessage =
-              'انتهت النسخة التجريبية. يرجى التواصل مع المطور لتفعيل التطبيق.';
+              'انتهت النسخة التجريبية. يرجى التواصل مع خدمة العملاء لتفعيل التطبيق.';
         });
       }
     } catch (e) {
@@ -291,7 +291,7 @@ class _ActivationScreenState extends State<ActivationScreen> {
               },
               icon: const Icon(Icons.contact_support),
               label: const Text(
-                'تواصل مع المطور',
+                'تواصل مع خدمة العملاء',
                 style: TextStyle(fontSize: 16),
               ),
               style: OutlinedButton.styleFrom(

@@ -242,7 +242,7 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(
                                       content: Text(
-                                          'انتهت النسخة التجريبية – يرجى التواصل مع المطور'),
+                                          'انتهت النسخة التجريبية – يرجى التواصل مع خدمة العملاء'),
                                       backgroundColor: Colors.red,
                                       duration: Duration(seconds: 5),
                                     ),

@@ -146,7 +146,7 @@ class _ContactDeveloperScreenState extends State<ContactDeveloperScreen> {
 
     if (_isLoading) {
       return Scaffold(
-        appBar: const CustomAppBar(title: 'تواصل مع المطور'),
+        appBar: const CustomAppBar(title: 'تواصل مع خدمة العملاء'),
         body: const Center(
           child: CircularProgressIndicator(),
         ),
@@ -154,7 +154,7 @@ class _ContactDeveloperScreenState extends State<ContactDeveloperScreen> {
     }
 
     return Scaffold(
-      appBar: const CustomAppBar(title: 'تواصل مع المطور'),
+      appBar: const CustomAppBar(title: 'تواصل مع خدمة العملاء'),
       body: SafeArea(
         child: Column(
           children: [
@@ -226,22 +226,27 @@ class _ContactDeveloperScreenState extends State<ContactDeveloperScreen> {
                                 ),
                               ],
                             ),
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: Colors.grey.shade800,
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: SelectableText(
-                                _buildMessageWithDetails(),
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  height: 1.5,
-                                  color: Colors.white,
-                                ),
-                                textDirection: TextDirection.rtl,
-                              ),
+                            ValueListenableBuilder<TextEditingValue>(
+                              valueListenable: _messageController,
+                              builder: (_, __, ___) {
+                                return Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.shade800,
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: SelectableText(
+                                    _buildMessageWithDetails(),
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      height: 1.5,
+                                      color: Colors.white,
+                                    ),
+                                    textDirection: TextDirection.rtl,
+                                  ),
+                                );
+                              },
                             ),
                           ],
                         ),

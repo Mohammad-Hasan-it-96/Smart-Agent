@@ -76,7 +76,7 @@ class _PharmacyFormState extends State<PharmacyForm> {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text(
-                    'انتهت النسخة التجريبية. يرجى التواصل مع المطور لتفعيل التطبيق.'),
+                    'انتهت النسخة التجريبية. يرجى التواصل مع خدمة العملاء لتفعيل التطبيق.'),
                 backgroundColor: Colors.red,
                 duration: Duration(seconds: 5),
               ),

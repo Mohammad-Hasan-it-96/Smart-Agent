@@ -242,7 +242,7 @@ class _TrialExpiredPlansScreenState extends State<TrialExpiredPlansScreen> {
                   ),
                   const SizedBox(height: 32),
                   const Text(
-                    'تم إرسال طلب التفعيل، يرجى انتظار رد المطور',
+                    'تم إرسال طلب التفعيل، يرجى انتظار رد خدمة العملاء',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,

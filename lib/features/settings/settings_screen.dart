@@ -443,10 +443,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
         SettingTile(
           icon: Icons.support_agent,
-          title: 'تواصل مع المطور',
+          title: 'تواصل مع خدمة العملاء',
           subtitle: 'إرسال استفسار أو مشكلة',
           onTap: () => _showSupportActionSheet(
-            actionTitle: 'تواصل مع المطور',
+            actionTitle: 'تواصل مع خدمة العملاء',
             emailSubject: 'تواصل من تطبيق المندوب الذكي',
             messageTemplate: _buildSupportMessageTemplate(ctrl),
           ),
@@ -844,7 +844,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           content: Text(
             verified
                 ? 'تم التحقق بنجاح. التطبيق مفعّل.'
-                : 'التطبيق غير مفعّل حالياً. يرجى التواصل مع المطور أو اختيار باقة اشتراك.',
+                : 'التطبيق غير مفعّل حالياً. يرجى التواصل مع خدمة العملاء أو اختيار باقة اشتراك.',
             textDirection: TextDirection.rtl,
           ),
           actionsAlignment: MainAxisAlignment.center,
