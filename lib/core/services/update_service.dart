@@ -24,15 +24,33 @@ class UpdateInfo {
 }
 
 class UpdateService {
+  /// Remote JSON that controls updates + dynamic settings.
+  ///
+  /// If this points to Google Drive, prefer a **direct download** link:
+  /// - `https://drive.google.com/uc?export=download&id=<FILE_ID>`
+  ///
+  /// Share links like `open?id=<FILE_ID>` can return HTML instead of raw JSON
+  /// when the file is not publicly accessible.
   final String updateConfigUrl =
       'https://drive.google.com/uc?export=download&id=1aMv_VNEFff1XzQeiG80s0aEL4r5_c9ao';
 
   Future<UpdateInfo?> checkForUpdate(String currentVersion) async {
     try {
-      final response = await http.get(Uri.parse(updateConfigUrl));
+      final response = await http.get(
+        Uri.parse(updateConfigUrl),
+        headers: const {'Accept': 'application/json'},
+      );
       if (response.statusCode != 200) return null;
 
       var rawJson = utf8.decode(response.bodyBytes, allowMalformed: true);
+      if (_looksLikeHtml(rawJson)) {
+        _debugLog(
+          'Update config response is HTML (not JSON). '
+          'This usually means the Drive file is not shared as "Anyone with the link". '
+          'url=$updateConfigUrl status=${response.statusCode}',
+        );
+        return null;
+      }
       if (rawJson.isNotEmpty && rawJson.codeUnitAt(0) == 0xFEFF) {
         rawJson = rawJson.substring(1);
       }
@@ -78,11 +96,28 @@ class UpdateService {
         abi: abi,
         updateNotes: config.updateNotes,
       );
-    } catch (_) {
-      // Silent failure: if update check fails, we just behave as "no update".
+    } catch (e) {
+      // Keep behavior as "no update", but log in debug builds.
+      _debugLog('Update check failed: $e (url=$updateConfigUrl)');
     }
 
     return null;
+  }
+
+  bool _looksLikeHtml(String value) {
+    final s = value.trimLeft().toLowerCase();
+    return s.startsWith('<!doctype html') ||
+        s.startsWith('<html') ||
+        s.startsWith('<head') ||
+        s.startsWith('<body');
+  }
+
+  void _debugLog(String message) {
+    assert(() {
+      // ignore: avoid_print
+      print('[UpdateService] $message');
+      return true;
+    }());
   }
 
   bool _isNewerVersion(String current, String latest) {
