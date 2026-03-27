@@ -243,6 +243,24 @@ class _ActivationScreenState extends State<ActivationScreen> {
           ),
           const SizedBox(height: 16),
           _buildDeviceBindingInfoCard(),
+          const SizedBox(height: 18),
+          FilledButton.icon(
+            onPressed: _navigateToSubscriptionPlans,
+            icon: const Icon(Icons.workspace_premium_rounded),
+            label: const Text(
+              'اختيار باقة والاشتراك',
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+            ),
+            style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
+              minimumSize: const Size(double.infinity, 54),
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+          ),
           const SizedBox(height: 8),
           if (_errorMessage != null) ...[
             Text(
@@ -265,25 +283,6 @@ class _ActivationScreenState extends State<ActivationScreen> {
               textDirection: TextDirection.rtl,
             ),
             const SizedBox(height: 24),
-            // Subscription plans button
-            ElevatedButton.icon(
-              onPressed: _navigateToSubscriptionPlans,
-              icon: const Icon(Icons.payment),
-              label: const Text(
-                'عرض باقات الاشتراك',
-                style: TextStyle(fontSize: 16),
-              ),
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 32,
-                  vertical: 16,
-                ),
-                minimumSize: const Size(200, 50),
-                backgroundColor: Colors.blue,
-                foregroundColor: Colors.white,
-              ),
-            ),
-            const SizedBox(height: 16),
             // Contact developer button
             OutlinedButton.icon(
               onPressed: () {

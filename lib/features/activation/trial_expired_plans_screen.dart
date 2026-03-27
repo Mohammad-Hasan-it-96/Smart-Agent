@@ -280,6 +280,22 @@ class _TrialExpiredPlansScreenState extends State<TrialExpiredPlansScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     const SizedBox(height: 16),
+                    FilledButton.icon(
+                      onPressed: () => Navigator.of(context).pushNamed('/subscription-plans'),
+                      icon: const Icon(Icons.workspace_premium_rounded),
+                      label: const Text(
+                        'اختيار باقة والاشتراك',
+                        style: TextStyle(fontSize: 16.5, fontWeight: FontWeight.bold),
+                      ),
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        minimumSize: const Size(double.infinity, 54),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
                     // Plan 1: الخطة النصف سنوية
                     _buildPlanCard(
                       theme: theme,

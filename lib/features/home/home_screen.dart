@@ -154,6 +154,10 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                 physics: const AlwaysScrollableScrollPhysics(),
                 children: [
                   _buildGreetingHeader(ctrl),
+                  if (ctrl.status == AccountStatus.trial) ...[
+                    const SizedBox(height: 12),
+                    _buildTrialWarningCta(),
+                  ],
                   if (!ctrl.hideCarousel) ...[
                     const SizedBox(height: 16),
                     _buildCarousel(context),
@@ -551,6 +555,45 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                 color: theme.colorScheme.primary,
                 fontWeight: FontWeight.w600,
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTrialWarningCta() {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.orange.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.orange.withValues(alpha: 0.45)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'أنت تستخدم النسخة التجريبية حالياً',
+            textDirection: TextDirection.rtl,
+            style: TextStyle(
+              fontSize: 14.5,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 10),
+          FilledButton.icon(
+            onPressed: () => Navigator.of(context).pushNamed('/subscription-plans'),
+            icon: const Icon(Icons.workspace_premium_rounded),
+            label: const Text(
+              'اختيار باقة والاشتراك',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            style: FilledButton.styleFrom(
+              backgroundColor: theme.colorScheme.primary,
+              foregroundColor: Colors.white,
+              minimumSize: const Size(double.infinity, 48),
             ),
           ),
         ],
