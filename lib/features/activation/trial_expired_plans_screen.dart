@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/widgets/custom_app_bar.dart';
 import '../../core/services/activation_service.dart';
+import '../../core/services/settings_service.dart';
 
 class TrialExpiredPlansScreen extends StatefulWidget {
   const TrialExpiredPlansScreen({super.key});
@@ -20,6 +21,11 @@ class _TrialExpiredPlansScreenState extends State<TrialExpiredPlansScreen> {
   String _agentPhone = '';
   String _deviceId = '';
   String _activationMessage = '';
+  SupportContactInfo _support = const SupportContactInfo(
+    email: SettingsService.defaultSupportEmail,
+    telegram: SettingsService.defaultSupportTelegram,
+    whatsapp: SettingsService.defaultSupportWhatsapp,
+  );
   bool _isLoadingAgentData = false;
   final ScrollController _scrollController = ScrollController();
   final GlobalKey _contactSectionKey = GlobalKey();
@@ -91,11 +97,13 @@ class _TrialExpiredPlansScreenState extends State<TrialExpiredPlansScreen> {
         final name = await _activationService.getAgentName();
         final phone = await _activationService.getAgentPhone();
         final deviceId = await _activationService.getDeviceId();
+        final support = await SettingsService.getSupportInfo();
 
         setState(() {
           _agentName = name;
           _agentPhone = phone;
           _deviceId = deviceId;
+          _support = support;
           _isLoadingAgentData = false;
           _updateActivationMessage();
         });
@@ -134,7 +142,7 @@ class _TrialExpiredPlansScreenState extends State<TrialExpiredPlansScreen> {
   }
 
   Future<void> _launchEmail() async {
-    const email = 'mohamad.hasan.it.96@gmail.com';
+    final email = _support.email;
     const subject = 'طلب تفعيل تطبيق المندوب الذكي';
     final body = Uri.encodeComponent(_activationMessage);
     
@@ -172,10 +180,10 @@ class _TrialExpiredPlansScreenState extends State<TrialExpiredPlansScreen> {
   }
 
   Future<void> _launchTelegram() async {
-    const telegramUsername = 'smartAgentSupport';
     final message = Uri.encodeComponent(_activationMessage);
-
-    final tgUri = Uri.parse('tg://resolve?domain=$telegramUsername&text=$message');
+    final separator = _support.telegram.contains('?') ? '&' : '?';
+    final tgUri = Uri.parse('${_support.telegram}$separator'
+        'text=$message');
     
     try {
       final launched = await launchUrl(
@@ -184,13 +192,7 @@ class _TrialExpiredPlansScreenState extends State<TrialExpiredPlansScreen> {
       );
 
       if (!launched) {
-        // Fallback to web Telegram
-        final webUri = Uri.parse('https://t.me/$telegramUsername?text=$message');
-        final webLaunched = await launchUrl(
-          webUri,
-          mode: LaunchMode.externalApplication,
-        );
-        if (!webLaunched && mounted) {
+        if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('تعذر فتح تطبيق تيليجرام. يرجى نسخ الرسالة وإرسالها يدوياً.'),
@@ -198,8 +200,6 @@ class _TrialExpiredPlansScreenState extends State<TrialExpiredPlansScreen> {
               duration: Duration(seconds: 4),
             ),
           );
-        } else {
-          await _sendActivationRequest('telegram');
         }
       } else {
         await _sendActivationRequest('telegram');

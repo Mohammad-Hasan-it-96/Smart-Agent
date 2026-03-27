@@ -3,11 +3,17 @@ import 'package:shared_preferences/shared_preferences.dart';
 class SettingsService {
   static const String defaultApiBaseUrl =
       'https://harrypotter.foodsalebot.com/api';
+  static const String defaultSupportEmail = 'mohamad.hasan.it.96@gmail.com';
+  static const String defaultSupportTelegram = 'https://t.me/+963983820430';
+  static const String defaultSupportWhatsapp = '963983820430';
   static const String _enablePricesKey = 'settings_enable_prices';
   static const String _currencyModeKey = 'settings_currency_mode';
   static const String _exchangeRateKey = 'settings_exchange_rate';
   static const String _inventoryPhoneKey = 'settings_inventory_phone';
   static const String _apiBaseUrlKey = 'settings_api_base_url';
+  static const String _supportEmailKey = 'settings_support_email';
+  static const String _supportTelegramKey = 'settings_support_telegram';
+  static const String _supportWhatsappKey = 'settings_support_whatsapp';
 
   static String _normalizeBaseUrl(String url) {
     final trimmed = url.trim();
@@ -35,6 +41,51 @@ class SettingsService {
     final baseUrl = await getApiBaseUrl();
     final cleanEndpoint = endpoint.startsWith('/') ? endpoint.substring(1) : endpoint;
     return Uri.parse('$baseUrl/$cleanEndpoint');
+  }
+
+  static String _normalizeSupportValue(String value) => value.trim();
+
+  static Future<void> setSupportInfo({
+    String? email,
+    String? telegram,
+    String? whatsapp,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (email != null) {
+      final value = _normalizeSupportValue(email);
+      if (value.isEmpty) {
+        await prefs.remove(_supportEmailKey);
+      } else {
+        await prefs.setString(_supportEmailKey, value);
+      }
+    }
+    if (telegram != null) {
+      final value = _normalizeSupportValue(telegram);
+      if (value.isEmpty) {
+        await prefs.remove(_supportTelegramKey);
+      } else {
+        await prefs.setString(_supportTelegramKey, value);
+      }
+    }
+    if (whatsapp != null) {
+      final value = _normalizeSupportValue(whatsapp);
+      if (value.isEmpty) {
+        await prefs.remove(_supportWhatsappKey);
+      } else {
+        await prefs.setString(_supportWhatsappKey, value);
+      }
+    }
+  }
+
+  static Future<SupportContactInfo> getSupportInfo() async {
+    final prefs = await SharedPreferences.getInstance();
+    return SupportContactInfo(
+      email: (prefs.getString(_supportEmailKey) ?? defaultSupportEmail).trim(),
+      telegram:
+          (prefs.getString(_supportTelegramKey) ?? defaultSupportTelegram).trim(),
+      whatsapp:
+          (prefs.getString(_supportWhatsappKey) ?? defaultSupportWhatsapp).trim(),
+    );
   }
 
   // Check if pricing is enabled
@@ -110,5 +161,17 @@ class SettingsService {
     final displayPrice = await convertToDisplayCurrency(price);
     return '$displayPrice $symbol';
   }
+}
+
+class SupportContactInfo {
+  final String email;
+  final String telegram;
+  final String whatsapp;
+
+  const SupportContactInfo({
+    required this.email,
+    required this.telegram,
+    required this.whatsapp,
+  });
 }
 

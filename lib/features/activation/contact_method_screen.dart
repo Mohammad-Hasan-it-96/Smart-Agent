@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/widgets/custom_app_bar.dart';
 import '../../core/services/activation_service.dart';
+import '../../core/services/settings_service.dart';
 
 class ContactMethodScreen extends StatefulWidget {
   final String selectedPlanId;
@@ -24,6 +25,11 @@ class _ContactMethodScreenState extends State<ContactMethodScreen> {
   String _deviceId = '';
   bool _isLoading = true;
   String _activationMessage = '';
+  SupportContactInfo _support = const SupportContactInfo(
+    email: SettingsService.defaultSupportEmail,
+    telegram: SettingsService.defaultSupportTelegram,
+    whatsapp: SettingsService.defaultSupportWhatsapp,
+  );
 
   @override
   void initState() {
@@ -36,11 +42,13 @@ class _ContactMethodScreenState extends State<ContactMethodScreen> {
       final name = await _activationService.getAgentName();
       final phone = await _activationService.getAgentPhone();
       final deviceId = await _activationService.getDeviceId();
+      final support = await SettingsService.getSupportInfo();
 
       setState(() {
         _agentName = name;
         _agentPhone = phone;
         _deviceId = deviceId;
+        _support = support;
         _isLoading = false;
         _updateActivationMessage();
       });
@@ -163,7 +171,7 @@ class _ContactMethodScreenState extends State<ContactMethodScreen> {
   }
 
   Future<void> _launchEmail() async {
-    const email = 'mohamad.hasan.it.96@gmail.com';
+    final email = _support.email;
     const subject = 'طلب تفعيل تطبيق المندوب الذكي';
     final body = Uri.encodeComponent(_activationMessage);
     
@@ -198,29 +206,19 @@ class _ContactMethodScreenState extends State<ContactMethodScreen> {
   }
 
   Future<void> _launchTelegram() async {
-    // Telegram phone number for direct contact
-    const telegramPhone = '963983820430'; // Syrian number without +
     final message = Uri.encodeComponent(_activationMessage);
-
-    // Try native Telegram app first (tg:// scheme)
-    // Send direct message using phone number
-    final tgUri = Uri.parse('tg://resolve?phone=$telegramPhone&text=$message');
+    final separator = _support.telegram.contains('?') ? '&' : '?';
+    final telegramUri = Uri.parse('${_support.telegram}$separator'
+        'text=$message');
 
     try {
       final launched = await launchUrl(
-        tgUri,
+        telegramUri,
         mode: LaunchMode.externalApplication,
       );
 
       if (!launched) {
-        // Fallback to web Telegram using phone
-        final webUri = Uri.parse('https://t.me/+$telegramPhone?text=$message');
-        final webLaunched = await launchUrl(
-          webUri,
-          mode: LaunchMode.externalApplication,
-        );
-
-        if (!webLaunched && mounted) {
+        if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('تعذر فتح تطبيق تيليجرام. يرجى نسخ الرسالة وإرسالها يدوياً.'),
@@ -231,23 +229,14 @@ class _ContactMethodScreenState extends State<ContactMethodScreen> {
         }
       }
     } catch (e) {
-      // Try web Telegram as fallback
-      try {
-        final webUri = Uri.parse('https://wa.me/$telegramPhone?text=$message');
-        await launchUrl(
-          webUri,
-          mode: LaunchMode.externalApplication,
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('تعذر فتح تطبيق تيليجرام. يرجى نسخ الرسالة وإرسالها يدوياً.'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 4),
+          ),
         );
-      } catch (e2) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('تعذر فتح تطبيق تيليجرام. يرجى نسخ الرسالة وإرسالها يدوياً.'),
-              backgroundColor: Colors.orange,
-              duration: Duration(seconds: 4),
-            ),
-          );
-        }
       }
     }
   }
@@ -293,7 +282,7 @@ class _ContactMethodScreenState extends State<ContactMethodScreen> {
                       methodId: 'email',
                       title: 'البريد الإلكتروني',
                       icon: Icons.email,
-                      description: 'سيتم التواصل معك عبر البريد الإلكتروني',
+                      description: _support.email,
                       isSelected: _selectedMethod == 'email',
                       onTap: () => _onMethodSelected('email'),
                     ),
@@ -304,7 +293,7 @@ class _ContactMethodScreenState extends State<ContactMethodScreen> {
                       methodId: 'telegram',
                       title: 'تيليجرام',
                       icon: Icons.send,
-                      description: 'سيتم التواصل معك عبر تيليجرام',
+                      description: _support.telegram,
                       isSelected: _selectedMethod == 'telegram',
                       onTap: () => _onMethodSelected('telegram'),
                     ),

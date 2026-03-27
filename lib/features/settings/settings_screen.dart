@@ -8,6 +8,7 @@ import 'package:file_picker/file_picker.dart';
 import '../../core/services/data_export_service.dart';
 import '../../core/services/update_service.dart';
 import '../../core/services/push_notification_service.dart';
+import '../../core/services/settings_service.dart';
 import '../../core/providers/theme_provider.dart';
 import '../../core/widgets/custom_app_bar.dart';
 import '../../core/widgets/update_dialog.dart';
@@ -29,6 +30,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _isExporting = false;
   bool _isImporting = false;
   bool _isCheckingActivation = false;
+  SupportContactInfo _support = const SupportContactInfo(
+    email: SettingsService.defaultSupportEmail,
+    telegram: SettingsService.defaultSupportTelegram,
+    whatsapp: SettingsService.defaultSupportWhatsapp,
+  );
 
   @override
   void initState() {
@@ -36,6 +42,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _ctrl = SettingsController();
     _ctrl.load();
     _loadVersion();
+    _loadSupportInfo();
   }
 
   @override
@@ -51,6 +58,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } catch (_) {
       if (mounted) setState(() => _appVersion = '1.0.0');
     }
+  }
+
+  Future<void> _loadSupportInfo() async {
+    try {
+      final support = await SettingsService.getSupportInfo();
+      if (mounted) {
+        setState(() => _support = support);
+      }
+    } catch (_) {}
   }
 
   // ─── HELPERS ──────────────────────────────────────────────────────
@@ -427,15 +443,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
         SettingTile(
           icon: Icons.email_outlined,
           title: 'البريد الإلكتروني',
-          subtitle: 'mohamad.hasan.it.96@gmail.com',
+          subtitle: _support.email,
           onTap: _openSupportEmail,
         ),
         SettingTile(
           icon: Icons.telegram,
           iconColor: const Color(0xFF0088CC),
           title: 'تلجرام',
-          subtitle: 'تواصل عبر تلجرام',
+          subtitle: _support.telegram,
           onTap: _openTelegram,
+        ),
+        SettingTile(
+          icon: Icons.chat_outlined,
+          iconColor: Colors.green,
+          title: 'واتساب',
+          subtitle: _support.whatsapp,
+          onTap: _openWhatsApp,
         ),
         SettingTile(
           icon: Icons.info_outline,
@@ -997,6 +1020,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (!mounted) return;
       if (info != null) {
         showUpdateDialog(context, info);
+        await _loadSupportInfo();
       } else {
         showDialog(
           context: context,
@@ -1016,7 +1040,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _openSupportEmail() async {
-    const email = 'mohamad.hasan.it.96@gmail.com';
+    final email = _support.email;
     try {
       final launched = await launchUrl(Uri.parse('mailto:$email'), mode: LaunchMode.externalApplication);
       if (!launched && mounted) _showCopyFallback(email, 'البريد الإلكتروني');
@@ -1026,11 +1050,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _openTelegram() async {
-    const url = 'https://t.me/+963983820430';
+    final url = _support.telegram;
     try {
       await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
     } catch (_) {
-      _showCopyFallback('+963983820430', 'تلجرام');
+      _showCopyFallback(url, 'تلجرام');
+    }
+  }
+
+  Future<void> _openWhatsApp() async {
+    final phone = _support.whatsapp;
+    final uri = Uri.parse('https://wa.me/$phone');
+    try {
+      final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!launched && mounted) _showCopyFallback(phone, 'واتساب');
+    } catch (_) {
+      _showCopyFallback(phone, 'واتساب');
     }
   }
 

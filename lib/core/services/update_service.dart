@@ -47,6 +47,15 @@ class UpdateService {
         await SettingsService.setApiBaseUrl(SettingsService.defaultApiBaseUrl);
       }
 
+      final support = config.support;
+      if (support != null) {
+        await SettingsService.setSupportInfo(
+          email: support.email,
+          telegram: support.telegram,
+          whatsapp: support.whatsapp,
+        );
+      }
+
       if (!_isNewerVersion(currentVersion, config.latestVersion)) {
         return null;
       }

@@ -3,12 +3,14 @@ class UpdateConfig {
   final String? apiBaseUrl;
   final Map<String, String> downloads;
   final List<String> updateNotes;
+  final SupportConfig? support;
 
   const UpdateConfig({
     required this.latestVersion,
     required this.apiBaseUrl,
     required this.downloads,
     required this.updateNotes,
+    required this.support,
   });
 
   factory UpdateConfig.fromJson(Map<String, dynamic> json) {
@@ -53,11 +55,44 @@ class UpdateConfig {
       updateNotes.add(notesObject.trim());
     }
 
+    SupportConfig? support;
+    final supportObject = json['support'];
+    if (supportObject is Map<String, dynamic>) {
+      support = SupportConfig.fromJson(supportObject);
+    }
+
     return UpdateConfig(
       latestVersion: latestVersion,
       apiBaseUrl: apiBaseUrl,
       downloads: downloads,
       updateNotes: updateNotes,
+      support: support,
+    );
+  }
+}
+
+class SupportConfig {
+  final String? email;
+  final String? telegram;
+  final String? whatsapp;
+
+  const SupportConfig({
+    required this.email,
+    required this.telegram,
+    required this.whatsapp,
+  });
+
+  factory SupportConfig.fromJson(Map<String, dynamic> json) {
+    String? read(String key) {
+      final value = json[key]?.toString().trim();
+      if (value == null || value.isEmpty) return null;
+      return value;
+    }
+
+    return SupportConfig(
+      email: read('email'),
+      telegram: read('telegram'),
+      whatsapp: read('whatsapp'),
     );
   }
 }

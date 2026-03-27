@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/widgets/custom_app_bar.dart';
 import '../../core/services/activation_service.dart';
+import '../../core/services/settings_service.dart';
 
 class ContactDeveloperScreen extends StatefulWidget {
   const ContactDeveloperScreen({super.key});
@@ -18,6 +19,11 @@ class _ContactDeveloperScreenState extends State<ContactDeveloperScreen> {
   String _agentName = '';
   String _agentPhone = '';
   String _deviceId = '';
+  SupportContactInfo _support = const SupportContactInfo(
+    email: SettingsService.defaultSupportEmail,
+    telegram: SettingsService.defaultSupportTelegram,
+    whatsapp: SettingsService.defaultSupportWhatsapp,
+  );
   bool _isLoading = true;
   bool _isSending = false;
 
@@ -32,11 +38,13 @@ class _ContactDeveloperScreenState extends State<ContactDeveloperScreen> {
       final name = await _activationService.getAgentName();
       final phone = await _activationService.getAgentPhone();
       final deviceId = await _activationService.getDeviceId();
+      final support = await SettingsService.getSupportInfo();
 
       setState(() {
         _agentName = name;
         _agentPhone = phone;
         _deviceId = deviceId;
+        _support = support;
         _isLoading = false;
       });
     } catch (e) {
@@ -89,7 +97,7 @@ class _ContactDeveloperScreenState extends State<ContactDeveloperScreen> {
     });
 
     try {
-      const email = 'mohamad.hasan.it.96@gmail.com';
+      final email = _support.email;
       const subject = 'تواصل من المندوب الذكي';
       final body = Uri.encodeComponent(_buildMessageWithDetails());
 
@@ -145,34 +153,23 @@ class _ContactDeveloperScreenState extends State<ContactDeveloperScreen> {
     });
 
     try {
-      const telegramPhone = '963983820430';
       final message = Uri.encodeComponent(_buildMessageWithDetails());
-
-      // Try native Telegram app first
-      final tgUri = Uri.parse('tg://resolve?phone=$telegramPhone&text=$message');
-
+      final separator = _support.telegram.contains('?') ? '&' : '?';
+      final telegramUrl = '${_support.telegram}$separator'
+          'text=$message';
       final launched = await launchUrl(
-        tgUri,
+        Uri.parse(telegramUrl),
         mode: LaunchMode.externalApplication,
       );
 
-      if (!launched) {
-        // Fallback to web Telegram
-        final webUri = Uri.parse('https://t.me/+$telegramPhone?text=$message');
-        final webLaunched = await launchUrl(
-          webUri,
-          mode: LaunchMode.externalApplication,
+      if (!launched && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('تعذر فتح تليجرام. يرجى نسخ الرسالة وإرسالها يدويًا.'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 4),
+          ),
         );
-
-        if (!webLaunched && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('تعذر فتح تليجرام. يرجى نسخ الرسالة وإرسالها يدويًا.'),
-              backgroundColor: Colors.orange,
-              duration: Duration(seconds: 4),
-            ),
-          );
-        }
       }
     } catch (e) {
       if (mounted) {
@@ -342,7 +339,7 @@ class _ContactDeveloperScreenState extends State<ContactDeveloperScreen> {
                       methodId: 'email',
                       title: 'البريد الإلكتروني',
                       icon: Icons.email,
-                      description: 'mohamad.hasan.it.96@gmail.com',
+                      description: _support.email,
                       isSelected: _selectedMethod == 'email',
                       onTap: () => setState(() => _selectedMethod = 'email'),
                     ),
@@ -354,7 +351,7 @@ class _ContactDeveloperScreenState extends State<ContactDeveloperScreen> {
                       methodId: 'telegram',
                       title: 'تيليجرام',
                       icon: Icons.send,
-                      description: '+963983820430',
+                      description: _support.telegram,
                       isSelected: _selectedMethod == 'telegram',
                       onTap: () => setState(() => _selectedMethod = 'telegram'),
                     ),
