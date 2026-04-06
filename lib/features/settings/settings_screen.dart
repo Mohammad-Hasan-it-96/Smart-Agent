@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
+import '../../core/theme/app_theme.dart';
 import '../../core/services/data_export_service.dart';
 import '../../core/services/contact_launcher_service.dart';
 import '../../core/services/update_service.dart';
@@ -106,9 +107,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return ChangeNotifierProvider.value(
       value: _ctrl,
       child: Scaffold(
+        backgroundColor: isDark ? const Color(0xFF0A1628) : const Color(0xFFEEF2F8),
         appBar: const CustomAppBar(
           title: 'الإعدادات',
           showNotifications: true,
@@ -117,14 +120,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
         body: Consumer<SettingsController>(
           builder: (context, ctrl, _) {
             if (ctrl.isLoading) {
-              return const Center(child: CircularProgressIndicator());
+              return Center(
+                child: CircularProgressIndicator(color: AppTheme.primaryColor),
+              );
             }
             return RefreshIndicator(
               onRefresh: ctrl.load,
+              color: AppTheme.primaryColor,
               child: ListView(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 physics: const AlwaysScrollableScrollPhysics(),
                 children: [
+                  _buildProfileHeader(ctrl, isDark),
+                  const SizedBox(height: 8),
                   _buildAccountSection(ctrl),
                   _buildSubscriptionSection(ctrl),
                   _buildOrdersSection(ctrl),
@@ -139,6 +147,215 @@ class _SettingsScreenState extends State<SettingsScreen> {
           },
         ),
       ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // 🎨  PROFILE HEADER — Glassmorphism
+  // ═══════════════════════════════════════════════════════════════════
+  Widget _buildProfileHeader(SettingsController ctrl, bool isDark) {
+    final activated = ctrl.data.isActivated;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        gradient: const LinearGradient(
+          colors: [Color(0xFF1A4275), Color(0xFF0D2A50)],
+          begin: Alignment.topRight,
+          end: Alignment.bottomLeft,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF1A4275).withValues(alpha: 0.5),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: Stack(
+          children: [
+            // Decorative circle top-right
+            Positioned(
+              top: -30, right: -30,
+              child: Container(
+                width: 120, height: 120,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withValues(alpha: 0.05),
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: -40, left: -20,
+              child: Container(
+                width: 150, height: 150,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withValues(alpha: 0.04),
+                ),
+              ),
+            ),
+            // Content
+            Padding(
+              padding: const EdgeInsets.all(22),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      // Avatar
+                      Container(
+                        width: 64,
+                        height: 64,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(20),
+                          color: Colors.white.withValues(alpha: 0.15),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.3),
+                            width: 2,
+                          ),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(18),
+                          child: Image.asset(
+                            'assets/images/app_logo.png',
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Center(
+                              child: Text(
+                                ctrl.data.agentName.isNotEmpty
+                                    ? ctrl.data.agentName[0].toUpperCase()
+                                    : 'م',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 26,
+                                  fontWeight: FontWeight.bold,
+                                  fontFamily: 'Cairo',
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      // Info
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              ctrl.data.agentName.isEmpty
+                                  ? 'المندوب'
+                                  : ctrl.data.agentName,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                fontFamily: 'Cairo',
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            if (ctrl.data.agentPhone.isNotEmpty) ...[
+                              const SizedBox(height: 3),
+                              Row(
+                                children: [
+                                  Icon(Icons.phone_outlined,
+                                      size: 13,
+                                      color: Colors.white.withValues(alpha: 0.65)),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    ctrl.data.agentPhone,
+                                    style: TextStyle(
+                                      color: Colors.white.withValues(alpha: 0.75),
+                                      fontSize: 13,
+                                      fontFamily: 'Cairo',
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      // Edit button
+                      GestureDetector(
+                        onTap: () => _showEditAccountSheet(ctrl),
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.2),
+                            ),
+                          ),
+                          child: const Icon(Icons.edit_rounded,
+                              color: Colors.white, size: 18),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  // Status strip
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.1),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        _profileStat(
+                          Icons.shield_outlined,
+                          activated ? 'مفعّل ✓' : 'غير مفعّل',
+                          activated ? Colors.greenAccent : Colors.orangeAccent,
+                        ),
+                        Container(width: 1, height: 28,
+                            color: Colors.white.withValues(alpha: 0.2)),
+                        _profileStat(
+                          Icons.workspace_premium_outlined,
+                          _planLabel(ctrl.data.selectedPlan),
+                          const Color(0xFFB8C4CE),
+                        ),
+                        Container(width: 1, height: 28,
+                            color: Colors.white.withValues(alpha: 0.2)),
+                        _profileStat(
+                          Icons.event_outlined,
+                          _formatExpiry(ctrl.data.expiresAt),
+                          const Color(0xFFB8C4CE),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _profileStat(IconData icon, String value, Color color) {
+    return Column(
+      children: [
+        Icon(icon, color: color, size: 16),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: TextStyle(
+            color: color,
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+            fontFamily: 'Cairo',
+          ),
+        ),
+      ],
     );
   }
 

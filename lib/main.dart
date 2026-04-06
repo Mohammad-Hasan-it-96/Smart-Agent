@@ -26,6 +26,7 @@ import 'features/activation/agent_registration_screen.dart';
 import 'core/services/push_notification_service.dart';
 import 'core/services/file_import_handler.dart';
 import 'features/settings/notification_history_screen.dart';
+import 'features/search/search_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -159,6 +160,8 @@ class _MyAppState extends State<MyApp> {
               case '/notifications':
                 page = const NotificationHistoryScreen();
                 break;
+              case '/search':
+                return MaterialPageRoute(builder: (_) => const SearchScreen());
               default:
                 return MaterialPageRoute(builder: (_) => const HomeScreen());
             }

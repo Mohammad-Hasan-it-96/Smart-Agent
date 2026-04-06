@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
+import '../../core/theme/app_theme.dart';
 import '../../core/widgets/custom_app_bar.dart';
 import '../../core/widgets/update_dialog.dart';
 import '../../core/utils/slide_page_route.dart';
@@ -13,6 +14,7 @@ import '../pharmacies/pharmacies_screen.dart';
 import '../orders/new_order_screen.dart';
 import '../orders/orders_list_screen.dart';
 import '../settings/settings_screen.dart';
+import '../search/search_screen.dart';
 import 'home_controller.dart';
 
 /// Global RouteObserver — register once in MaterialApp's navigatorObservers.
@@ -109,13 +111,15 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
     });
   }
 
-  // ─── BUILD ────────────────────────────────────────────────────────
-
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return ChangeNotifierProvider.value(
       value: _ctrl,
       child: Scaffold(
+        backgroundColor: isDark ? const Color(0xFF0A1628) : const Color(0xFFEEF2F8),
         appBar: CustomAppBar(
           title: 'المندوب الذكي',
           automaticallyImplyLeading: false,
@@ -125,32 +129,43 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
             if (_ctrl.status == AccountStatus.trial)
               Container(
                 margin: const EdgeInsets.only(left: 8),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Colors.orange,
+                  color: Colors.orange.withValues(alpha: 0.9),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Text(
                   'تجريبية',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
                 ),
               ),
           ],
         ),
+        // Search FAB
+        floatingActionButton: FloatingActionButton.extended(
+          onPressed: () => _navigate(const SearchScreen()),
+          icon: const Icon(Icons.search_rounded),
+          label: const Text('بحث', style: TextStyle(fontWeight: FontWeight.bold)),
+          backgroundColor: AppTheme.primaryColor,
+          foregroundColor: Colors.white,
+          elevation: 6,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        ),
         body: Consumer<HomeController>(
           builder: (context, ctrl, _) {
             if (ctrl.isLoading) {
-              return const Center(child: CircularProgressIndicator());
+              return Center(
+                child: CircularProgressIndicator(
+                  color: AppTheme.primaryColor,
+                  strokeWidth: 3,
+                ),
+              );
             }
             return RefreshIndicator(
               onRefresh: ctrl.load,
+              color: AppTheme.primaryColor,
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
                 physics: const AlwaysScrollableScrollPhysics(),
                 children: [
                   _buildGreetingHeader(ctrl),
@@ -161,16 +176,16 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                   if (!ctrl.hideCarousel) ...[
                     const SizedBox(height: 16),
                     _buildCarousel(context),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 10),
                     _buildDots(),
                   ],
-                  const SizedBox(height: 20),
-                  _buildSectionTitle('ابدأ من هنا'),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 24),
+                  _buildSectionTitle('ابدأ من هنا', Icons.grid_view_rounded),
+                  const SizedBox(height: 14),
                   _buildMenuGrid(context),
                   const SizedBox(height: 24),
-                  _buildSectionTitle('ملخص اليوم'),
-                  const SizedBox(height: 12),
+                  _buildSectionTitle('ملخص اليوم', Icons.bar_chart_rounded),
+                  const SizedBox(height: 14),
                   _buildStatsRow(ctrl),
                 ],
               ),
@@ -182,83 +197,129 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
   }
 
   // ═══════════════════════════════════════════════════════════════════
-  //  GREETING HEADER
+  //  GREETING HEADER — Glassmorphism
   // ═══════════════════════════════════════════════════════════════════
 
   Widget _buildGreetingHeader(HomeController ctrl) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
     final name = ctrl.agentName.isNotEmpty ? ctrl.agentName : 'المندوب';
 
     return Container(
-      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: isDark
-              ? [const Color(0xFF1A237E), const Color(0xFF283593)]
-              : [theme.colorScheme.primary, theme.colorScheme.primary.withValues(alpha: 0.8)],
+        borderRadius: BorderRadius.circular(24),
+        gradient: const LinearGradient(
+          colors: [Color(0xFF1A4275), Color(0xFF0D2A50)],
           begin: Alignment.topRight,
           end: Alignment.bottomLeft,
         ),
-        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: theme.colorScheme.primary.withValues(alpha: 0.3),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+            color: const Color(0xFF1A4275).withValues(alpha: 0.45),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
-      child: Row(
-        children: [
-          // Logo
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(14),
-              child: Image.asset(
-                'assets/images/app_logo.png',
-                width: 52,
-                height: 52,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) =>
-                    const Icon(Icons.person, color: Colors.white, size: 28),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: Stack(
+          children: [
+            // Decorative circles
+            Positioned(
+              top: -30,
+              right: -30,
+              child: Container(
+                width: 130,
+                height: 130,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withValues(alpha: 0.05),
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 14),
-          // Text
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'أهلاً، $name 👋',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+            Positioned(
+              bottom: -40,
+              left: -20,
+              child: Container(
+                width: 160,
+                height: 160,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withValues(alpha: 0.04),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  _greetingByTime(),
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: Colors.white.withValues(alpha: 0.85),
-                  ),
-                ),
-              ],
+              ),
             ),
-          ),
-          // Status badge
-          _buildStatusBadge(ctrl.status),
-        ],
+            // Glass overlay panel
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Row(
+                children: [
+                  // Logo avatar
+                  Container(
+                    width: 58,
+                    height: 58,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.3),
+                        width: 1.5,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.2),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(14),
+                      child: Image.asset(
+                        'assets/images/app_logo.png',
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const Icon(
+                          Icons.person_rounded,
+                          color: Colors.white,
+                          size: 28,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  // Text
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'أهلاً، $name 👋',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            fontFamily: 'Cairo',
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _greetingByTime(),
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.75),
+                            fontSize: 13,
+                            fontFamily: 'Cairo',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Status badge
+                  _buildStatusBadge(ctrl.status),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -310,22 +371,24 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
   }
 
   // ═══════════════════════════════════════════════════════════════════
-  //  CAROUSEL
+  //  CAROUSEL — Glassmorphism slides
   // ═══════════════════════════════════════════════════════════════════
 
   Widget _buildCarousel(BuildContext context) {
-    final theme = Theme.of(context);
     final slides = [
       _Slide('مرحباً بك أيها المندوب!', 'نظام إدارة الطلبيات الذكي',
-          Icons.rocket_launch_rounded, [theme.colorScheme.primary, theme.colorScheme.secondary]),
+          Icons.rocket_launch_rounded,
+          [const Color(0xFF1A4275), const Color(0xFF2563A8)]),
       _Slide('سجل الطلبيات بسهولة', 'إنشاء وإدارة الطلبيات بضغطة واحدة',
-          Icons.shopping_cart_rounded, [const Color(0xFF00897B), const Color(0xFF26A69A)]),
+          Icons.shopping_cart_rounded,
+          [const Color(0xFF006450), const Color(0xFF00897B)]),
       _Slide('إدارة الأدوية والشركات', 'تنظيم كامل لقاعدة بياناتك',
-          Icons.medication_rounded, [const Color(0xFF7B1FA2), const Color(0xFFAB47BC)]),
+          Icons.medication_rounded,
+          [const Color(0xFF5B2C8D), const Color(0xFF7B1FA2)]),
     ];
 
     return SizedBox(
-      height: 170,
+      height: 158,
       child: Stack(
         children: [
           PageView.builder(
@@ -337,48 +400,91 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
               return Container(
                 margin: const EdgeInsets.symmetric(horizontal: 2),
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(18),
+                  borderRadius: BorderRadius.circular(22),
                   gradient: LinearGradient(
                     colors: s.colors,
                     begin: Alignment.topRight,
                     end: Alignment.bottomLeft,
                   ),
-                ),
-                padding: const EdgeInsets.all(22),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(s.title,
-                              style: theme.textTheme.titleMedium
-                                  ?.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
-                          const SizedBox(height: 6),
-                          Text(s.subtitle,
-                              style: theme.textTheme.bodyMedium
-                                  ?.copyWith(color: Colors.white.withValues(alpha: 0.9))),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Icon(s.icon, size: 40, color: Colors.white),
+                  boxShadow: [
+                    BoxShadow(
+                      color: s.colors[0].withValues(alpha: 0.4),
+                      blurRadius: 18,
+                      offset: const Offset(0, 6),
                     ),
                   ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(22),
+                  child: Stack(
+                    children: [
+                      Positioned(
+                        top: -20,
+                        right: -20,
+                        child: Container(
+                          width: 100,
+                          height: 100,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.white.withValues(alpha: 0.06),
+                          ),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    s.title,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      fontFamily: 'Cairo',
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    s.subtitle,
+                                    style: TextStyle(
+                                      color: Colors.white.withValues(alpha: 0.85),
+                                      fontSize: 13,
+                                      fontFamily: 'Cairo',
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(18),
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.2),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Icon(s.icon, size: 36, color: Colors.white),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               );
             },
           ),
           // Close button
           Positioned(
-            top: 6,
-            right: 8,
+            top: 8,
+            right: 10,
             child: GestureDetector(
               onTap: () {
                 _timer?.cancel();
@@ -387,10 +493,10 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
               child: Container(
                 padding: const EdgeInsets.all(5),
                 decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.3),
+                  color: Colors.black.withValues(alpha: 0.25),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.close, size: 16, color: Colors.white),
+                child: const Icon(Icons.close_rounded, size: 14, color: Colors.white),
               ),
             ),
           ),
@@ -400,21 +506,20 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
   }
 
   Widget _buildDots() {
-    final theme = Theme.of(context);
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: List.generate(3, (i) {
         final active = _currentPage == i;
         return AnimatedContainer(
           duration: const Duration(milliseconds: 300),
-          width: active ? 22 : 7,
+          width: active ? 24 : 7,
           height: 7,
           margin: const EdgeInsets.symmetric(horizontal: 3),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(4),
             color: active
-                ? theme.colorScheme.primary
-                : theme.colorScheme.primary.withValues(alpha: 0.25),
+                ? AppTheme.primaryColor
+                : AppTheme.primaryColor.withValues(alpha: 0.2),
           ),
         );
       }),
@@ -422,25 +527,24 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
   }
 
   // ═══════════════════════════════════════════════════════════════════
-  //  STATS ROW
+  //  STATS ROW — Glassmorphism cards
   // ═══════════════════════════════════════════════════════════════════
 
   Widget _buildStatsRow(HomeController ctrl) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Column(
       children: [
         Row(
           children: [
             _statCard('طلبيات اليوم', '${ctrl.stats.todayOrders}',
-                Icons.today_rounded, const Color(0xFF1E88E5), isDark),
+                Icons.today_rounded, const Color(0xFF1A4275), isDark),
             const SizedBox(width: 10),
-            _statCard('إجمالي الطلبيات', '${ctrl.stats.totalOrders}',
-                Icons.receipt_long_rounded, const Color(0xFF43A047), isDark),
+            _statCard('الإجمالي', '${ctrl.stats.totalOrders}',
+                Icons.receipt_long_rounded, const Color(0xFF00897B), isDark),
             const SizedBox(width: 10),
             _statCard('الصيدليات', '${ctrl.stats.activePharmacies}',
-                Icons.local_pharmacy_rounded, const Color(0xFF8E24AA), isDark),
+                Icons.local_pharmacy_rounded, const Color(0xFF7B1FA2), isDark),
           ],
         ),
         const SizedBox(height: 10),
@@ -450,9 +554,8 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                 Icons.medication_rounded, const Color(0xFFE53935), isDark),
             const SizedBox(width: 10),
             _statCard('الشركات', '${ctrl.stats.totalCompanies}',
-                Icons.business_rounded, const Color(0xFF7B1FA2), isDark),
+                Icons.business_rounded, const Color(0xFF2563A8), isDark),
             const SizedBox(width: 10),
-            // Spacer card to keep 3-column layout balanced
             const Expanded(child: SizedBox()),
           ],
         ),
@@ -460,28 +563,38 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
     );
   }
 
-  Widget _statCard(
-      String label, String value, IconData icon, Color color, bool isDark) {
-    final theme = Theme.of(context);
+  Widget _statCard(String label, String value, IconData icon, Color color, bool isDark) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF7F8FA),
-          borderRadius: BorderRadius.circular(16),
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.06)
+              : Colors.white,
+          borderRadius: BorderRadius.circular(18),
           border: Border.all(
             color: isDark
-                ? Colors.white12
-                : theme.colorScheme.primary.withValues(alpha: 0.08),
+                ? Colors.white.withValues(alpha: 0.1)
+                : color.withValues(alpha: 0.12),
+            width: 1,
           ),
+          boxShadow: isDark
+              ? []
+              : [
+                  BoxShadow(
+                    color: color.withValues(alpha: 0.08),
+                    blurRadius: 14,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
         ),
         child: Column(
           children: [
             Container(
-              padding: const EdgeInsets.all(7),
+              padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
                 color: color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(icon, color: color, size: 18),
             ),
@@ -489,17 +602,19 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
             Text(
               value,
               style: TextStyle(
-                fontSize: 18,
+                fontSize: 20,
                 fontWeight: FontWeight.bold,
                 color: color,
+                fontFamily: 'Cairo',
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 3),
             Text(
               label,
               style: TextStyle(
                 fontSize: 10,
-                color: isDark ? Colors.grey[400] : Colors.grey[600],
+                color: isDark ? const Color(0xFF8096AA) : const Color(0xFF8096AA),
+                fontFamily: 'Cairo',
               ),
               textAlign: TextAlign.center,
               maxLines: 1,
@@ -515,85 +630,80 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
   //  SECTION TITLE
   // ═══════════════════════════════════════════════════════════════════
 
-  Widget _buildSectionTitle(String text) {
-    final theme = Theme.of(context);
+  Widget _buildSectionTitle(String text, IconData icon) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Row(
       children: [
         Container(
-          width: 4,
-          height: 20,
+          padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
-            color: theme.colorScheme.primary,
-            borderRadius: BorderRadius.circular(2),
+            color: AppTheme.primaryColor.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(10),
           ),
+          child: Icon(icon, color: AppTheme.primaryColor, size: 16),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: 10),
         Text(
           text,
-          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: isDark ? Colors.white : const Color(0xFF0D1F35),
+            fontFamily: 'Cairo',
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildSectionHint({required IconData icon, required String text}) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.primary.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 16, color: theme.colorScheme.primary),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(
-              text,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.primary,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildTrialWarningCta() {
-    final theme = Theme.of(context);
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.orange.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.orange.withValues(alpha: 0.45)),
+        gradient: LinearGradient(
+          colors: [
+            Colors.orange.withValues(alpha: 0.15),
+            Colors.orange.withValues(alpha: 0.05),
+          ],
+          begin: Alignment.topRight,
+          end: Alignment.bottomLeft,
+        ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.orange.withValues(alpha: 0.4)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text(
-            'أنت تستخدم النسخة التجريبية حالياً',
-            textDirection: TextDirection.rtl,
-            style: TextStyle(
-              fontSize: 14.5,
-              fontWeight: FontWeight.w700,
-            ),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(7),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.info_outline_rounded, color: Colors.orange, size: 18),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text(
+                  'أنت تستخدم النسخة التجريبية حالياً',
+                  textDirection: TextDirection.rtl,
+                  style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           FilledButton.icon(
             onPressed: () => Navigator.of(context).pushNamed('/subscription-plans'),
-            icon: const Icon(Icons.workspace_premium_rounded),
-            label: const Text(
-              'اختيار باقة والاشتراك',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
+            icon: const Icon(Icons.workspace_premium_rounded, size: 18),
+            label: const Text('اختيار باقة والاشتراك', style: TextStyle(fontWeight: FontWeight.bold)),
             style: FilledButton.styleFrom(
-              backgroundColor: theme.colorScheme.primary,
+              backgroundColor: AppTheme.primaryColor,
               foregroundColor: Colors.white,
-              minimumSize: const Size(double.infinity, 48),
+              minimumSize: const Size(double.infinity, 46),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
           ),
         ],
@@ -602,22 +712,21 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
   }
 
   // ═══════════════════════════════════════════════════════════════════
-  //  MENU GRID
+  //  MENU GRID — Glassmorphism tiles
   // ═══════════════════════════════════════════════════════════════════
 
   Widget _buildMenuGrid(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     final items = [
       _Menu('طلبية جديدة', Icons.add_shopping_cart_rounded,
           const Color(0xFF00897B), () => _navigate(const NewOrderScreen())),
       _Menu('الطلبيات', Icons.receipt_long_rounded,
-          const Color(0xFF1E88E5), () => _navigate(const OrdersListScreen())),
+          const Color(0xFF1A4275), () => _navigate(const OrdersListScreen())),
       _Menu('الأدوية', Icons.medication_rounded,
           const Color(0xFFE53935), () => _navigate(const MedicinesScreen())),
       _Menu('الشركات', Icons.business_rounded,
-          const Color(0xFF7B1FA2), () => _navigate(const CompaniesScreen())),
+          const Color(0xFF2563A8), () => _navigate(const CompaniesScreen())),
       _Menu('الصيدليات', Icons.local_pharmacy_rounded,
           const Color(0xFFFF8F00), () => _navigate(const PharmaciesScreen())),
       _Menu('الإعدادات', Icons.settings_rounded,
@@ -629,7 +738,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 3,
-        childAspectRatio: 0.92,
+        childAspectRatio: 0.9,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
       ),
@@ -640,18 +749,23 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
           onTap: item.onTap,
           child: Container(
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-              borderRadius: BorderRadius.circular(18),
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.06)
+                  : Colors.white,
+              borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.06),
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.1)
+                    : item.color.withValues(alpha: 0.12),
+                width: 1,
               ),
               boxShadow: isDark
                   ? []
                   : [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.04),
-                        blurRadius: 10,
-                        offset: const Offset(0, 3),
+                        color: item.color.withValues(alpha: 0.10),
+                        blurRadius: 16,
+                        offset: const Offset(0, 4),
                       ),
                     ],
             ),
@@ -659,18 +773,21 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(13),
                   decoration: BoxDecoration(
                     color: item.color.withValues(alpha: isDark ? 0.18 : 0.10),
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(16),
                   ),
-                  child: Icon(item.icon, color: item.color, size: 28),
+                  child: Icon(item.icon, color: item.color, size: 26),
                 ),
                 const SizedBox(height: 10),
                 Text(
                   item.label,
-                  style: theme.textTheme.bodyMedium?.copyWith(
+                  style: TextStyle(
+                    fontSize: 13,
                     fontWeight: FontWeight.w600,
+                    color: isDark ? Colors.white : const Color(0xFF0D1F35),
+                    fontFamily: 'Cairo',
                   ),
                   textAlign: TextAlign.center,
                   maxLines: 2,

@@ -463,4 +463,51 @@ class DatabaseHelper {
       where: "TRIM(COALESCE(title, '')) = '' OR TRIM(COALESCE(body, '')) = ''",
     );
   }
+
+  // ── Global Search Helpers ──────────────────────────────────────────
+
+  /// Search medicines by name, joining company name.
+  Future<List<Map<String, dynamic>>> searchMedicines(String query,
+      {int limit = 50}) async {
+    final db = await database;
+    final q = '%$query%';
+    return db.rawQuery('''
+      SELECT m.id, m.name, m.source, m.form, m.notes,
+             m.price_usd, m.price_syp,
+             c.name AS company_name
+      FROM medicines m
+      LEFT JOIN companies c ON m.company_id = c.id
+      WHERE m.name LIKE ?
+      ORDER BY m.name ASC
+      LIMIT ?
+    ''', [q, limit]);
+  }
+
+  /// Search companies by name.
+  Future<List<Map<String, dynamic>>> searchCompanies(String query,
+      {int limit = 30}) async {
+    final db = await database;
+    final q = '%$query%';
+    return db.query(
+      'companies',
+      where: 'name LIKE ?',
+      whereArgs: [q],
+      orderBy: 'name ASC',
+      limit: limit,
+    );
+  }
+
+  /// Search pharmacies by name or address.
+  Future<List<Map<String, dynamic>>> searchPharmacies(String query,
+      {int limit = 30}) async {
+    final db = await database;
+    final q = '%$query%';
+    return db.query(
+      'pharmacies',
+      where: 'name LIKE ? OR address LIKE ?',
+      whereArgs: [q, q],
+      orderBy: 'name ASC',
+      limit: limit,
+    );
+  }
 }
