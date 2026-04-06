@@ -43,7 +43,6 @@ dependencies:
   share_plus: ^10.1.2
   file_picker: ^8.1.4
 
-  flutter_native_splash: ^2.3.10
 
   # Push notifications
   firebase_core: ^3.15.2
@@ -60,18 +59,9 @@ flutter_icons:
   android: true
   ios: true
   image_path: "assets/images/app_logo.png"
-  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_background: "#1B3A6B"
   adaptive_icon_foreground: "assets/images/app_logo_safe.png"
 
-flutter_native_splash:
-  color: "#FFFFFF"
-  image: assets/images/app_logo.png
-  android: true
-  ios: true
-  web: false
-  android_12:
-    image: assets/images/app_logo_safe.png
-    icon_background_color: "#FFFFFF"
 
 flutter:
   uses-material-design: true

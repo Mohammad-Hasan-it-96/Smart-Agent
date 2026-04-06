@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#FFFFFF</color>
+    <color name="ic_launcher_background">#1B3A6B</color>
+    <!-- Matches Flutter SplashScreen gradient top (_bgTop = 0xFF1E3F73)
+         blended with the system splash bg. Close enough that the transition
+         from system splash → window background → Flutter is invisible. -->
+    <color name="splash_bg">#1B3A6B</color>
 </resources>

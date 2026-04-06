@@ -1,9 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Simple solid colour that matches the Flutter SplashScreen gradient top colour.
+     No logo here — avoids the "double splash" effect.
+     The system splash (installSplashScreen) shows the icon.
+     The Flutter widget shows the animated logo. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item>
-        <bitmap android:gravity="fill" android:src="@drawable/background"/>
-    </item>
-    <item>
-        <bitmap android:gravity="center" android:src="@drawable/splash"/>
-    </item>
+    <item android:drawable="@color/splash_bg"/>
 </layer-list>

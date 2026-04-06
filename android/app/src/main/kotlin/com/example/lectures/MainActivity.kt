@@ -5,6 +5,8 @@ import android.content.ClipData
 import android.content.Intent
 import android.net.Uri
 import android.content.pm.PackageManager
+import android.os.Bundle
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -19,6 +21,15 @@ class MainActivity : FlutterActivity() {
     private var pendingFileBytes: ByteArray? = null
     private var pendingFileName: String? = null
     private var fileImportEventSink: EventChannel.EventSink? = null
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        // MUST be called before super.onCreate() so the SplashScreen compat library
+        // owns the system splash on Android 12+ and hands control to flutter_native_splash.
+        // Without this, Android 12 shows its own default white splash FIRST,
+        // creating the double-splash effect.
+        installSplashScreen()
+        super.onCreate(savedInstanceState)
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)

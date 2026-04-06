@@ -12,58 +12,97 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
+  // ── Brand colours ──────────────────────────────────────────────────────────
+  static const Color _bgTop    = Color(0xFF1E3F73);
+  static const Color _bgBottom = Color(0xFF0B1D3A);
+  static const Color _glow     = Color(0xFF4A8FD4);
+
   final ActivationService _activationService = ActivationService();
-  late AnimationController _controller;
-  late Animation<double> _scaleAnimation;
-  late Animation<double> _opacityAnimation;
-  bool _showAppName = false;
+
+  // Logo bounce
+  late AnimationController _logoCtrl;
+  late Animation<double>    _scale;
+  late Animation<double>    _logoOpacity;
+
+  // Pulsing ring (starts after logo lands)
+  late AnimationController _pulseCtrl;
+  late Animation<double>    _pulseScale;
+  late Animation<double>    _pulseOpacity;
+
+  // Text reveal
+  late AnimationController  _textCtrl;
+  late Animation<double>    _textOpacity;
+  late Animation<Offset>    _textSlide;
 
   @override
   void initState() {
     super.initState();
 
-    // Initialize animation controller
-    _controller = AnimationController(
+    // ── Logo bounce controller (1 300 ms) ───────────────────────────────────
+    _logoCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1100),
+      duration: const Duration(milliseconds: 1300),
     );
 
-    // Scale animation: 0.0 -> 1.0
-    _scaleAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(
+    // 0 → 1.18 (fast grow-up) → 0.93 (pull back) → 1.0 (settle)
+    _scale = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween(begin: 0.0, end: 1.18)
+            .chain(CurveTween(curve: Curves.easeOutCubic)),
+        weight: 60,
+      ),
+      TweenSequenceItem(
+        tween: Tween(begin: 1.18, end: 0.93)
+            .chain(CurveTween(curve: Curves.easeInOut)),
+        weight: 22,
+      ),
+      TweenSequenceItem(
+        tween: Tween(begin: 0.93, end: 1.0)
+            .chain(CurveTween(curve: Curves.easeOut)),
+        weight: 18,
+      ),
+    ]).animate(_logoCtrl);
+
+    _logoOpacity = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.0, 0.8, curve: Curves.easeOutCubic),
+        parent: _logoCtrl,
+        curve: const Interval(0.0, 0.30, curve: Curves.easeIn),
       ),
     );
 
-    // Opacity animation: 0.0 -> 1.0
-    _opacityAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.0, 0.8, curve: Curves.easeIn),
-      ),
+    // ── Pulse ring controller (1 800 ms, repeating) ─────────────────────────
+    _pulseCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1800),
+    );
+    _pulseScale = Tween<double>(begin: 1.0, end: 1.55).animate(
+      CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeOut),
+    );
+    _pulseOpacity = Tween<double>(begin: 0.55, end: 0.0).animate(
+      CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeOut),
     );
 
-    // Start animations
-    _controller.forward();
+    // ── Text reveal controller (700 ms) ─────────────────────────────────────
+    _textCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    );
+    _textOpacity = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _textCtrl, curve: Curves.easeIn),
+    );
+    _textSlide = Tween<Offset>(
+      begin: const Offset(0, 0.45),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _textCtrl, curve: Curves.easeOutCubic));
 
-    // Show app name after logo animation starts
-    Timer(const Duration(milliseconds: 400), () {
-      if (mounted) {
-        setState(() {
-          _showAppName = true;
-        });
-      }
+    // Start logo → then pulse + text
+    _logoCtrl.forward().then((_) {
+      _pulseCtrl.repeat();
+      _textCtrl.forward();
     });
 
-    // Navigate after animation completes
+
     _navigateToNextScreen();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -74,92 +113,70 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   void dispose() {
-    _controller.dispose();
+    _logoCtrl.dispose();
+    _pulseCtrl.dispose();
+    _textCtrl.dispose();
     super.dispose();
   }
 
+  // ── Navigation (unchanged logic) ───────────────────────────────────────────
   Future<void> _navigateToNextScreen() async {
-    // Wait for animation to complete (1100ms) + small delay
-    await Future.delayed(const Duration(milliseconds: 1300));
-
+    await Future.delayed(const Duration(milliseconds: 2400));
     if (!mounted) return;
 
-    // Check if onboarding has been completed
     final prefs = await SharedPreferences.getInstance();
     final onboardingCompleted = prefs.getBool('onboarding_completed') ?? false;
-
     if (!mounted) return;
 
-    // If onboarding not completed, show onboarding first
     if (!onboardingCompleted) {
       Navigator.of(context).pushReplacementNamed('/onboarding');
       return;
     }
 
-    // Check if agent data exists
     final hasAgentData = await _activationService.hasAgentData();
-
     if (!mounted) return;
 
-    // If no agent data, navigate to registration screen
     if (!hasAgentData) {
       Navigator.of(context).pushReplacementNamed('/agent-registration');
       return;
     }
 
-    // Ensure token registration retries after agent data becomes available.
     await PushNotificationService.instance.retryTokenSync();
 
-    // Check for time tampering first
     final timeTampered = await _activationService.checkTimeTampering();
     if (timeTampered && mounted) {
-      // Show time tampering dialog
       await _showTimeTamperingDialog();
       return;
     }
 
-    // Check offline limit before attempting connection
     final offlineLimitExceeded = await _activationService.isOfflineLimitExceeded();
     if (offlineLimitExceeded && mounted) {
-      // Redirect to offline limit screen
       Navigator.of(context).pushReplacementNamed('/offline-limit');
       return;
     }
 
-    // Update device status from server (sync expires_at)
-    // This should be called on every app startup
     try {
       await _activationService.checkDeviceStatus();
-    } catch (e) {
-      // If connection fails, continue with cached activation status
-      // This allows offline operation within the 72-hour limit
-    }
+    } catch (_) {}
 
     if (!mounted) return;
 
-    // Check activation status (this now uses expires_at from server)
     final isActivated = await _activationService.isActivated();
-
     if (!mounted) return;
 
-    // Check if license has expired (using server-provided expires_at)
     final licenseExpired = await _activationService.isLicenseExpired();
     if (licenseExpired) {
-      // License expired - redirect to subscription plans screen
       Navigator.of(context).pushReplacementNamed('/trial-expired-plans');
       return;
     }
 
-    // Check if trial has expired
     final trialExpired = await _activationService.hasTrialExpired();
     if (trialExpired) {
-      // Disable trial mode and redirect to trial expired plans screen
       await _activationService.disableTrialMode();
       Navigator.of(context).pushReplacementNamed('/trial-expired-plans');
       return;
     }
 
-    // Navigate based on activation status
     if (isActivated) {
       Navigator.of(context).pushReplacementNamed('/home');
     } else {
@@ -167,127 +184,151 @@ class _SplashScreenState extends State<SplashScreen>
     }
   }
 
+  // ── Build ───────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final primaryColor = theme.colorScheme.primary;
-    final backgroundColor =
-        isDark ? theme.scaffoldBackgroundColor : theme.colorScheme.surface;
-
     return Scaffold(
-      backgroundColor: backgroundColor,
       body: Container(
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: isDark
-                ? [
-                    backgroundColor,
-                    backgroundColor.withValues(alpha: 0.95),
-                  ]
-                : [
-                    primaryColor.withValues(alpha: 0.1),
-                    primaryColor.withValues(alpha: 0.05),
-                  ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [_bgTop, _bgBottom],
           ),
         ),
-        child: Center(
+        child: SafeArea(
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Animated Logo with Glowing Background
-              AnimatedBuilder(
-                animation: _controller,
-                builder: (context, child) {
-                  return Transform.scale(
-                    scale: _scaleAnimation.value,
-                    child: Opacity(
-                      opacity: _opacityAnimation.value,
-                      child: Container(
-                        width: 140,
-                        height: 140,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: RadialGradient(
-                            colors: [
-                              primaryColor.withValues(alpha: 0.3),
-                              primaryColor.withValues(alpha: 0.1),
-                              Colors.transparent,
-                            ],
-                            stops: const [0.0, 0.6, 1.0],
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: primaryColor.withValues(alpha: 0.4),
-                              blurRadius: 30,
-                              spreadRadius: 5,
-                            ),
-                            BoxShadow(
-                              color: primaryColor.withValues(alpha: 0.2),
-                              blurRadius: 60,
-                              spreadRadius: 10,
-                            ),
-                          ],
-                        ),
-                        child: Center(
-                          child: Icon(
-                            Icons.shopping_cart_rounded,
-                            size: 80,
-                            color: primaryColor,
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
+              const Spacer(flex: 2),
 
-              const SizedBox(height: 32),
+              // ── Animated logo ──────────────────────────────────────────────
+              Center(
+                child: AnimatedBuilder(
+                  animation: Listenable.merge([_logoCtrl, _pulseCtrl]),
+                  builder: (context, _) {
+                    return SizedBox(
+                      width: 220,
+                      height: 220,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          // Expanding pulse ring
+                          Transform.scale(
+                            scale: _pulseScale.value,
+                            child: Opacity(
+                              opacity: _pulseOpacity.value * _logoOpacity.value,
+                              child: Container(
+                                width: 168,
+                                height: 168,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: _glow,
+                                    width: 2.5,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
 
-              // App Name with Fade Animation
-              AnimatedOpacity(
-                opacity: _showAppName ? 1.0 : 0.0,
-                duration: const Duration(milliseconds: 600),
-                curve: Curves.easeIn,
-                child: TweenAnimationBuilder<double>(
-                  tween: Tween(begin: 0.0, end: _showAppName ? 1.0 : 0.0),
-                  duration: const Duration(milliseconds: 600),
-                  curve: Curves.easeOut,
-                  builder: (context, value, child) {
-                    return Transform.translate(
-                      offset: Offset(0, 20 * (1 - value)),
-                      child: Text(
-                        'المندوب الذكي',
-                        style: TextStyle(
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
-                          color: isDark
-                              ? theme.colorScheme.onSurface
-                              : primaryColor,
-                          letterSpacing: 1.2,
-                        ),
-                        textDirection: TextDirection.rtl,
+                          // Soft glow backdrop
+                          Opacity(
+                            opacity: _logoOpacity.value,
+                            child: Container(
+                              width: 158,
+                              height: 158,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(36),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: _glow.withValues(alpha: 0.55),
+                                    blurRadius: 45,
+                                    spreadRadius: 8,
+                                  ),
+                                  BoxShadow(
+                                    color: _glow.withValues(alpha: 0.25),
+                                    blurRadius: 90,
+                                    spreadRadius: 24,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+
+                          // Logo image with bounce scale
+                          Transform.scale(
+                            scale: _scale.value,
+                            child: Opacity(
+                              opacity: _logoOpacity.value,
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(32),
+                                child: Image.asset(
+                                  'assets/images/app_logo.png',
+                                  width: 152,
+                                  height: 152,
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     );
                   },
                 ),
               ),
 
-              const SizedBox(height: 48),
+              const SizedBox(height: 36),
 
-              // Subtle Loading Indicator (appears after logo animation)
-              AnimatedOpacity(
-                opacity: _showAppName ? 1.0 : 0.0,
-                duration: const Duration(milliseconds: 400),
-                child: SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2.5,
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      primaryColor.withValues(alpha: 0.7),
+              // ── App name reveal ────────────────────────────────────────────
+              FadeTransition(
+                opacity: _textOpacity,
+                child: SlideTransition(
+                  position: _textSlide,
+                  child: Column(
+                    children: [
+                      const Text(
+                        'المندوب الذكي',
+                        textDirection: TextDirection.rtl,
+                        style: TextStyle(
+                          fontSize: 30,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          letterSpacing: 1.4,
+                          fontFamily: 'Cairo',
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'SMART  AGENT',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.white.withValues(alpha: 0.55),
+                          letterSpacing: 4,
+                          fontFamily: 'Cairo',
+                          fontWeight: FontWeight.w400,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const Spacer(flex: 2),
+
+              // ── Bottom loading indicator ───────────────────────────────────
+              FadeTransition(
+                opacity: _textOpacity,
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 52),
+                  child: SizedBox(
+                    width: 28,
+                    height: 28,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        Colors.white.withValues(alpha: 0.45),
+                      ),
                     ),
                   ),
                 ),
@@ -299,6 +340,7 @@ class _SplashScreenState extends State<SplashScreen>
     );
   }
 
+  // ── Time-tampering dialog (unchanged) ──────────────────────────────────────
   Future<void> _showTimeTamperingDialog() async {
     await showDialog(
       context: context,
@@ -317,18 +359,11 @@ class _SplashScreenState extends State<SplashScreen>
           TextButton(
             onPressed: () async {
               Navigator.of(context).pop();
-              // Try to reconnect to server
               try {
                 await _activationService.checkDeviceStatus();
-                // Clear tampering flag if reconnection successful
                 await _activationService.clearTimeTamperingFlag();
-              } catch (e) {
-                // Connection failed - tampering flag remains
-              }
-              // Retry navigation
-              if (mounted) {
-                _navigateToNextScreen();
-              }
+              } catch (_) {}
+              if (mounted) _navigateToNextScreen();
             },
             child: const Text(
               'إعادة الاتصال بالسيرفر',
