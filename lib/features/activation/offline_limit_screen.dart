@@ -14,52 +14,47 @@ class _OfflineLimitScreenState extends State<OfflineLimitScreen> {
   bool _isChecking = false;
 
   Future<void> _checkConnection() async {
+    // Guard: prevent multiple simultaneous calls (e.g., rapid double-tap)
+    if (_isChecking) return;
+
     setState(() {
       _isChecking = true;
     });
 
     try {
-      // Try to reconnect to server
+      // Try to reconnect to server.
+      // checkDeviceStatus() already calls _updateLastOnlineSync() internally,
+      // which clears the offline-limit flag on a successful response.
       final success = await _activationService.checkDeviceStatus();
-      
-      if (mounted) {
-        if (success) {
-          // Connection successful and device is verified
-          // Check if offline limit is still exceeded
-          final stillExceeded = await _activationService.isOfflineLimitExceeded();
 
-          if (!stillExceeded) {
-            // Offline limit cleared - navigate to home
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('تم التحقق بنجاح! الاتصال بالسيرفر فعّال'),
-                backgroundColor: Colors.green,
-              ),
-            );
-            // Navigate after a short delay
-            Future.delayed(const Duration(seconds: 1), () {
-              if (mounted) {
-                Navigator.of(context).pushReplacementNamed('/home');
-              }
-            });
-          } else {
-            // Still exceeded - show error
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('لا يزال الوقت المتاح للعمل بدون إنترنت قد انتهى'),
-                backgroundColor: Colors.orange,
-              ),
-            );
-          }
-        } else {
-          // Device is not verified
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('الجهاز غير مفعّل. يرجى تفعيل الاشتراك'),
-              backgroundColor: Colors.orange,
-            ),
-          );
+      if (!mounted) return;
+
+      if (success) {
+        // Server confirmed the device is active — offline limit is now cleared.
+        // No need to re-check isOfflineLimitExceeded(); trust the server response.
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('تم التحقق بنجاح! الاتصال بالسيرفر فعّال'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+
+        // Await the delay so _isChecking stays true and the button remains
+        // disabled — prevents the user from tapping again before navigation.
+        await Future.delayed(const Duration(milliseconds: 800));
+
+        if (mounted) {
+          Navigator.of(context).pushReplacementNamed('/home');
         }
+      } else {
+        // Server responded but device is not verified
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('الجهاز غير مفعّل. يرجى تفعيل الاشتراك'),
+            backgroundColor: Colors.orange,
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -71,6 +66,8 @@ class _OfflineLimitScreenState extends State<OfflineLimitScreen> {
         );
       }
     } finally {
+      // Only reset the flag if the widget is still mounted.
+      // If navigation succeeded the widget is disposed — mounted will be false.
       if (mounted) {
         setState(() {
           _isChecking = false;

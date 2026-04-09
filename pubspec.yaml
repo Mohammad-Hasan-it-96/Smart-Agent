@@ -1,7 +1,7 @@
 name: smart_agent
 description: A local offline order app built with Flutter.
 publish_to: 'none'
-version: 1.0.8+1008
+version: 1.0.9+1009
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
