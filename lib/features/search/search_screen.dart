@@ -1,7 +1,14 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../core/db/database_helper.dart';
+import '../../core/models/company.dart';
+import '../../core/models/medicine.dart';
+import '../../core/models/pharmacy.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/utils/slide_page_route.dart';
+import '../companies/company_form.dart';
+import '../medicines/medicine_form.dart';
+import '../pharmacies/pharmacy_form.dart';
 
 /// Global search screen — searches medicines, companies & pharmacies
 /// with a Glassmorphism design using the Deep Navy Blue palette.
@@ -103,7 +110,88 @@ class _SearchScreenState extends State<SearchScreen>
 
   int get _totalResults => _medicines.length + _companies.length + _pharmacies.length;
 
-  // ── Build ──────────────────────────────────────────────────────────
+  // ── Tap navigation ─────────────────────────────────────────────────
+
+  /// Opens MedicineForm for the tapped search result.
+  /// Fetches the full row (search result lacks company_id), then navigates.
+  Future<void> _openMedicine(Map<String, dynamic> m) async {
+    final id = m['id'] as int?;
+    if (id == null) return;
+
+    Medicine? model;
+    try {
+      final maps = await DatabaseHelper.instance.query(
+        'medicines',
+        where: 'id = ?',
+        whereArgs: [id],
+        limit: 1,
+      );
+      if (maps.isNotEmpty) model = Medicine.fromMap(maps.first);
+    } catch (_) {
+      // Fallback: build minimal model from search data.
+      model = Medicine(
+        id: id,
+        name: m['name'] as String? ?? '',
+        companyId: 0,
+      );
+    }
+
+    if (!mounted) return;
+    final result = await Navigator.push(
+      context,
+      SlidePageRoute(
+        page: MedicineForm(medicine: model),
+        direction: SlideDirection.rightToLeft,
+      ),
+    );
+    if (result == true && _lastQuery.isNotEmpty) {
+      await _search(_lastQuery);
+    }
+  }
+
+  /// Opens CompanyForm for the tapped search result.
+  Future<void> _openCompany(Map<String, dynamic> c) async {
+    final id = c['id'] as int?;
+    if (id == null) return;
+
+    final company = Company(id: id, name: c['name'] as String? ?? '');
+    if (!mounted) return;
+    final result = await Navigator.push(
+      context,
+      SlidePageRoute(
+        page: CompanyForm(company: company),
+        direction: SlideDirection.rightToLeft,
+      ),
+    );
+    if (result == true && _lastQuery.isNotEmpty) {
+      await _search(_lastQuery);
+    }
+  }
+
+  /// Opens PharmacyForm for the tapped search result.
+  Future<void> _openPharmacy(Map<String, dynamic> p) async {
+    final id = p['id'] as int?;
+    if (id == null) return;
+
+    final pharmacy = Pharmacy(
+      id: id,
+      name: p['name'] as String? ?? '',
+      address: p['address'] as String?,
+      phone: p['phone'] as String?,
+    );
+    if (!mounted) return;
+    final result = await Navigator.push(
+      context,
+      SlidePageRoute(
+        page: PharmacyForm(pharmacy: pharmacy),
+        direction: SlideDirection.rightToLeft,
+      ),
+    );
+    if (result == true && _lastQuery.isNotEmpty) {
+      await _search(_lastQuery);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -111,12 +199,14 @@ class _SearchScreenState extends State<SearchScreen>
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF0A1628) : const Color(0xFFEEF2F8),
       body: NestedScrollView(
+        clipBehavior: Clip.hardEdge,
         headerSliverBuilder: (ctx, _) => [
           SliverAppBar(
             floating: true,
             snap: true,
             pinned: true,
-            expandedHeight: 160,
+            // 110 (bottom) + ~100 (gradient header + SafeArea) = 210
+            expandedHeight: 210,
             backgroundColor: isDark ? const Color(0xFF0F2040) : Colors.white,
             elevation: 0,
             foregroundColor: isDark ? Colors.white : AppTheme.primaryColor,
@@ -134,10 +224,11 @@ class _SearchScreenState extends State<SearchScreen>
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         const Text(
                           'البحث الشامل',
+                          textAlign: TextAlign.center,
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 22,
@@ -148,6 +239,7 @@ class _SearchScreenState extends State<SearchScreen>
                         const SizedBox(height: 2),
                         Text(
                           'ابحث في الأدوية والشركات والصيدليات',
+                          textAlign: TextAlign.center,
                           style: TextStyle(
                             color: Colors.white.withValues(alpha: 0.7),
                             fontSize: 13,
@@ -160,45 +252,61 @@ class _SearchScreenState extends State<SearchScreen>
                 ),
               ),
             ),
-            // ── Sticky search bar ──────────────────────────────────
+            // ── Sticky search bar + Tab bar ─────────────────────────
+            // Both live inside SliverAppBar.bottom so we avoid a separate
+            // SliverPersistentHeader, which triggers the known Flutter
+            // semantics assertion '!semantics.parentDataDirty'.
             bottom: PreferredSize(
-              preferredSize: const Size.fromHeight(60),
-              child: Container(
-                color: isDark ? const Color(0xFF0F2040) : Colors.white,
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
-                child: _buildSearchBar(isDark),
-              ),
-            ),
-          ),
-          // ── Tab bar ───────────────────────────────────────────────
-          SliverPersistentHeader(
-            pinned: true,
-            delegate: _TabBarDelegate(
-              TabBar(
-                controller: _tabCtrl,
-                labelColor: AppTheme.primaryColor,
-                unselectedLabelColor: isDark ? const Color(0xFF8096AA) : const Color(0xFF8096AA),
-                indicatorColor: AppTheme.primaryColor,
-                indicatorWeight: 2.5,
-                indicatorSize: TabBarIndicatorSize.label,
-                labelStyle: const TextStyle(
-                  fontFamily: 'Cairo',
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
-                ),
-                unselectedLabelStyle: const TextStyle(fontFamily: 'Cairo', fontSize: 13),
-                tabs: List.generate(3, (i) => Tab(
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(_tabIcons[i], size: 16),
-                      const SizedBox(width: 5),
-                      Text(_tabs[i]),
-                    ],
+              preferredSize: const Size.fromHeight(110),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    color: isDark ? const Color(0xFF0F2040) : Colors.white,
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
+                    child: _buildSearchBar(isDark),
                   ),
-                )),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF0F2040) : Colors.white,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.06),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: TabBar(
+                      controller: _tabCtrl,
+                      labelColor: AppTheme.primaryColor,
+                      unselectedLabelColor: const Color(0xFF8096AA),
+                      indicatorColor: AppTheme.primaryColor,
+                      // indicatorWeight must be even (2.0) so TabBar.preferredSize
+                      // (46 + 2 = 48) + search bar (62) = 110 exactly — no sub-pixel overflow.
+                      indicatorWeight: 2.0,
+                      indicatorSize: TabBarIndicatorSize.label,
+                      dividerHeight: 0.0,
+                      labelStyle: const TextStyle(
+                        fontFamily: 'Cairo',
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                      unselectedLabelStyle: const TextStyle(fontFamily: 'Cairo', fontSize: 13),
+                      tabs: List.generate(3, (i) => Tab(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(_tabIcons[i], size: 16),
+                            const SizedBox(width: 5),
+                            Text(_tabs[i]),
+                          ],
+                        ),
+                      )),
+                    ),
+                  ),
+                ],
               ),
-              isDark: isDark,
             ),
           ),
         ],
@@ -531,8 +639,9 @@ class _SearchScreenState extends State<SearchScreen>
     if (_medicines.isEmpty) {
       return _emptyTab('لا توجد أدوية', Icons.medication_rounded, const Color(0xFFE53935));
     }
+    final bottomPad = MediaQuery.paddingOf(context).bottom;
     return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      padding: EdgeInsets.fromLTRB(16, 16, 16, 32 + bottomPad),
       itemCount: _medicines.length,
       separatorBuilder: (_, __) => const SizedBox(height: 10),
       itemBuilder: (_, i) => _medicineCard(_medicines[i], isDark),
@@ -543,8 +652,9 @@ class _SearchScreenState extends State<SearchScreen>
     if (_companies.isEmpty) {
       return _emptyTab('لا توجد شركات', Icons.business_rounded, const Color(0xFF2563A8));
     }
+    final bottomPad = MediaQuery.paddingOf(context).bottom;
     return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      padding: EdgeInsets.fromLTRB(16, 16, 16, 32 + bottomPad),
       itemCount: _companies.length,
       separatorBuilder: (_, __) => const SizedBox(height: 10),
       itemBuilder: (_, i) => _companyCard(_companies[i], isDark),
@@ -555,8 +665,9 @@ class _SearchScreenState extends State<SearchScreen>
     if (_pharmacies.isEmpty) {
       return _emptyTab('لا توجد صيدليات', Icons.local_pharmacy_rounded, const Color(0xFFFF8F00));
     }
+    final bottomPad = MediaQuery.paddingOf(context).bottom;
     return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      padding: EdgeInsets.fromLTRB(16, 16, 16, 32 + bottomPad),
       itemCount: _pharmacies.length,
       separatorBuilder: (_, __) => const SizedBox(height: 10),
       itemBuilder: (_, i) => _pharmacyCard(_pharmacies[i], isDark),
@@ -599,6 +710,7 @@ class _SearchScreenState extends State<SearchScreen>
     return _glassCard(
       isDark: isDark,
       accentColor: const Color(0xFFE53935),
+      onTap: () => _openMedicine(m),
       child: Row(
         children: [
           Container(
@@ -673,6 +785,7 @@ class _SearchScreenState extends State<SearchScreen>
     return _glassCard(
       isDark: isDark,
       accentColor: const Color(0xFF2563A8),
+      onTap: () => _openCompany(c),
       child: Row(
         children: [
           Container(
@@ -743,6 +856,7 @@ class _SearchScreenState extends State<SearchScreen>
     return _glassCard(
       isDark: isDark,
       accentColor: const Color(0xFFFF8F00),
+      onTap: () => _openPharmacy(p),
       child: Row(
         children: [
           Container(
@@ -798,68 +912,43 @@ class _SearchScreenState extends State<SearchScreen>
     required bool isDark,
     required Widget child,
     required Color accentColor,
+    VoidCallback? onTap,
   }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isDark ? Colors.white.withValues(alpha: 0.06) : Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: isDark
-              ? Colors.white.withValues(alpha: 0.1)
-              : accentColor.withValues(alpha: 0.10),
-          width: 1,
-        ),
-        boxShadow: isDark
-            ? []
-            : [
-                BoxShadow(
-                  color: accentColor.withValues(alpha: 0.08),
-                  blurRadius: 16,
-                  offset: const Offset(0, 4),
-                ),
-              ],
+    final radius = BorderRadius.circular(18);
+    final decoration = BoxDecoration(
+      color: isDark ? Colors.white.withValues(alpha: 0.06) : Colors.white,
+      borderRadius: radius,
+      border: Border.all(
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.1)
+            : accentColor.withValues(alpha: 0.10),
+        width: 1,
       ),
-      child: child,
+      boxShadow: isDark
+          ? []
+          : [
+              BoxShadow(
+                color: accentColor.withValues(alpha: 0.08),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
+              ),
+            ],
+    );
+
+    final body = Padding(padding: const EdgeInsets.all(16), child: child);
+
+    if (onTap == null) {
+      return DecoratedBox(decoration: decoration, child: body);
+    }
+
+    // GestureDetector avoids the Material/Ink layer whose _InkFeatureRenderer
+    // dirtifies render-object parent data during layout, which triggers the
+    // semantics assertion '!semantics.parentDataDirty'.
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: DecoratedBox(decoration: decoration, child: body),
     );
   }
-}
-
-// ── SliverPersistentHeaderDelegate for TabBar ─────────────────────────────
-
-class _TabBarDelegate extends SliverPersistentHeaderDelegate {
-  final TabBar tabBar;
-  final bool isDark;
-
-  _TabBarDelegate(this.tabBar, {required this.isDark});
-
-  @override
-  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
-    return Container(
-      color: isDark ? const Color(0xFF0A1628) : const Color(0xFFEEF2F8),
-      child: Container(
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF0F2040) : Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.06),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: tabBar,
-      ),
-    );
-  }
-
-  @override
-  double get maxExtent => tabBar.preferredSize.height;
-
-  @override
-  double get minExtent => tabBar.preferredSize.height;
-
-  @override
-  bool shouldRebuild(covariant _TabBarDelegate oldDelegate) => false;
 }
 

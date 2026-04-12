@@ -38,6 +38,12 @@ class _MedicineFormState extends State<MedicineForm> {
   bool _isSyncingPrices = false;
 
   final List<String> _formOptions = [
+    'حبوب',
+    'كبسول',
+    'شراب',
+    'قطرة',
+    'حقن',
+    'بخاخ',
     'ظرف',
     'حنجور',
     'تحاميل',
@@ -45,6 +51,9 @@ class _MedicineFormState extends State<MedicineForm> {
     'شريط',
     'مرهم',
     'محلول',
+    'كريم',
+    'جل',
+    'لصقة',
   ];
 
   @override
@@ -62,7 +71,17 @@ class _MedicineFormState extends State<MedicineForm> {
         _priceSypController.text = widget.medicine!.priceSyp.toString();
       }
       _sourceController.text = widget.medicine!.source ?? '';
-      _selectedForm = widget.medicine!.form;
+      // Guard: if the saved form value isn't in the list, add it so the
+      // DropdownButtonFormField doesn't crash with "exactly one item" assertion.
+      final savedForm = widget.medicine!.form;
+      if (savedForm != null &&
+          savedForm.trim().isNotEmpty &&
+          !_formOptions.contains(savedForm.trim())) {
+        _formOptions.insert(0, savedForm.trim());
+      }
+      _selectedForm = (savedForm != null && savedForm.trim().isNotEmpty)
+          ? savedForm.trim()
+          : null;
       _notesController.text = widget.medicine!.notes ?? '';
     }
   }
@@ -121,9 +140,28 @@ class _MedicineFormState extends State<MedicineForm> {
   Future<void> _loadCompanies() async {
     try {
       final maps = await _dbHelper.query('companies', orderBy: 'name');
+
+      // De-duplicate by id — guards against corrupt DB state where the same
+      // company id appears more than once (Flutter's DropdownButton asserts
+      // "exactly one item matches value"; duplicates violate that).
+      final seen = <int>{};
+      final unique = maps
+          .map((m) => Company.fromMap(m))
+          .where((c) => c.id != null && seen.add(c.id!))
+          .toList();
+
       setState(() {
-        _companies = maps.map((map) => Company.fromMap(map)).toList();
+        _companies = unique;
         _isLoadingCompanies = false;
+
+        // Validate current selection: if the company was deleted or the id is
+        // invalid (e.g. 0 from a search-fallback), clear the selection so the
+        // dropdown renders with value == null (no crash).
+        final validIds = unique.map((c) => c.id).toSet();
+        if (_selectedCompanyId != null &&
+            !validIds.contains(_selectedCompanyId)) {
+          _selectedCompanyId = null;
+        }
       });
     } catch (e) {
       setState(() {
