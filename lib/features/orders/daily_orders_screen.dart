@@ -4,11 +4,21 @@ import '../../core/utils/slide_page_route.dart';
 import '../../core/widgets/custom_app_bar.dart';
 import '../../core/widgets/empty_state.dart';
 import 'order_details_screen.dart';
+import 'order_filter.dart';
 
 class DailyOrdersScreen extends StatefulWidget {
   final DateTime date;
 
-  const DailyOrdersScreen({super.key, required this.date});
+  /// Optional filter propagated from [OrdersListScreen].
+  /// Only pharmacy and company filters are applied here; date filtering is
+  /// handled by the screen's own day-specific WHERE clause.
+  final OrderFilter filter;
+
+  const DailyOrdersScreen({
+    super.key,
+    required this.date,
+    this.filter = const OrderFilter(),
+  });
 
   @override
   State<DailyOrdersScreen> createState() => _DailyOrdersScreenState();
@@ -82,9 +92,11 @@ class _DailyOrdersScreenState extends State<DailyOrdersScreen> {
       // Calculate offset
       final offset = _currentPage * _pageSize;
 
-      // Query orders for the specific date with pagination
-      // Use SUBSTR to extract first 10 characters (YYYY-MM-DD) from ISO8601 format
-      // This works with strings like "2025-11-21T06:47:00.000Z"
+      // Build extra AND conditions from the active filter (pharmacy + company).
+      final extra = widget.filter.buildDailyExtra();
+
+      // Query orders for the specific date with pagination.
+      // Use SUBSTR to extract first 10 characters (YYYY-MM-DD) from ISO8601 format.
       final maps = await db.rawQuery('''
         SELECT 
           orders.id,
@@ -96,10 +108,11 @@ class _DailyOrdersScreenState extends State<DailyOrdersScreen> {
         LEFT JOIN pharmacies ON orders.pharmacy_id = pharmacies.id
         LEFT JOIN order_items ON orders.id = order_items.order_id
         WHERE SUBSTR(orders.created_at, 1, 10) = ?
+        ${extra.extra}
         GROUP BY orders.id
         ORDER BY orders.created_at DESC
         LIMIT ? OFFSET ?
-      ''', [dateStr, _pageSize, offset]);
+      ''', [dateStr, ...extra.args, _pageSize, offset]);
 
       if (mounted) {
         setState(() {
@@ -131,6 +144,17 @@ class _DailyOrdersScreenState extends State<DailyOrdersScreen> {
     return Scaffold(
       appBar: CustomAppBar(
         title: 'طلبيات ${dateStr.replaceAll('-', '/')}',
+        actions: widget.filter.isActive
+            ? [
+                const Tooltip(
+                  message: 'فلتر نشط',
+                  child: Padding(
+                    padding: EdgeInsets.only(left: 16),
+                    child: Icon(Icons.filter_list_rounded, size: 20),
+                  ),
+                ),
+              ]
+            : null,
       ),
       body: _isInitialLoading
           ? const Center(child: CircularProgressIndicator())

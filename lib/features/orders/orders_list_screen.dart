@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import '../../core/db/database_helper.dart';
+import '../../core/theme/app_theme.dart';
 import '../../core/utils/slide_page_route.dart';
 import '../../core/widgets/custom_app_bar.dart';
 import '../../core/widgets/empty_state.dart';
 import 'daily_orders_screen.dart';
+import 'order_filter.dart';
+import 'order_filter_sheet.dart';
 
 class OrdersListScreen extends StatefulWidget {
   const OrdersListScreen({super.key});
@@ -14,9 +17,12 @@ class OrdersListScreen extends StatefulWidget {
 
 class _OrdersListScreenState extends State<OrdersListScreen> {
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
-  Map<String, int> _ordersByDay = {}; // Map of date string to order count
+  Map<String, int> _ordersByDay = {};
   List<String> _sortedDays = [];
   bool _isLoading = true;
+
+  /// Active filter — starts empty (no filtering).
+  OrderFilter _filter = const OrderFilter();
 
   @override
   void initState() {
@@ -27,34 +33,27 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
   String _formatDisplayDate(String dateStr) {
     try {
       final parts = dateStr.split('-');
-      if (parts.length == 3) {
-        return '${parts[0]}/${parts[1]}/${parts[2]}';
-      }
+      if (parts.length == 3) return '${parts[0]}/${parts[1]}/${parts[2]}';
       return dateStr;
-    } catch (e) {
+    } catch (_) {
       return dateStr;
     }
   }
 
   Future<void> _loadOrdersByDay() async {
-    setState(() {
-      _isLoading = true;
-    });
-
+    setState(() => _isLoading = true);
     try {
       final db = await _dbHelper.database;
-
-
-      // Get orders grouped by day with count
-      // Use SUBSTR to extract date part from ISO8601 format (YYYY-MM-DDTHH:mm:ss...)
+      final (:where, :args) = _filter.buildGroupedWhere();
       final maps = await db.rawQuery('''
-        SELECT 
-          SUBSTR(orders.created_at, 1, 10) as order_date,
-          COUNT(DISTINCT orders.id) as order_count
+        SELECT
+          SUBSTR(orders.created_at, 1, 10) AS order_date,
+          COUNT(DISTINCT orders.id)        AS order_count
         FROM orders
+        $where
         GROUP BY SUBSTR(orders.created_at, 1, 10)
         ORDER BY order_date DESC
-      ''');
+      ''', args);
 
       final Map<String, int> ordersByDay = {};
       for (final map in maps) {
@@ -63,17 +62,15 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
           ordersByDay[dateStr] = map['order_count'] as int? ?? 0;
         }
       }
-
       setState(() {
         _ordersByDay = ordersByDay;
-        _sortedDays = ordersByDay.keys.toList()..sort((a, b) => b.compareTo(a));
+        _sortedDays =
+            ordersByDay.keys.toList()..sort((a, b) => b.compareTo(a));
         _isLoading = false;
       });
     } catch (e) {
       debugPrint('Error loading orders by day: $e');
-      setState(() {
-        _isLoading = false;
-      });
+      setState(() => _isLoading = false);
     }
   }
 
@@ -84,19 +81,16 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
       firstDate: DateTime(2020),
       lastDate: DateTime.now(),
       locale: const Locale('ar', 'SA'),
-      builder: (context, child) {
-        return Directionality(
-          textDirection: TextDirection.rtl,
-          child: child!,
-        );
-      },
+      builder: (context, child) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: child!,
+      ),
     );
-
-    if (picked != null) {
+    if (picked != null && mounted) {
       Navigator.push(
         context,
         SlidePageRoute(
-          page: DailyOrdersScreen(date: picked),
+          page: DailyOrdersScreen(date: picked, filter: _filter),
           direction: SlideDirection.rightToLeft,
         ),
       );
@@ -107,20 +101,127 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
     Navigator.push(
       context,
       SlidePageRoute(
-        page: DailyOrdersScreen(date: date),
+        page: DailyOrdersScreen(date: date, filter: _filter),
         direction: SlideDirection.rightToLeft,
       ),
     );
   }
 
+  Future<void> _showFilterSheet() async {
+    final newFilter = await showModalBottomSheet<OrderFilter>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => OrderFilterSheet(
+        currentFilter: _filter,
+        dbHelper: _dbHelper,
+      ),
+    );
+    if (newFilter != null && mounted) {
+      setState(() => _filter = newFilter);
+      await _loadOrdersByDay();
+    }
+  }
+
+  // ── Active filter chips ────────────────────────────────────────────
+
+  Widget _buildActiveFilterChips(ThemeData theme) {
+    if (!_filter.isActive) return const SizedBox.shrink();
+
+    final chips = <Widget>[];
+
+    if (_filter.month != null) {
+      chips.add(_chip('📅 ${OrderFilter.monthLabel(_filter.month!)}', theme));
+    } else {
+      if (_filter.fromDate != null) {
+        chips.add(_chip('من ${_formatDisplayDate(_filter.fromDate!)}', theme));
+      }
+      if (_filter.toDate != null) {
+        chips.add(_chip('إلى ${_formatDisplayDate(_filter.toDate!)}', theme));
+      }
+    }
+    if (_filter.pharmacies.isNotEmpty) {
+      chips.add(_chip('🏥 ${_filter.pharmacies.length} صيدلية', theme));
+    }
+    if (_filter.companies.isNotEmpty) {
+      chips.add(_chip('🏢 ${_filter.companies.length} شركة', theme));
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(0, 0, 0, 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(children: chips),
+            ),
+          ),
+          TextButton.icon(
+            onPressed: () {
+              setState(() => _filter = const OrderFilter());
+              _loadOrdersByDay();
+            },
+            icon: const Icon(Icons.close_rounded, size: 16),
+            label: const Text('مسح', style: TextStyle(fontSize: 13)),
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.error,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _chip(String label, ThemeData theme) => Padding(
+        padding: const EdgeInsets.only(left: 6),
+        child: Chip(
+          label: Text(label,
+              style: const TextStyle(fontSize: 12), textDirection: TextDirection.rtl),
+          backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.12),
+          labelStyle: const TextStyle(color: AppTheme.primaryColor),
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          visualDensity: VisualDensity.compact,
+        ),
+      );
+
+  // ── Build ──────────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: const CustomAppBar(
-        title: 'الطلبيات السابقة',
+      appBar: CustomAppBar(
+        title: 'الطلبيات',
         showNotifications: true,
         showSettings: true,
+        actions: [
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.filter_list_rounded),
+                tooltip: 'تصفية',
+                onPressed: _showFilterSheet,
+              ),
+              if (_filter.isActive)
+                Positioned(
+                  top: 10,
+                  left: 10,
+                  child: Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: Colors.redAccent,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -129,9 +230,13 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
               child: SafeArea(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.all(16),
+                  physics: const AlwaysScrollableScrollPhysics(),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      // Active filter chips
+                      _buildActiveFilterChips(theme),
+
                       // Date Picker Button
                       Card(
                         child: InkWell(
@@ -142,10 +247,8 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(
-                                  Icons.calendar_today,
-                                  color: theme.colorScheme.primary,
-                                ),
+                                Icon(Icons.calendar_today,
+                                    color: theme.colorScheme.primary),
                                 const SizedBox(width: 12),
                                 Text(
                                   'اختر تاريخ',
@@ -165,9 +268,8 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
                       // Quick Navigation Buttons
                       Text(
                         'أيام سريعة',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                        style: theme.textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.bold),
                         textDirection: TextDirection.rtl,
                       ),
                       const SizedBox(height: 12),
@@ -175,29 +277,16 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
                         scrollDirection: Axis.horizontal,
                         child: Row(
                           children: [
-                            _buildQuickDayButton(
-                              'اليوم',
-                              DateTime.now(),
-                              theme,
-                            ),
+                            _buildQuickDayButton('اليوم', DateTime.now(), theme),
                             const SizedBox(width: 8),
-                            _buildQuickDayButton(
-                              'أمس',
-                              DateTime.now().subtract(const Duration(days: 1)),
-                              theme,
-                            ),
+                            _buildQuickDayButton('أمس',
+                                DateTime.now().subtract(const Duration(days: 1)), theme),
                             const SizedBox(width: 8),
-                            _buildQuickDayButton(
-                              'قبل يومين',
-                              DateTime.now().subtract(const Duration(days: 2)),
-                              theme,
-                            ),
+                            _buildQuickDayButton('قبل يومين',
+                                DateTime.now().subtract(const Duration(days: 2)), theme),
                             const SizedBox(width: 8),
-                            _buildQuickDayButton(
-                              'قبل ٣ أيام',
-                              DateTime.now().subtract(const Duration(days: 3)),
-                              theme,
-                            ),
+                            _buildQuickDayButton('قبل ٣ أيام',
+                                DateTime.now().subtract(const Duration(days: 3)), theme),
                           ],
                         ),
                       ),
@@ -205,10 +294,12 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
 
                       // Grouped Orders by Day
                       if (_sortedDays.isEmpty)
-                        const EmptyState(
+                        EmptyState(
                           icon: Icons.receipt_long,
                           title: 'لا توجد طلبيات',
-                          message: 'لم يتم إنشاء أي طلبيات بعد',
+                          message: _filter.isActive
+                              ? 'لا توجد طلبيات تطابق التصفية المحددة'
+                              : 'لم يتم إنشاء أي طلبيات بعد',
                         )
                       else
                         ..._sortedDays.map((dayStr) {
@@ -221,7 +312,7 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
                               int.parse(parts[1]),
                               int.parse(parts[2]),
                             );
-                          } catch (e) {
+                          } catch (_) {
                             dayDate = DateTime.now();
                           }
 
@@ -238,9 +329,7 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
                                   children: [
                                     Container(
                                       padding: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 8,
-                                      ),
+                                          horizontal: 12, vertical: 8),
                                       decoration: BoxDecoration(
                                         color: theme.colorScheme.primary,
                                         borderRadius: BorderRadius.circular(20),
@@ -259,9 +348,7 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
                                       child: Text(
                                         _formatDisplayDate(dayStr),
                                         style: theme.textTheme.titleLarge
-                                            ?.copyWith(
-                                          fontWeight: FontWeight.bold,
-                                        ),
+                                            ?.copyWith(fontWeight: FontWeight.bold),
                                         textAlign: TextAlign.center,
                                         textDirection: TextDirection.rtl,
                                       ),
@@ -291,9 +378,7 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
       onPressed: () => _navigateToDay(date),
       style: OutlinedButton.styleFrom(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       ),
       child: Text(
         label,
