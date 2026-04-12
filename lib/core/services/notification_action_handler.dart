@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../di/service_locator.dart';
 import 'activation_service.dart';
 
 class NotificationActionHandler {
@@ -12,7 +13,7 @@ class NotificationActionHandler {
   }) async {
     switch (type) {
       case 'new_plan_activated':
-        final activationService = ActivationService();
+        final activationService = getIt<ActivationService>();
         bool verified = false;
         try {
           verified = await activationService.recheckActivationStatus();
@@ -52,7 +53,7 @@ class NotificationActionHandler {
         await _showCriticalAlert(context, title: title, body: body);
         return;
       case 'plan_deactivated':
-        final activationService = ActivationService();
+        final activationService = getIt<ActivationService>();
         await activationService.saveActivationStatus(false);
         if (!context.mounted) return;
         Navigator.of(context).pushNamedAndRemoveUntil('/activation', (route) => false);

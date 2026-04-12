@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../core/constants/app_constants.dart';
+import '../../core/di/service_locator.dart';
 import '../../core/services/activation_service.dart';
 import '../../core/services/push_notification_service.dart';
 
@@ -18,7 +20,7 @@ class _SplashScreenState extends State<SplashScreen>
   static const Color _bgBottom = Color(0xFF0B1D3A);
   static const Color _glow     = Color(0xFF4A8FD4);
 
-  final ActivationService _activationService = ActivationService();
+  final ActivationService _activationService = getIt<ActivationService>();
 
   // Logo bounce
   late AnimationController _logoCtrl;
@@ -125,7 +127,7 @@ class _SplashScreenState extends State<SplashScreen>
     if (!mounted) return;
 
     final prefs = await SharedPreferences.getInstance();
-    final onboardingCompleted = prefs.getBool('onboarding_completed') ?? false;
+    final onboardingCompleted = prefs.getBool(AppConstants.kOnboardingCompleted) ?? false;
     if (!mounted) return;
 
     if (!onboardingCompleted) {

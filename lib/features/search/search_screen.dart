@@ -252,8 +252,8 @@ class _SearchScreenState extends State<SearchScreen>
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           prefixIcon: _isSearching
-              ? Padding(
-                  padding: const EdgeInsets.all(10),
+              ? const Padding(
+                  padding: EdgeInsets.all(10),
                   child: SizedBox(
                     width: 18,
                     height: 18,
@@ -263,7 +263,7 @@ class _SearchScreenState extends State<SearchScreen>
                     ),
                   ),
                 )
-              : Icon(
+              : const Icon(
                   Icons.search_rounded,
                   color: AppTheme.primaryColor,
                   size: 20,
@@ -340,7 +340,7 @@ class _SearchScreenState extends State<SearchScreen>
           const SizedBox(height: 24),
           Row(
             children: [
-              Icon(Icons.history_rounded, size: 16, color: AppTheme.primaryColor),
+              const Icon(Icons.history_rounded, size: 16, color: AppTheme.primaryColor),
               const SizedBox(width: 8),
               const Text(
                 'عمليات البحث الأخيرة',
@@ -391,8 +391,8 @@ class _SearchScreenState extends State<SearchScreen>
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.history_rounded,
-                        size: 13, color: const Color(0xFF8096AA)),
+                    const Icon(Icons.history_rounded,
+                        size: 13, color: Color(0xFF8096AA)),
                     const SizedBox(width: 5),
                     Text(q,
                         style: const TextStyle(
@@ -463,17 +463,17 @@ class _SearchScreenState extends State<SearchScreen>
   }
 
   Widget _buildLoading() {
-    return Center(
+    return const Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           CircularProgressIndicator(color: AppTheme.primaryColor, strokeWidth: 3),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           Text(
             'جاري البحث...',
             style: TextStyle(
               fontFamily: 'Cairo',
-              color: const Color(0xFF8096AA),
+              color: Color(0xFF8096AA),
               fontSize: 14,
             ),
           ),
@@ -728,8 +728,8 @@ class _SearchScreenState extends State<SearchScreen>
               ],
             ),
           ),
-          Icon(Icons.chevron_left_rounded,
-              color: const Color(0xFF8096AA), size: 20),
+          const Icon(Icons.chevron_left_rounded,
+              color: Color(0xFF8096AA), size: 20),
         ],
       ),
     );
@@ -786,8 +786,8 @@ class _SearchScreenState extends State<SearchScreen>
               ],
             ),
           ),
-          Icon(Icons.chevron_left_rounded,
-              color: const Color(0xFF8096AA), size: 20),
+          const Icon(Icons.chevron_left_rounded,
+              color: Color(0xFF8096AA), size: 20),
         ],
       ),
     );

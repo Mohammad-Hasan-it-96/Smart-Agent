@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../core/di/service_locator.dart';
 import '../../core/widgets/custom_app_bar.dart';
 import '../../core/services/activation_service.dart';
 import '../../core/services/contact_launcher_service.dart';
@@ -13,7 +14,7 @@ class ContactDeveloperScreen extends StatefulWidget {
 }
 
 class _ContactDeveloperScreenState extends State<ContactDeveloperScreen> {
-  final ActivationService _activationService = ActivationService();
+  final ActivationService _activationService = getIt<ActivationService>();
   final ContactLauncherService _contactLauncher = const ContactLauncherService();
   final TextEditingController _messageController = TextEditingController();
   String? _selectedMethod;
@@ -145,9 +146,9 @@ class _ContactDeveloperScreenState extends State<ContactDeveloperScreen> {
     final theme = Theme.of(context);
 
     if (_isLoading) {
-      return Scaffold(
-        appBar: const CustomAppBar(title: 'تواصل مع خدمة العملاء'),
-        body: const Center(
+      return const Scaffold(
+        appBar: CustomAppBar(title: 'تواصل مع خدمة العملاء'),
+        body: Center(
           child: CircularProgressIndicator(),
         ),
       );

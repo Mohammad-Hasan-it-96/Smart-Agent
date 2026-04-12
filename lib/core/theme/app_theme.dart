@@ -51,7 +51,7 @@ class AppTheme {
         ),
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         color: Colors.white,
-        shadowColor: Color(0x201A4275),
+        shadowColor: const Color(0x201A4275),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(

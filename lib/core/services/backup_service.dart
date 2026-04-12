@@ -1,4 +1,5 @@
 import 'dart:io';
+import '../utils/app_logger.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:googleapis/drive/v3.dart' as drive;
 import 'package:http/http.dart' as http;
@@ -28,7 +29,7 @@ class BackupService {
       final account = await _googleSignIn.signIn();
       return account;
     } catch (e) {
-      print('Google Sign-In error: $e');
+      AppLogger.e('BackupService', 'Google Sign-In failed', e);
       // Check for specific error codes
       if (e.toString().contains('ApiException: 10')) {
         throw Exception(
@@ -47,7 +48,7 @@ class BackupService {
     try {
       await _googleSignIn.signOut();
     } catch (e) {
-      print('Google Sign-Out error: $e');
+      AppLogger.w('BackupService', 'Google Sign-Out failed', e);
     }
   }
 
@@ -109,10 +110,10 @@ class BackupService {
             await driveApi.files.delete(file.id!);
           }
         }
-      } catch (e) {
-        // Ignore if file doesn't exist
-        print('No existing backup found: $e');
-      }
+        } catch (e) {
+          // Normal when no prior backup exists yet; proceed with upload.
+          AppLogger.d('BackupService', 'no prior backup to delete (or list failed): $e');
+        }
 
       // Upload file
       final media = drive.Media(
@@ -128,7 +129,7 @@ class BackupService {
 
       client.close();
     } catch (e) {
-      print('Backup error: $e');
+      AppLogger.e('BackupService', 'backupToGoogleDrive failed', e);
       rethrow;
     }
   }
@@ -187,7 +188,7 @@ class BackupService {
 
       // Backup current database (just in case)
       if (await dbFile.exists()) {
-        final backupPath = '${dbPath}.old';
+        final backupPath = '$dbPath.old';
         await dbFile.copy(backupPath);
       }
 
@@ -200,7 +201,7 @@ class BackupService {
 
       client.close();
     } catch (e) {
-      print('Restore error: $e');
+      AppLogger.e('BackupService', 'restoreFromGoogleDrive failed', e);
       rethrow;
     }
   }
@@ -211,6 +212,7 @@ class BackupService {
       final account = await _googleSignIn.signInSilently();
       return account != null;
     } catch (e) {
+      AppLogger.w('BackupService', 'isSignedIn check failed', e);
       return false;
     }
   }
@@ -221,6 +223,7 @@ class BackupService {
       final account = await _googleSignIn.signInSilently();
       return account?.email;
     } catch (e) {
+      AppLogger.w('BackupService', 'getCurrentUserEmail failed', e);
       return null;
     }
   }

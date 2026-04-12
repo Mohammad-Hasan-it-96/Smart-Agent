@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../core/db/database_helper.dart';
+import '../../core/di/service_locator.dart';
 import '../../core/exceptions/trial_expired_exception.dart';
 import '../../core/models/pharmacy.dart';
 import '../../core/services/activation_service.dart';
@@ -24,7 +25,7 @@ class PharmaciesScreen extends StatefulWidget {
 
 class _PharmaciesScreenState extends State<PharmaciesScreen> {
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
-  final ActivationService _activationService = ActivationService();
+  final ActivationService _activationService = getIt<ActivationService>();
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
@@ -284,9 +285,29 @@ class _PharmaciesScreenState extends State<PharmaciesScreen> {
       await _loadCityOptions();
       await _loadPharmacies(reset: true);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تم حذف الصيدلية بنجاح')),
-      );
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          SnackBar(
+            content: Text('تم حذف ${pharmacy.name}'),
+            duration: const Duration(seconds: 4),
+            action: SnackBarAction(
+              label: 'تراجع',
+              onPressed: () async {
+                try {
+                  await _dbHelper.insert('pharmacies', {
+                    'id': pharmacy.id,
+                    'name': pharmacy.name,
+                    'phone': pharmacy.phone.isEmpty ? null : pharmacy.phone,
+                    'address': pharmacy.address.isEmpty ? null : pharmacy.address,
+                  });
+                  await _loadCityOptions();
+                  await _loadPharmacies(reset: true);
+                } catch (_) {}
+              },
+            ),
+          ),
+        );
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

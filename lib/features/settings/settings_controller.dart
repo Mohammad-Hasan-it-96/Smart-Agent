@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../core/constants/app_constants.dart';
+import '../../core/di/service_locator.dart';
 import '../../core/services/activation_service.dart';
 import '../../core/services/settings_service.dart';
+import '../../core/utils/app_logger.dart';
 
 class SettingsData {
   String agentName;
@@ -36,8 +39,8 @@ class SettingsData {
 }
 
 class SettingsController extends ChangeNotifier {
-  final ActivationService _activation = ActivationService();
-  final SettingsService _settings = SettingsService();
+  final ActivationService _activation = getIt<ActivationService>();
+  final SettingsService _settings = getIt<SettingsService>();
 
   SettingsData data = SettingsData();
   bool isLoading = true;
@@ -58,10 +61,12 @@ class SettingsController extends ChangeNotifier {
       data.pricingEnabled = await _settings.isPricingEnabled();
       data.currencyMode = await _settings.getCurrencyMode();
       data.exchangeRate = await _settings.getExchangeRate();
-      data.pdfFontSize = prefs.getInt('pdf_font_size') ?? 12;
-      data.enableGifts = prefs.getBool('enable_gifts') ?? false;
-      data.hideCarousel = prefs.getBool('hide_home_carousel') ?? false;
-    } catch (_) {}
+      data.pdfFontSize = prefs.getInt(AppConstants.kPdfFontSize) ?? 12;
+      data.enableGifts = prefs.getBool(AppConstants.kEnableGifts) ?? false;
+      data.hideCarousel = prefs.getBool(AppConstants.kHideHomeCarousel) ?? false;
+    } catch (e) {
+      AppLogger.e('SettingsController', 'load failed', e);
+    }
     isLoading = false;
     notifyListeners();
   }
@@ -79,8 +84,13 @@ class SettingsController extends ChangeNotifier {
       data.inventoryPhone = inv;
       try {
         serverOk = await _activation.updateMyData(name, phone);
-      } catch (_) {}
-    } catch (_) {
+      } catch (e) {
+        // Local data was saved successfully. The server sync failed (e.g. offline).
+        // The caller receives serverOk=false so it can inform the user.
+        AppLogger.w('SettingsController', 'updateMyData server sync failed', e);
+      }
+    } catch (e) {
+      AppLogger.e('SettingsController', 'saveAccount local persist failed', e);
       isSavingAccount = false;
       notifyListeners();
       return false;
@@ -120,22 +130,21 @@ class SettingsController extends ChangeNotifier {
   Future<void> setPdfFontSize(int size) async {
     data.pdfFontSize = size;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('pdf_font_size', size);
+    await prefs.setInt(AppConstants.kPdfFontSize, size);
     notifyListeners();
   }
 
   Future<void> setEnableGifts(bool v) async {
     data.enableGifts = v;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('enable_gifts', v);
+    await prefs.setBool(AppConstants.kEnableGifts, v);
     notifyListeners();
   }
 
   Future<void> setHideCarousel(bool v) async {
     data.hideCarousel = v;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('hide_home_carousel', v);
+    await prefs.setBool(AppConstants.kHideHomeCarousel, v);
     notifyListeners();
   }
 }
-

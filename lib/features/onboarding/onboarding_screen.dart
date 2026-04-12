@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../core/constants/app_constants.dart';
+import '../../core/di/service_locator.dart';
 import '../../core/services/activation_service.dart';
 
 class OnboardingScreen extends StatefulWidget {
@@ -11,7 +13,7 @@ class OnboardingScreen extends StatefulWidget {
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
   final PageController _pageController = PageController();
-  final ActivationService _activationService = ActivationService();
+  final ActivationService _activationService = getIt<ActivationService>();
   int _currentPage = 0;
 
   final List<OnboardingPage> _pages = [
@@ -44,7 +46,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   Future<void> _completeOnboarding() async {
     // Save onboarding completion status
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('onboarding_completed', true);
+    await prefs.setBool(AppConstants.kOnboardingCompleted, true);
 
     if (!mounted) return;
 

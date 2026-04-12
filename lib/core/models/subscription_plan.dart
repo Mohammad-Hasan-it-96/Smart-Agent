@@ -20,14 +20,14 @@ class SubscriptionPlan {
   });
 
   factory SubscriptionPlan.fromMap(Map<String, dynamic> map) {
-    double _parseDouble(dynamic value) {
+    double parseDouble(dynamic value) {
       if (value is int) return value.toDouble();
       if (value is double) return value;
       if (value is String) return double.tryParse(value) ?? 0.0;
       return 0.0;
     }
 
-    double? _parseNullableDouble(dynamic value) {
+    double? parseNullableDouble(dynamic value) {
       if (value == null) return null;
       if (value is int) return value.toDouble();
       if (value is double) return value;
@@ -39,9 +39,9 @@ class SubscriptionPlan {
       id: map['id']?.toString() ?? '',
       title: map['title']?.toString() ?? '',
       durationMonths: (map['duration_months'] ?? map['durationMonths'] ?? 0) as int,
-      price: _parseDouble(map['price']),
+      price: parseDouble(map['price']),
       priceAfterDiscount:
-          _parseNullableDouble(map['price_after_discount'] ?? map['priceAfterDiscount']),
+          parseNullableDouble(map['price_after_discount'] ?? map['priceAfterDiscount']),
       enabled: map['enabled'] == true || map['enabled'] == 1,
       recommended: map['recommended'] == true || map['recommended'] == 1,
       description: map['description']?.toString() ?? '',

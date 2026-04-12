@@ -3,13 +3,14 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../db/database_helper.dart';
+import '../di/service_locator.dart';
 import '../models/company.dart';
 import '../models/medicine.dart';
 import 'activation_service.dart';
 
 class DataExportService {
-  final DatabaseHelper _dbHelper = DatabaseHelper.instance;
-  final ActivationService _activationService = ActivationService();
+  final DatabaseHelper _dbHelper = getIt<DatabaseHelper>();
+  final ActivationService _activationService = getIt<ActivationService>();
 
   /// Export companies and medicines to JSON file
   Future<File> exportData() async {
@@ -94,13 +95,13 @@ class DataExportService {
       } else if (jsonInput is String) {
         jsonString = jsonInput;
       } else {
-        throw FormatException('Invalid input type for import');
+        throw const FormatException('Invalid input type for import');
       }
 
       final data = jsonDecode(jsonString) as Map<String, dynamic>;
 
       if (data['companies'] == null || data['medicines'] == null) {
-        throw FormatException('Invalid file format: missing companies or medicines');
+        throw const FormatException('Invalid file format: missing companies or medicines');
       }
 
       final companiesData = data['companies'] as List<dynamic>;

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/db/database_helper.dart';
+import '../../core/di/service_locator.dart';
 import '../../core/models/pharmacy.dart';
 import '../../core/models/company.dart';
 import '../../core/utils/slide_page_route.dart';
@@ -53,7 +54,7 @@ class NewOrderScreen extends StatefulWidget {
 
 class _NewOrderScreenState extends State<NewOrderScreen> {
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
-  final SettingsService _settingsService = SettingsService();
+  final SettingsService _settingsService = getIt<SettingsService>();
 
   // Pharmacy selection
   List<Pharmacy> _pharmacies = [];
@@ -65,7 +66,7 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
   List<MedicineWithCompanies> _medicinesWithCompanies = [];
 
   // Order items list
-  List<OrderItemData> _orderItems = [];
+  final List<OrderItemData> _orderItems = [];
 
   bool _isLoading = true;
   bool _isSaving = false;
@@ -218,7 +219,7 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
 
                           try {
                             // Check trial mode limits before inserting
-                            final activationService = ActivationService();
+                            final activationService = getIt<ActivationService>();
                             final isTrialMode =
                                 await activationService.isTrialMode();
                             if (isTrialMode) {
@@ -384,8 +385,6 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
   }
 
   void _onMedicineSelected(MedicineWithCompanies medicine) {
-    // Debug print
-    print("Selected: ${medicine.name}");
 
     // Clear search field and results immediately
     _medicineSearchController.clear();
@@ -791,7 +790,7 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
 
   Future<void> _saveOrder() async {
     // Check offline limit before saving
-    final activationService = ActivationService();
+    final activationService = getIt<ActivationService>();
     final offlineLimitExceeded = await activationService.isOfflineLimitExceeded();
     if (offlineLimitExceeded) {
       if (mounted) {

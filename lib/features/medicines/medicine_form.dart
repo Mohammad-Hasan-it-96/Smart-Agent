@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/db/database_helper.dart';
+import '../../core/di/service_locator.dart';
 import '../../core/models/medicine.dart';
 import '../../core/models/company.dart';
 import '../../core/services/activation_service.dart';
@@ -25,8 +26,8 @@ class _MedicineFormState extends State<MedicineForm> {
   final _sourceController = TextEditingController();
   final _notesController = TextEditingController();
   final _dbHelper = DatabaseHelper.instance;
-  final _activationService = ActivationService();
-  final _settingsService = SettingsService();
+  final _activationService = getIt<ActivationService>();
+  final _settingsService = getIt<SettingsService>();
   List<Company> _companies = [];
   int? _selectedCompanyId;
   String? _selectedForm;
@@ -188,7 +189,7 @@ class _MedicineFormState extends State<MedicineForm> {
         // Check trial mode limits before inserting
         try {
           await _activationService.checkTrialLimitMedicines();
-        } on TrialExpiredException catch (e) {
+        } on TrialExpiredException catch (_) {
           // Trial expired - redirect to activation
           if (mounted) {
             Navigator.of(context).pushNamedAndRemoveUntil(
@@ -632,7 +633,7 @@ class _MedicineFormState extends State<MedicineForm> {
                         children: [
                           TextFormField(
                             controller: _priceUsdController,
-                            decoration: InputDecoration(
+                            decoration: const InputDecoration(
                               labelText: 'سعر الدواء بالدولار (اختياري)',
                               hintText: '0.00',
                               prefixIcon: Icon(Icons.attach_money_rounded),

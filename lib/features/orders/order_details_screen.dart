@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:printing/printing.dart';
 import '../../core/db/database_helper.dart';
+import '../../core/di/service_locator.dart';
 import '../../core/services/activation_service.dart';
 import '../../core/services/settings_service.dart';
 import '../../core/utils/whatsapp_helper.dart';
@@ -22,7 +23,7 @@ class OrderDetailsScreen extends StatefulWidget {
 
 class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
-  final SettingsService _settingsService = SettingsService();
+  final SettingsService _settingsService = getIt<SettingsService>();
   Map<String, dynamic>? _orderInfo;
   List<Map<String, dynamic>> _orderItems = [];
   bool _isLoading = true;
@@ -192,7 +193,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
       return;
     }
 
-    final agentName = await ActivationService().getAgentName();
+    final agentName = await getIt<ActivationService>().getAgentName();
     final currencySymbol = _currencyMode == 'syp' ? 'ل.س' : '\$';
 
     final message = buildOrderMessage(

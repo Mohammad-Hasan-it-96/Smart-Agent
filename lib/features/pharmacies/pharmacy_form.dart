@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/db/database_helper.dart';
+import '../../core/di/service_locator.dart';
 import '../../core/models/pharmacy.dart';
 import '../../core/widgets/custom_app_bar.dart';
 import '../../core/widgets/form_widgets.dart';
@@ -22,7 +23,7 @@ class _PharmacyFormState extends State<PharmacyForm> {
   final _addressController = TextEditingController();
   final _phoneController = TextEditingController();
   final _dbHelper = DatabaseHelper.instance;
-  final _activationService = ActivationService();
+  final _activationService = getIt<ActivationService>();
   bool _isLoading = false;
 
   @override

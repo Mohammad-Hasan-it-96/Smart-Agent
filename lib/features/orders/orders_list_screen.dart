@@ -44,17 +44,6 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
     try {
       final db = await _dbHelper.database;
 
-      // First, let's check what's actually in the database
-      final allOrders = await db.rawQuery('''
-        SELECT id, created_at, SUBSTR(created_at, 1, 10) as date_part
-        FROM orders
-        LIMIT 10
-      ''');
-      print('Sample orders in database:');
-      for (var row in allOrders) {
-        print(
-            '  Order ID: ${row['id']}, Date part: ${row['date_part']}, Full: ${row['created_at']}');
-      }
 
       // Get orders grouped by day with count
       // Use SUBSTR to extract date part from ISO8601 format (YYYY-MM-DDTHH:mm:ss...)
@@ -81,7 +70,7 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
         _isLoading = false;
       });
     } catch (e) {
-      print('Error loading orders by day: $e');
+      debugPrint('Error loading orders by day: $e');
       setState(() {
         _isLoading = false;
       });
@@ -288,7 +277,7 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
                               ),
                             ),
                           );
-                        }).toList(),
+                        }),
                     ],
                   ),
                 ),

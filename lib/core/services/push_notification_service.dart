@@ -6,7 +6,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../constants/app_constants.dart';
+import '../di/service_locator.dart';
 import '../models/notification_model.dart';
+import '../utils/app_logger.dart';
 import 'activation_service.dart';
 import 'notification_action_handler.dart';
 import 'notification_api_service.dart';
@@ -16,7 +19,9 @@ import 'notification_history_service.dart';
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   try {
     await Firebase.initializeApp();
-  } catch (_) {}
+  } catch (e) {
+    AppLogger.w('PushNotificationService', 'Firebase init in background handler failed', e);
+  }
   await PushNotificationService.instance.storeMessageToHistory(message);
 }
 
@@ -33,7 +38,12 @@ class PushNotificationService {
   late final FirebaseMessaging _messaging;
   final FlutterLocalNotificationsPlugin _localNotifications =
       FlutterLocalNotificationsPlugin();
-  final ActivationService _activationService = ActivationService();
+
+  // Lazy getter — evaluated only when actually called (foreground only),
+  // so the background-isolate handler can construct this singleton safely
+  // without getIt being initialised in that context.
+  ActivationService get _activationService => getIt<ActivationService>();
+
   final NotificationApiService _apiService = NotificationApiService();
 
   final ValueNotifier<int> unreadCount = ValueNotifier<int>(0);
@@ -49,8 +59,9 @@ class PushNotificationService {
 
     try {
       await Firebase.initializeApp();
-    } catch (_) {
-      // Firebase config can be unavailable in some local environments.
+    } catch (e) {
+      // Firebase config can be unavailable in some local/CI environments.
+      AppLogger.w('PushNotificationService', 'Firebase init failed – push notifications disabled', e);
       return;
     }
 
@@ -229,13 +240,14 @@ class PushNotificationService {
 
     try {
       return await _apiService.sendCreateDeviceWithToken(
-        appName: 'SmartAgent',
+        appName: AppConstants.appName,
         deviceId: deviceId,
         fullName: fullName,
         phone: phone,
         fcmToken: token,
       );
-    } catch (_) {
+    } catch (e) {
+      AppLogger.w('PushNotificationService', '_registerTokenOnce failed', e);
       return false;
     }
   }
@@ -250,8 +262,9 @@ class PushNotificationService {
 
     try {
       await _apiService.updateFcmToken(deviceId: deviceId, fcmToken: token);
-    } catch (_) {
+    } catch (e) {
       // Keep local token and retry next app launch.
+      AppLogger.w('PushNotificationService', '_updateToken failed – will retry on next launch', e);
     }
   }
 
@@ -328,7 +341,8 @@ class PushNotificationService {
     bool verified = false;
     try {
       verified = await _activationService.recheckActivationStatus();
-    } catch (_) {
+    } catch (e) {
+      AppLogger.w('PushNotificationService', 'recheckActivationStatus during activation message failed', e);
       return;
     }
     if (!verified) return;
@@ -360,8 +374,9 @@ class PushNotificationService {
           ],
         ),
       );
-    } catch (_) {
+    } catch (e) {
       // Ignore UI errors if context changes while dialog is open.
+      AppLogger.d('PushNotificationService', 'activation success dialog error (context changed): $e');
     } finally {
       _isShowingActivationDialog = false;
     }

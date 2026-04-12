@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../core/db/database_helper.dart';
+import '../../core/di/service_locator.dart';
 import '../../core/exceptions/trial_expired_exception.dart';
 import '../../core/models/company.dart';
 import '../../core/models/medicine.dart';
@@ -23,8 +24,8 @@ class MedicinesScreen extends StatefulWidget {
 
 class _MedicinesScreenState extends State<MedicinesScreen> {
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
-  final SettingsService _settingsService = SettingsService();
-  final ActivationService _activationService = ActivationService();
+  final SettingsService _settingsService = getIt<SettingsService>();
+  final ActivationService _activationService = getIt<ActivationService>();
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
@@ -51,7 +52,6 @@ class _MedicinesScreenState extends State<MedicinesScreen> {
 
   bool _pricingEnabled = false;
   String _currencyMode = 'usd';
-  double _exchangeRate = 1.0;
 
   @override
   void initState() {
@@ -79,13 +79,11 @@ class _MedicinesScreenState extends State<MedicinesScreen> {
   Future<void> _loadPricingSettings() async {
     final enabled = await _settingsService.isPricingEnabled();
     final mode = await _settingsService.getCurrencyMode();
-    final rate = await _settingsService.getExchangeRate();
 
     if (!mounted) return;
     setState(() {
       _pricingEnabled = enabled;
       _currencyMode = mode;
-      _exchangeRate = rate;
     });
   }
 
@@ -510,9 +508,33 @@ class _MedicinesScreenState extends State<MedicinesScreen> {
       await _refreshFiltersMetadata();
       await _loadMedicines();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تم حذف الدواء بنجاح')),
-      );
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          SnackBar(
+            content: Text('تم حذف ${medicine['name']}'),
+            duration: const Duration(seconds: 4),
+            action: SnackBarAction(
+              label: 'تراجع',
+              onPressed: () async {
+                try {
+                  await _dbHelper.insert('medicines', {
+                    'id': medicine['id'],
+                    'name': medicine['name'],
+                    'company_id': medicine['company_id'],
+                    'price_usd': medicine['price_usd'],
+                    'price_syp': medicine['price_syp'],
+                    'source': medicine['source'],
+                    'form': medicine['form'],
+                    'notes': medicine['notes'],
+                  });
+                  await _refreshFiltersMetadata();
+                  await _loadMedicines();
+                } catch (_) {}
+              },
+            ),
+          ),
+        );
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

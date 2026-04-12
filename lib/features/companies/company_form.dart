@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/db/database_helper.dart';
+import '../../core/di/service_locator.dart';
 import '../../core/models/company.dart';
 import '../../core/services/activation_service.dart';
 import '../../core/exceptions/trial_expired_exception.dart';
@@ -19,7 +20,7 @@ class _CompanyFormState extends State<CompanyForm> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _dbHelper = DatabaseHelper.instance;
-  final _activationService = ActivationService();
+  final _activationService = getIt<ActivationService>();
   bool _isLoading = false;
 
   @override
@@ -54,7 +55,7 @@ class _CompanyFormState extends State<CompanyForm> {
         // Check trial mode limits before inserting
         try {
           await _activationService.checkTrialLimitCompanies();
-        } on TrialExpiredException catch (e) {
+        } on TrialExpiredException catch (_) {
           // Trial expired - redirect to activation
           if (mounted) {
             Navigator.of(context).pushNamedAndRemoveUntil(

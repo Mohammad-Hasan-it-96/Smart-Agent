@@ -4,6 +4,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:provider/provider.dart';
 import 'core/db/database_helper.dart';
+import 'core/di/service_locator.dart';
 import 'core/theme/app_theme.dart';
 import 'core/providers/theme_provider.dart';
 import 'core/utils/slide_page_route.dart';
@@ -36,6 +37,9 @@ void main() async {
 
   // Initialize SQLite database
   await DatabaseHelper.instance.database;
+
+  // Set up dependency injection
+  await setupServiceLocator();
 
   // Set preferred orientations
   await SystemChrome.setPreferredOrientations([

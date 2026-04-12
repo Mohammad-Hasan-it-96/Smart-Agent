@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/widgets/custom_app_bar.dart';
+import '../../core/di/service_locator.dart';
 import '../../core/services/activation_service.dart';
 import '../../core/services/contact_launcher_service.dart';
 import '../../core/services/push_notification_service.dart';
@@ -14,7 +15,7 @@ class TrialExpiredPlansScreen extends StatefulWidget {
 }
 
 class _TrialExpiredPlansScreenState extends State<TrialExpiredPlansScreen> {
-  final ActivationService _activationService = ActivationService();
+  final ActivationService _activationService = getIt<ActivationService>();
   final ContactLauncherService _contactLauncher = const ContactLauncherService();
   String? _selectedPlanId;
   bool _isLoading = true;
@@ -228,9 +229,9 @@ class _TrialExpiredPlansScreenState extends State<TrialExpiredPlansScreen> {
     final theme = Theme.of(context);
 
     if (_isLoading) {
-      return Scaffold(
-        appBar: const CustomAppBar(title: 'انتهت النسخة التجريبية'),
-        body: const Center(
+      return const Scaffold(
+        appBar: CustomAppBar(title: 'انتهت النسخة التجريبية'),
+        body: Center(
           child: CircularProgressIndicator(),
         ),
       );

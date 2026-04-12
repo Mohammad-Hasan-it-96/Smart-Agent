@@ -13,6 +13,7 @@ import '../../core/services/settings_service.dart';
 import '../../core/providers/theme_provider.dart';
 import '../../core/widgets/custom_app_bar.dart';
 import '../../core/widgets/update_dialog.dart';
+import '../../core/utils/app_logger.dart';
 import '../../core/utils/phone_validator.dart';
 import 'settings_controller.dart';
 import 'widgets/setting_tile.dart';
@@ -32,6 +33,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _isExporting = false;
   bool _isImporting = false;
   bool _isCheckingActivation = false;
+  bool _isCheckingUpdates = false;
   SupportContactInfo _support = const SupportContactInfo(
     email: SettingsService.defaultSupportEmail,
     telegram: SettingsService.defaultSupportTelegram,
@@ -57,7 +59,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     try {
       final info = await PackageInfo.fromPlatform();
       if (mounted) setState(() => _appVersion = '${info.version}+${info.buildNumber}');
-    } catch (_) {
+    } catch (e) {
+      AppLogger.w('SettingsScreen', '_loadVersion failed', e);
       if (mounted) setState(() => _appVersion = '1.0.0');
     }
   }
@@ -68,10 +71,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (mounted) {
         setState(() => _support = support);
       }
-    } catch (_) {}
+    } catch (e) {
+      AppLogger.w('SettingsScreen', '_loadSupportInfo failed – using defaults', e);
+    }
   }
-
-  // ─── HELPERS ──────────────────────────────────────────────────────
 
   String _formatExpiry(String? raw) {
     if (raw == null || raw.isEmpty) return 'غير محدد';
@@ -120,7 +123,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         body: Consumer<SettingsController>(
           builder: (context, ctrl, _) {
             if (ctrl.isLoading) {
-              return Center(
+              return const Center(
                 child: CircularProgressIndicator(color: AppTheme.primaryColor),
               );
             }
@@ -577,7 +580,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           icon: Icons.update_outlined,
           title: 'التحقق من التحديثات',
           subtitle: 'البحث عن إصدارات جديدة',
-          onTap: _checkForUpdates,
+          trailing: _isCheckingUpdates
+              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+              : null,
+          onTap: _isCheckingUpdates ? null : _checkForUpdates,
         ),
         SettingTile(
           icon: Icons.info_outline,
@@ -804,56 +810,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  /// Font Size Sheet
-  void _showFontSizeSheet(SettingsController ctrl) {
-    int size = ctrl.data.pdfFontSize;
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setLocal) => Padding(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 40, height: 4,
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(color: Colors.grey[400], borderRadius: BorderRadius.circular(2)),
-              ),
-              Text('حجم خط PDF', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 24),
-              Text('$size نقطة', style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 12),
-              Slider(
-                value: size.toDouble(),
-                min: 8,
-                max: 24,
-                divisions: 16,
-                label: '$size',
-                onChanged: (v) => setLocal(() => size = v.toInt()),
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: FilledButton(
-                  onPressed: () {
-                    ctrl.setPdfFontSize(size);
-                    Navigator.pop(ctx);
-                    _snack('تم حفظ حجم الخط', bg: Colors.green);
-                  },
-                  child: const Text('حفظ', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 
   /// Pricing Sheet
   void _showPricingSheet(SettingsController ctrl) {
@@ -1078,6 +1034,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         Navigator.of(context).pushNamedAndRemoveUntil('/activation', (route) => false);
       }
     } catch (e) {
+      AppLogger.e('SettingsScreen', '_recheckActivation failed', e);
       if (!mounted) return;
       _snack('تعذر الاتصال بالسيرفر: ${e.toString()}', bg: Colors.red);
     } finally {
@@ -1093,6 +1050,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       await _dataExport.shareFile(file);
       _snack('تم التصدير بنجاح', bg: Colors.green);
     } catch (e) {
+      AppLogger.e('SettingsScreen', '_exportData failed', e);
       if (e.toString().contains('OFFLINE_LIMIT_EXCEEDED') && mounted) {
         Navigator.of(context).pushReplacementNamed('/offline-limit');
         return;
@@ -1124,7 +1082,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _snack('الملف غير صالح: لا يحتوي على بيانات شركات أو أدوية', bg: Colors.red);
           return;
         }
-      } catch (_) {
+      } catch (e) {
+        AppLogger.w('SettingsScreen', 'import file decode/validation failed', e);
         _snack('الملف تالف أو غير صالح. تأكد من أنه ملف بيانات المندوب الذكي.', bg: Colors.red);
         return;
       }
@@ -1233,6 +1192,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       );
     } catch (e) {
+      AppLogger.e('SettingsScreen', '_importData failed', e);
       _snack('خطأ في الاستيراد: ${e.toString()}', bg: Colors.red);
     } finally {
       if (mounted) setState(() => _isImporting = false);
@@ -1240,6 +1200,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _checkForUpdates() async {
+    if (_isCheckingUpdates) return;
+    setState(() => _isCheckingUpdates = true);
     try {
       final pkg = await PackageInfo.fromPlatform();
       final info = await UpdateService().checkForUpdate(pkg.version);
@@ -1261,7 +1223,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         );
       }
     } catch (e) {
+      AppLogger.e('SettingsScreen', '_checkForUpdates failed', e);
       _snack('خطأ في التحقق من التحديث: ${e.toString()}', bg: Colors.red);
+    } finally {
+      if (mounted) setState(() => _isCheckingUpdates = false);
     }
   }
 

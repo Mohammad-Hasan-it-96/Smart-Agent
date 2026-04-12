@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../core/constants/app_constants.dart';
 import '../../core/db/database_helper.dart';
+import '../../core/di/service_locator.dart';
 import '../../core/services/activation_service.dart';
+import '../../core/utils/app_logger.dart';
 
 class HomeStats {
   final int todayOrders;
@@ -22,8 +25,8 @@ class HomeStats {
 enum AccountStatus { active, trial, expired, unknown }
 
 class HomeController extends ChangeNotifier {
-  final ActivationService _activation = ActivationService();
-  final DatabaseHelper _db = DatabaseHelper.instance;
+  final ActivationService _activation = getIt<ActivationService>();
+  final DatabaseHelper _db = getIt<DatabaseHelper>();
 
   String agentName = '';
   AccountStatus status = AccountStatus.unknown;
@@ -31,7 +34,7 @@ class HomeController extends ChangeNotifier {
   bool hideCarousel = false;
   bool isLoading = true;
 
-  static const String _hideCarouselKey = 'hide_home_carousel';
+  // Key now lives in AppConstants — no local duplicate needed.
 
   Future<void> load() async {
     isLoading = true;
@@ -44,7 +47,7 @@ class HomeController extends ChangeNotifier {
       agentName = await _activation.getAgentName();
 
       // Carousel
-      hideCarousel = prefs.getBool(_hideCarouselKey) ?? false;
+      hideCarousel = prefs.getBool(AppConstants.kHideHomeCarousel) ?? false;
 
       // Status
       final isActivated = await _activation.isActivated();
@@ -63,7 +66,9 @@ class HomeController extends ChangeNotifier {
 
       // Stats
       stats = await _loadStats();
-    } catch (_) {}
+    } catch (e) {
+      AppLogger.e('HomeController', 'load failed', e);
+    }
 
     isLoading = false;
     notifyListeners();
@@ -75,7 +80,9 @@ class HomeController extends ChangeNotifier {
     try {
       stats = await _loadStats();
       notifyListeners();
-    } catch (_) {}
+    } catch (e) {
+      AppLogger.w('HomeController', 'refreshStats failed', e);
+    }
   }
 
   Future<HomeStats> _loadStats() async {
@@ -111,7 +118,8 @@ class HomeController extends ChangeNotifier {
         totalMedicines: (medicinesResult.first['c'] as int?) ?? 0,
         totalCompanies: (companiesResult.first['c'] as int?) ?? 0,
       );
-    } catch (_) {
+    } catch (e) {
+      AppLogger.e('HomeController', '_loadStats failed', e);
       return const HomeStats();
     }
   }
@@ -120,7 +128,7 @@ class HomeController extends ChangeNotifier {
     hideCarousel = true;
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_hideCarouselKey, true);
+    await prefs.setBool(AppConstants.kHideHomeCarousel, true);
   }
 
   /// Check trial / license expiration. Returns route name to redirect, or null.
@@ -137,7 +145,9 @@ class HomeController extends ChangeNotifier {
         await _activation.disableTrialMode();
         return '/trial-expired-plans';
       }
-    } catch (_) {}
+    } catch (e) {
+      AppLogger.e('HomeController', 'checkExpiration failed', e);
+    }
     return null;
   }
 }

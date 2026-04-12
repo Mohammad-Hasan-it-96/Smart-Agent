@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../core/di/service_locator.dart';
 import '../../core/widgets/custom_app_bar.dart';
 import '../../core/services/activation_service.dart';
 import '../../core/services/contact_launcher_service.dart';
@@ -18,7 +19,7 @@ class ContactMethodScreen extends StatefulWidget {
 }
 
 class _ContactMethodScreenState extends State<ContactMethodScreen> {
-  final ActivationService _activationService = ActivationService();
+  final ActivationService _activationService = getIt<ActivationService>();
   final ContactLauncherService _contactLauncher = const ContactLauncherService();
   String? _selectedMethod;
   String _agentName = '';
@@ -193,9 +194,9 @@ class _ContactMethodScreenState extends State<ContactMethodScreen> {
     final theme = Theme.of(context);
 
     if (_isLoading) {
-      return Scaffold(
-        appBar: const CustomAppBar(title: 'اختر طريقة التواصل'),
-        body: const Center(
+      return const Scaffold(
+        appBar: CustomAppBar(title: 'اختر طريقة التواصل'),
+        body: Center(
           child: CircularProgressIndicator(),
         ),
       );

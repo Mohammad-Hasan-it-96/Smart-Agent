@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/di/service_locator.dart';
 import '../../core/services/activation_service.dart';
 import '../../core/services/push_notification_service.dart';
 
@@ -10,7 +11,7 @@ class ActivationScreen extends StatefulWidget {
 }
 
 class _ActivationScreenState extends State<ActivationScreen> {
-  final ActivationService _activationService = ActivationService();
+  final ActivationService _activationService = getIt<ActivationService>();
   bool _isLoading = true;
   bool _isActivated = false;
   bool _isVerified = false;

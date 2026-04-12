@@ -1,7 +1,8 @@
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
+import '../../core/di/service_locator.dart';
 import '../../core/services/activation_service.dart';
 import '../../core/services/settings_service.dart';
 import '../../core/db/database_helper.dart';
@@ -20,7 +21,7 @@ Future<Uint8List> generateOrderPdf(
       items = await dbHelper.fetchOrderItemsWithDetails(orderId);
     } catch (e) {
       // If DB fetch fails, continue with empty items list
-      print('Warning: Could not fetch items from DB: $e');
+      debugPrint('Warning: Could not fetch items from DB: $e');
     }
   }
   // Load Arabic font
@@ -31,8 +32,8 @@ Future<Uint8List> generateOrderPdf(
   } catch (e) {
     // If font file is not found, PDF will use default font
     // This allows the PDF to still generate even without the Arabic font
-    print('Warning: Arabic font not found. Using default font. Error: $e');
-    print('Please ensure Cairo-Regular.ttf is placed in assets/fonts/');
+    debugPrint('Warning: Arabic font not found. Using default font. Error: $e');
+    debugPrint('Please ensure Cairo-Regular.ttf is placed in assets/fonts/');
   }
 
   // Create text style with Arabic font
@@ -48,13 +49,13 @@ Future<Uint8List> generateOrderPdf(
     );
   }
 
-  // Get agent data from SharedPreferences
-  final activationService = ActivationService();
+  // Get agent data via DI
+  final activationService = getIt<ActivationService>();
   final agentName = await activationService.getAgentName();
   final agentPhone = await activationService.getAgentPhone();
 
-  // Get pricing settings
-  final settingsService = SettingsService();
+  // Get pricing settings via DI
+  final settingsService = getIt<SettingsService>();
   final pricingEnabled = await settingsService.isPricingEnabled();
   final currencyMode = await settingsService.getCurrencyMode();
   final currencySymbol = currencyMode == 'syp' ? 'ل.س' : '\$';

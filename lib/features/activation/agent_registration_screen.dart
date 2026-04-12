@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../core/di/service_locator.dart';
 import '../../core/services/activation_service.dart';
 import '../../core/utils/phone_validator.dart';
 import '../../core/services/push_notification_service.dart';
@@ -16,7 +17,7 @@ class _AgentRegistrationScreenState extends State<AgentRegistrationScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
-  final _activationService = ActivationService();
+  final _activationService = getIt<ActivationService>();
   bool _isLoading = false;
 
   @override

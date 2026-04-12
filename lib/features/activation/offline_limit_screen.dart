@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/di/service_locator.dart';
 import '../../core/services/activation_service.dart';
 import '../../core/widgets/custom_app_bar.dart';
 
@@ -10,7 +11,7 @@ class OfflineLimitScreen extends StatefulWidget {
 }
 
 class _OfflineLimitScreenState extends State<OfflineLimitScreen> {
-  final ActivationService _activationService = ActivationService();
+  final ActivationService _activationService = getIt<ActivationService>();
   bool _isChecking = false;
 
   Future<void> _checkConnection() async {
@@ -87,7 +88,7 @@ class _OfflineLimitScreenState extends State<OfflineLimitScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
+                const Icon(
                   Icons.wifi_off,
                   size: 80,
                   color: Colors.orange,

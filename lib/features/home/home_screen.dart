@@ -154,7 +154,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
         body: Consumer<HomeController>(
           builder: (context, ctrl, _) {
             if (ctrl.isLoading) {
-              return Center(
+              return const Center(
                 child: CircularProgressIndicator(
                   color: AppTheme.primaryColor,
                   strokeWidth: 3,
