@@ -23,7 +23,7 @@ void showUpdateDialog(BuildContext context, UpdateInfo info) {
 
   showDialog(
     context: context,
-    builder: (_) => AlertDialog(
+    builder: (dialogContext) => AlertDialog(
       title: const Text(
         'يتوفر تحديث جديد',
         textDirection: TextDirection.rtl,
@@ -38,22 +38,46 @@ void showUpdateDialog(BuildContext context, UpdateInfo info) {
         if (hasDownload)
           TextButton(
             child: const Text('لاحقاً'),
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
           ),
         ElevatedButton(
           child: Text(hasDownload ? 'تحميل التحديث' : 'حسناً'),
           onPressed: () async {
-            Navigator.pop(context);
-            if (hasDownload) {
-              final rawUrl = info.downloadUrl!.trim();
-              final uri = Uri.tryParse(rawUrl) ??
-                  Uri.tryParse('https://$rawUrl');
-              if (uri != null) {
-                await launchUrl(
-                  uri,
-                  mode: LaunchMode.externalApplication,
-                );
-              }
+            Navigator.pop(dialogContext);
+            if (!hasDownload) return;
+
+            final rawUrl = info.downloadUrl!.trim();
+            final uri = Uri.tryParse(rawUrl) ?? Uri.tryParse('https://$rawUrl');
+            // Capture messenger before async gap to satisfy
+            // use_build_context_synchronously lint.
+            final messenger = ScaffoldMessenger.of(context);
+
+            if (uri == null) {
+              messenger.showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'رابط التحميل غير صالح.',
+                    textDirection: TextDirection.rtl,
+                  ),
+                  backgroundColor: Colors.red,
+                ),
+              );
+              return;
+            }
+            final launched = await launchUrl(
+              uri,
+              mode: LaunchMode.externalApplication,
+            );
+            if (!launched) {
+              messenger.showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'تعذّر فتح رابط التحميل. يرجى المحاولة لاحقاً.',
+                    textDirection: TextDirection.rtl,
+                  ),
+                  backgroundColor: Colors.red,
+                ),
+              );
             }
           },
         ),
@@ -61,3 +85,6 @@ void showUpdateDialog(BuildContext context, UpdateInfo info) {
     ),
   );
 }
+
+
+

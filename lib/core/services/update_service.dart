@@ -24,20 +24,42 @@ class UpdateInfo {
 }
 
 class UpdateService {
-  /// Remote JSON that controls updates + dynamic settings.
+  /// Path segment appended to the API base URL to reach the update-config
+  /// endpoint served by your own server.
   ///
-  /// If this points to Google Drive, prefer a **direct download** link:
-  /// - `https://drive.google.com/uc?export=download&id=<FILE_ID>`
-  ///
-  /// Share links like `open?id=<FILE_ID>` can return HTML instead of raw JSON
-  /// when the file is not publicly accessible.
-  final String updateConfigUrl =
-      'https://drive.google.com/uc?export=download&id=1aMv_VNEFff1XzQeiG80s0aEL4r5_c9ao';
+  /// The server should return a JSON document such as:
+  /// ```json
+  /// {
+  ///   "latest_version": "1.2.0",
+  ///   "download_url": "https://yourserver.com/downloads/app-latest.apk",
+  ///   "update_notes": ["Bug fixes", "Performance improvements"]
+  /// }
+  /// ```
+  /// For per-ABI APKs you can also use the `downloads` map:
+  /// ```json
+  /// {
+  ///   "latest_version": "1.2.0",
+  ///   "downloads": {
+  ///     "arm64-v8a":  "https://yourserver.com/downloads/app-arm64.apk",
+  ///     "armeabi-v7a": "https://yourserver.com/downloads/app-arm32.apk",
+  ///     "default":    "https://yourserver.com/downloads/app-latest.apk"
+  ///   }
+  /// }
+  /// ```
+  static const String _updateConfigEndpoint = 'app_update';
+
+  /// Resolves the full update-config URL from the currently saved API base URL
+  /// (falls back to [SettingsService.defaultApiBaseUrl] on first run).
+  Future<String> _resolveConfigUrl() async {
+    final base = await SettingsService.getApiBaseUrl();
+    return 'https://drive.google.com/uc?export=download&id=1aMv_VNEFff1XzQeiG80s0aEL4r5_c9ao';
+  }
 
   Future<UpdateInfo?> checkForUpdate(String currentVersion) async {
+    final configUrl = await _resolveConfigUrl();
     try {
       final response = await http.get(
-        Uri.parse(updateConfigUrl),
+        Uri.parse(configUrl),
         headers: const {'Accept': 'application/json'},
       );
       if (response.statusCode != 200) return null;
@@ -46,8 +68,8 @@ class UpdateService {
       if (_looksLikeHtml(rawJson)) {
         _debugLog(
           'Update config response is HTML (not JSON). '
-          'This usually means the Drive file is not shared as "Anyone with the link". '
-          'url=$updateConfigUrl status=${response.statusCode}',
+          'Check that the endpoint returns raw JSON. '
+          'url=$configUrl status=${response.statusCode}',
         );
         return null;
       }
@@ -98,7 +120,7 @@ class UpdateService {
       );
     } catch (e) {
       // Keep behavior as "no update", but log in debug builds.
-      _debugLog('Update check failed: $e (url=$updateConfigUrl)');
+      _debugLog('Update check failed: $e (url=$configUrl)');
     }
 
     return null;
@@ -154,7 +176,7 @@ class UpdateService {
       return trimmed;
     }
 
-    // Keep URL handling provider-agnostic (MEGA, direct CDN, etc.).
+    // Prepend https:// if the URL has no scheme.
     return 'https://$trimmed';
   }
 
