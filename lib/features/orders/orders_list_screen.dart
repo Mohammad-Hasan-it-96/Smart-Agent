@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:printing/printing.dart';
 import '../../core/db/database_helper.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/slide_page_route.dart';
 import '../../core/widgets/custom_app_bar.dart';
 import '../../core/widgets/empty_state.dart';
 import 'daily_orders_screen.dart';
+import 'filtered_orders_pdf.dart';
 import 'order_filter.dart';
 import 'order_filter_sheet.dart';
 
@@ -23,6 +25,9 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
 
   /// Active filter — starts empty (no filtering).
   OrderFilter _filter = const OrderFilter();
+
+  /// True while the export report query is running.
+  bool _isExporting = false;
 
   @override
   void initState() {
@@ -107,6 +112,141 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
     );
   }
 
+  // ── Export report (Part 1: data collection + confirmation) ────────
+
+  Future<void> _exportReport() async {
+    if (_isExporting) return;
+    setState(() => _isExporting = true);
+
+    try {
+      final db = await _dbHelper.database;
+      final (:where, :args) = _filter.buildGroupedWhere();
+
+      // Collect summary counts using the active filter
+      final rows = await db.rawQuery('''
+        SELECT
+          COUNT(DISTINCT orders.id)                                            AS total_orders,
+          COALESCE(SUM(COALESCE(oi.qty,0) + COALESCE(oi.gift_qty,0)), 0)     AS total_qty
+        FROM orders
+        LEFT JOIN order_items oi ON oi.order_id = orders.id
+        $where
+      ''', args);
+
+      final totalOrders = (rows.first['total_orders'] as num?)?.toInt() ?? 0;
+      final totalQty    = (rows.first['total_qty']    as num?)?.toInt() ?? 0;
+
+      if (!mounted) return;
+
+      // Confirmation dialog before PDF generation (Part 2)
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) {
+          final theme = Theme.of(ctx);
+          return AlertDialog(
+            title: Text('تصدير تقرير PDF',
+                textDirection: TextDirection.rtl,
+                style: theme.textTheme.titleLarge
+                    ?.copyWith(fontWeight: FontWeight.bold)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text('سيتضمن التقرير:',
+                    textDirection: TextDirection.rtl,
+                    style: theme.textTheme.bodyMedium
+                        ?.copyWith(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                _summaryRow(Icons.receipt_long, 'عدد الطلبيات',
+                    totalOrders.toString(), theme),
+                _summaryRow(Icons.medication_rounded, 'مجموع الوحدات',
+                    totalQty.toString(), theme),
+                if (_filter.isActive) ...[
+                  const Divider(height: 20),
+                  Text('الفلتر النشط:',
+                      textDirection: TextDirection.rtl,
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: theme.colorScheme.primary)),
+                  ..._filterSummaryLines().map((line) => Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text('• $line',
+                            textDirection: TextDirection.rtl,
+                            style: theme.textTheme.bodySmall),
+                      )),
+                ],
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('إلغاء'),
+              ),
+              FilledButton.icon(
+                onPressed: () => Navigator.pop(ctx, true),
+                icon: const Icon(Icons.picture_as_pdf_rounded, size: 18),
+                label: const Text('تصدير'),
+              ),
+            ],
+          );
+        },
+      );
+
+      if (confirmed == true && mounted) {
+        final pdfBytes = await generateFilteredOrdersReport(
+          filter: _filter,
+          dbHelper: _dbHelper,
+        );
+        if (mounted) {
+          await Printing.sharePdf(
+            bytes: pdfBytes,
+            filename: 'orders_report.pdf',
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('خطأ في جمع بيانات التقرير: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isExporting = false);
+    }
+  }
+
+  List<String> _filterSummaryLines() {
+    final lines = <String>[];
+    if (_filter.month != null) {
+      lines.add('الشهر: ${OrderFilter.monthLabel(_filter.month!)}');
+    } else {
+      if (_filter.fromDate != null) lines.add('من: ${_formatDisplayDate(_filter.fromDate!)}');
+      if (_filter.toDate != null)   lines.add('إلى: ${_formatDisplayDate(_filter.toDate!)}');
+    }
+    if (_filter.pharmacies.isNotEmpty) lines.add('${_filter.pharmacies.length} صيدلية');
+    if (_filter.companies.isNotEmpty)  lines.add('${_filter.companies.length} شركة');
+    return lines;
+  }
+
+  Widget _summaryRow(
+      IconData icon, String label, String value, ThemeData theme) =>
+      Padding(
+        padding: const EdgeInsets.symmetric(vertical: 3),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            Text(value,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: theme.colorScheme.primary)),
+            const SizedBox(width: 6),
+            Text(label,
+                textDirection: TextDirection.rtl,
+                style: theme.textTheme.bodyMedium),
+            const SizedBox(width: 6),
+            Icon(icon, size: 16, color: theme.colorScheme.primary),
+          ],
+        ),
+      );
+
   Future<void> _showFilterSheet() async {
     final newFilter = await showModalBottomSheet<OrderFilter>(
       context: context,
@@ -121,6 +261,142 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
       setState(() => _filter = newFilter);
       await _loadOrdersByDay();
     }
+  }
+
+  // ── In-page action toolbar ────────────────────────────────────────
+
+  Widget _buildActionBar(ThemeData theme, bool isDark) {
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark
+            ? const Color(0xFF0F2040)
+            : theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.08)
+              : theme.colorScheme.outline.withValues(alpha: 0.15),
+        ),
+        boxShadow: isDark
+            ? []
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+      ),
+      child: Row(
+        children: [
+          // ── Filter button ──────────────────────────────────────
+          Expanded(
+            child: InkWell(
+              onTap: _showFilterSheet,
+              borderRadius: const BorderRadius.horizontal(right: Radius.circular(14)),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 13),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        Icon(
+                          _filter.isActive
+                              ? Icons.filter_alt_rounded
+                              : Icons.filter_list_rounded,
+                          size: 20,
+                          color: _filter.isActive
+                              ? AppTheme.primaryColor
+                              : theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                        ),
+                        if (_filter.isActive)
+                          Positioned(
+                            top: -2,
+                            left: -2,
+                            child: Container(
+                              width: 7,
+                              height: 7,
+                              decoration: const BoxDecoration(
+                                color: Colors.redAccent,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      _filter.isActive ? 'تصفية (نشطة)' : 'تصفية',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontFamily: 'Cairo',
+                        fontWeight: _filter.isActive
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                        color: _filter.isActive
+                            ? AppTheme.primaryColor
+                            : theme.colorScheme.onSurface.withValues(alpha: 0.8),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          // ── Divider ────────────────────────────────────────────
+          Container(
+            width: 1,
+            height: 32,
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.1)
+                : theme.colorScheme.outline.withValues(alpha: 0.2),
+          ),
+
+          // ── PDF export button ──────────────────────────────────
+          Expanded(
+            child: InkWell(
+              onTap: _sortedDays.isEmpty || _isExporting ? null : _exportReport,
+              borderRadius: const BorderRadius.horizontal(left: Radius.circular(14)),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 13),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _isExporting
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Icon(
+                            Icons.picture_as_pdf_rounded,
+                            size: 20,
+                            color: _sortedDays.isEmpty
+                                ? theme.colorScheme.onSurface.withValues(alpha: 0.3)
+                                : theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                          ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'تصدير PDF',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontFamily: 'Cairo',
+                        color: _sortedDays.isEmpty
+                            ? theme.colorScheme.onSurface.withValues(alpha: 0.3)
+                            : theme.colorScheme.onSurface.withValues(alpha: 0.8),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   // ── Active filter chips ────────────────────────────────────────────
@@ -192,50 +468,37 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Scaffold(
       appBar: CustomAppBar(
         title: 'الطلبيات',
-        showNotifications: true,
-        showSettings: true,
-        actions: [
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.filter_list_rounded),
-                tooltip: 'تصفية',
-                onPressed: _showFilterSheet,
-              ),
-              if (_filter.isActive)
-                Positioned(
-                  top: 10,
-                  left: 10,
-                  child: Container(
-                    width: 8,
-                    height: 8,
-                    decoration: const BoxDecoration(
-                      color: Colors.redAccent,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ],
+        showNotifications: false,
+        showSettings: false,
+        showThemeToggle: false,
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _loadOrdersByDay,
-              child: SafeArea(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // Active filter chips
-                      _buildActiveFilterChips(theme),
+      body: Column(
+        children: [
+          // ── Persistent action row (filter + PDF) below AppBar ──────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: _buildActionBar(theme, isDark),
+          ),
+          // ── Scrollable content ─────────────────────────────────────
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : RefreshIndicator(
+                    onRefresh: _loadOrdersByDay,
+                    child: SafeArea(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(16),
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            // Active filter chips
+                            _buildActiveFilterChips(theme),
 
                       // Date Picker Button
                       Card(
@@ -365,13 +628,16 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
                             ),
                           );
                         }),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-    );
-  }
+                          ],       // inner Column children
+                        ),         // inner Column
+                      ),           // SingleChildScrollView
+                    ),             // SafeArea
+                  ),               // RefreshIndicator
+                ),                 // Expanded
+              ],                   // body Column children
+            ),                     // body Column
+          );
+        }
 
   Widget _buildQuickDayButton(String label, DateTime date, ThemeData theme) {
     return OutlinedButton(
