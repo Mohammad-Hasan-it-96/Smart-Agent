@@ -46,7 +46,10 @@ class MedicineWithCompanies {
 }
 
 class NewOrderScreen extends StatefulWidget {
-  const NewOrderScreen({super.key});
+  /// When non-null, the screen opens in edit mode for the given order ID.
+  final int? editOrderId;
+
+  const NewOrderScreen({super.key, this.editOrderId});
 
   @override
   State<NewOrderScreen> createState() => _NewOrderScreenState();
@@ -81,6 +84,9 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
     _loadPricingSettings();
     _loadPharmacies();
     _medicineSearchController.addListener(_searchMedicines);
+    if (widget.editOrderId != null) {
+      _loadExistingOrder();
+    }
   }
 
   Future<void> _loadPricingSettings() async {
@@ -108,6 +114,64 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
       setState(() {
         _isLoading = false;
       });
+    }
+  }
+
+  /// Loads the existing order's pharmacy and items into the form (edit mode).
+  Future<void> _loadExistingOrder() async {
+    try {
+      final db = await _dbHelper.database;
+
+      // Load the order's selected pharmacy
+      final orderRows = await db.rawQuery(
+        'SELECT pharmacy_id FROM orders WHERE id = ?',
+        [widget.editOrderId],
+      );
+      if (orderRows.isNotEmpty && mounted) {
+        setState(() {
+          _selectedPharmacyId =
+              (orderRows.first['pharmacy_id'] as num?)?.toInt();
+        });
+      }
+
+      // Load existing order items with medicine + company details
+      final itemRows = await db.rawQuery('''
+        SELECT
+          oi.medicine_id,
+          m.name        AS medicine_name,
+          m.company_id,
+          c.name        AS company_name,
+          oi.qty,
+          COALESCE(oi.price, 0.0) AS price,
+          oi.is_gift,
+          oi.gift_qty
+        FROM order_items oi
+        LEFT JOIN medicines  m ON oi.medicine_id = m.id
+        LEFT JOIN companies  c ON m.company_id   = c.id
+        WHERE oi.order_id = ?
+      ''', [widget.editOrderId]);
+
+      if (!mounted) return;
+      setState(() {
+        _orderItems
+          ..clear()
+          ..addAll(itemRows.map((row) => OrderItemData(
+                medicineId:   (row['medicine_id']  as num).toInt(),
+                medicineName: (row['medicine_name'] as String?) ?? 'غير معروف',
+                companyId:    (row['company_id']   as num?)?.toInt() ?? 0,
+                companyName:  (row['company_name'] as String?) ?? 'غير معروف',
+                qty:          (row['qty']          as num?)?.toInt() ?? 0,
+                price:        (row['price']        as num?)?.toDouble() ?? 0.0,
+                isGift:       (row['is_gift']      as int?) == 1,
+                giftQty:      (row['gift_qty']     as num?)?.toInt() ?? 0,
+              )));
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('خطأ في تحميل بيانات الطلبية: $e')),
+        );
+      }
     }
   }
 
@@ -789,17 +853,22 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
   }
 
   Future<void> _saveOrder() async {
-    // Check offline limit before saving
-    final activationService = getIt<ActivationService>();
-    final offlineLimitExceeded = await activationService.isOfflineLimitExceeded();
-    if (offlineLimitExceeded) {
-      if (mounted) {
-        Navigator.of(context).pushReplacementNamed('/offline-limit');
+    final isEditMode = widget.editOrderId != null;
+
+    // Only check offline limit when creating a new order
+    if (!isEditMode) {
+      final activationService = getIt<ActivationService>();
+      final offlineLimitExceeded =
+          await activationService.isOfflineLimitExceeded();
+      if (offlineLimitExceeded) {
+        if (mounted) {
+          Navigator.of(context).pushReplacementNamed('/offline-limit');
+        }
+        return;
       }
-      return;
     }
 
-    // Validation: Check pharmacy
+    // Validation: pharmacy
     if (_selectedPharmacyId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('يرجى اختيار الصيدلية')),
@@ -807,7 +876,7 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
       return;
     }
 
-    // Validation: Check at least one item
+    // Validation: at least one item
     if (_orderItems.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -818,54 +887,86 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
       return;
     }
 
-    setState(() {
-      _isSaving = true;
-    });
+    setState(() => _isSaving = true);
 
     try {
-      // Create order
-      final now = DateTime.now().toIso8601String();
-      final orderData = {
-        'pharmacy_id': _selectedPharmacyId,
-        'created_at': now,
-      };
+      if (isEditMode) {
+        // ── Edit mode: update order + replace all items atomically ──────
+        final db = await _dbHelper.database;
+        await db.transaction((txn) async {
+          // Update the order's pharmacy (in case it was changed)
+          await txn.update(
+            'orders',
+            {'pharmacy_id': _selectedPharmacyId},
+            where: 'id = ?',
+            whereArgs: [widget.editOrderId],
+          );
+          // Delete ALL existing items for this order
+          await txn.delete(
+            'order_items',
+            where: 'order_id = ?',
+            whereArgs: [widget.editOrderId],
+          );
+          // Re-insert the current items
+          for (final item in _orderItems) {
+            await txn.insert('order_items', {
+              'order_id':    widget.editOrderId,
+              'medicine_id': item.medicineId,
+              'qty':         item.qty,
+              'price':       item.price,
+              'is_gift':     item.isGift ? 1 : 0,
+              'gift_qty':    item.giftQty,
+            });
+          }
+        });
 
-      final orderId = await _dbHelper.insert('orders', orderData);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('تم حفظ التعديلات بنجاح'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          // Pop back to OrderDetailsScreen; pass true so it refreshes
+          Navigator.pop(context, true);
+        }
+      } else {
+        // ── Create mode: original logic ─────────────────────────────────
+        final now = DateTime.now().toIso8601String();
+        final orderId = await _dbHelper.insert('orders', {
+          'pharmacy_id': _selectedPharmacyId,
+          'created_at':  now,
+        });
 
-      // Create order items
-      for (final item in _orderItems) {
-        final itemData = {
-          'order_id': orderId,
-          'medicine_id': item.medicineId,
-          'qty': item.qty,
-          'price': item.price,
-          'is_gift': item.isGift ? 1 : 0,
-          'gift_qty': item.giftQty,
-        };
-        await _dbHelper.insert('order_items', itemData);
-      }
+        for (final item in _orderItems) {
+          await _dbHelper.insert('order_items', {
+            'order_id':    orderId,
+            'medicine_id': item.medicineId,
+            'qty':         item.qty,
+            'price':       item.price,
+            'is_gift':     item.isGift ? 1 : 0,
+            'gift_qty':    item.giftQty,
+          });
+        }
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('تم حفظ الطلبية بنجاح'),
-            backgroundColor: Colors.green,
-          ),
-        );
-
-        // Navigate to Order Details Screen
-        Navigator.pushReplacement(
-          context,
-          SlidePageRoute(
-            page: OrderDetailsScreen(orderId: orderId),
-            direction: SlideDirection.rightToLeft,
-          ),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('تم حفظ الطلبية بنجاح'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          Navigator.pushReplacement(
+            context,
+            SlidePageRoute(
+              page: OrderDetailsScreen(orderId: orderId),
+              direction: SlideDirection.rightToLeft,
+            ),
+          );
+        }
       }
     } catch (e) {
-      setState(() {
-        _isSaving = false;
-      });
+      setState(() => _isSaving = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('حدث خطأ: ${e.toString()}')),
@@ -878,7 +979,8 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: const CustomAppBar(title: 'إنشاء طلبية جديدة'),
+      appBar: CustomAppBar(
+          title: widget.editOrderId != null ? 'تعديل الطلبية' : 'إنشاء طلبية جديدة'),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : SafeArea(
@@ -1383,7 +1485,9 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
                           label: Text(
                             _isSaving
                                 ? 'جارٍ الحفظ...'
-                                : 'حفظ الطلبية ${_orderItems.isEmpty ? '' : '(${_orderItems.length})'}',
+                                : widget.editOrderId != null
+                                    ? 'حفظ التعديلات (${_orderItems.length})'
+                                    : 'حفظ الطلبية ${_orderItems.isEmpty ? '' : '(${_orderItems.length})'}',
                             style: const TextStyle(
                               fontSize: 17,
                               fontWeight: FontWeight.bold,

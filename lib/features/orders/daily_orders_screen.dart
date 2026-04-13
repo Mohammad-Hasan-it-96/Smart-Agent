@@ -184,7 +184,7 @@ class _DailyOrdersScreenState extends State<DailyOrdersScreen> {
                           margin: const EdgeInsets.only(bottom: 12),
                           child: InkWell(
                             onTap: () async {
-                              await Navigator.push(
+                              final result = await Navigator.push<bool>(
                                 context,
                                 SlidePageRoute(
                                   page: OrderDetailsScreen(
@@ -193,6 +193,10 @@ class _DailyOrdersScreenState extends State<DailyOrdersScreen> {
                                   direction: SlideDirection.rightToLeft,
                                 ),
                               );
+                              // Reload list if the order was deleted
+                              if (result == true && mounted) {
+                                _loadOrders(isInitialLoad: true);
+                              }
                             },
                             borderRadius: BorderRadius.circular(16),
                             child: Padding(

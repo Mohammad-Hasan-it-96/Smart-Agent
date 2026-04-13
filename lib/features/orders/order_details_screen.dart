@@ -8,8 +8,10 @@ import '../../core/db/database_helper.dart';
 import '../../core/di/service_locator.dart';
 import '../../core/services/activation_service.dart';
 import '../../core/services/settings_service.dart';
+import '../../core/utils/slide_page_route.dart';
 import '../../core/utils/whatsapp_helper.dart';
 import '../../core/widgets/custom_app_bar.dart';
+import 'new_order_screen.dart';
 import 'pdf_exporter.dart';
 
 class OrderDetailsScreen extends StatefulWidget {
@@ -304,11 +306,104 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     }
   }
 
+  // ── Edit order ─────────────────────────────────────────────────────
+
+  Future<void> _editOrder() async {
+    final result = await Navigator.push<bool>(
+      context,
+      SlidePageRoute(
+        page: NewOrderScreen(editOrderId: widget.orderId),
+        direction: SlideDirection.rightToLeft,
+      ),
+    );
+    // Reload details if the edit was saved
+    if (result == true && mounted) {
+      _loadOrderDetails();
+    }
+  }
+
+  // ── Delete order ────────────────────────────────────────────────────
+
+  Future<void> _deleteOrder() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        final theme = Theme.of(ctx);
+        return AlertDialog(
+          title: Text(
+            'حذف الطلبية',
+            textDirection: TextDirection.rtl,
+            style: theme.textTheme.titleLarge
+                ?.copyWith(fontWeight: FontWeight.bold),
+          ),
+          content: const Text(
+            'هل أنت متأكد من حذف هذه الطلبية؟\nلا يمكن التراجع عن هذا الإجراء.',
+            textDirection: TextDirection.rtl,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: FilledButton.styleFrom(backgroundColor: Colors.red),
+              child: const Text('حذف'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    try {
+      // Delete items first (child rows), then the order (parent row)
+      await _dbHelper.delete(
+        'order_items',
+        where: 'order_id = ?',
+        whereArgs: [widget.orderId],
+      );
+      await _dbHelper.delete(
+        'orders',
+        where: 'id = ?',
+        whereArgs: [widget.orderId],
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تم حذف الطلبية بنجاح')),
+        );
+        // Pop with true so the caller (DailyOrdersScreen) can refresh
+        Navigator.pop(context, true);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('خطأ في حذف الطلبية: $e')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: const CustomAppBar(title: 'تفاصيل الطلبية'),
+      appBar: CustomAppBar(
+        title: 'تفاصيل الطلبية',
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit_rounded),
+            tooltip: 'تعديل الطلبية',
+            onPressed: _orderInfo == null || _isLoading ? null : _editOrder,
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete_rounded),
+            tooltip: 'حذف الطلبية',
+            onPressed: _orderInfo == null || _isLoading ? null : _deleteOrder,
+          ),
+        ],
+      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _orderInfo == null
