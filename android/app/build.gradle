@@ -40,7 +40,9 @@ android {
         minifyEnabled true  // تفعيل تقليل الكود (R8)
         shrinkResources true // تقليل حجم الموارد (اختياري لكن مفيد)
         proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-        signingConfig signingConfigs.debug // أو استبدلها بتوقيع الإصدار الخاص بك
+        // ⚠️ RELEASE BLOCKER: replace signingConfigs.debug with a real release keystore
+        // before distributing to end-users. See docs/RELEASE_CHECKLIST.md
+        signingConfig signingConfigs.debug // أو استبدلها بتوقيع الإصدار الخاص بك
 }
 }
 }

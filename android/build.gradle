@@ -24,18 +24,24 @@ subprojects {
         if (project.plugins.hasPlugin("com.android.application") ||
                 project.plugins.hasPlugin("com.android.library")) {
             project.android {
-                  compileOptions {
+                // Fix for third-party packages (e.g. blue_thermal_printer) that have not
+                // yet added a namespace declaration to their build.gradle.  AGP 8+ requires
+                // a namespace; fall back to the Gradle group ID which matches the package
+                // attribute in the library's AndroidManifest.xml.
+                if (namespace == null) {
+                    namespace = project.group
+                }
+                compileOptions {
                     sourceCompatibility JavaVersion.VERSION_17
                     targetCompatibility JavaVersion.VERSION_17
                 }
                 compileSdkVersion 35
             }
-              project.tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+            project.tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
                 kotlinOptions {
                     jvmTarget = "17"
                 }
             }
-          
         }
     }
 }

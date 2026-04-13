@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'dart:io' show Platform;
 
 import 'package:device_info_plus/device_info_plus.dart';
@@ -24,36 +24,29 @@ class UpdateInfo {
 }
 
 class UpdateService {
-  /// Path segment appended to the API base URL to reach the update-config
-  /// endpoint served by your own server.
+  /// Google Drive hosted JSON file — the single source of truth for
+  /// update config.  The file must be publicly readable and must return
+  /// raw JSON (use the direct-download export link, not the preview URL).
   ///
-  /// The server should return a JSON document such as:
-  /// ```json
-  /// {
-  ///   "latest_version": "1.2.0",
-  ///   "download_url": "https://yourserver.com/downloads/app-latest.apk",
-  ///   "update_notes": ["Bug fixes", "Performance improvements"]
-  /// }
-  /// ```
-  /// For per-ABI APKs you can also use the `downloads` map:
+  /// Expected JSON shape:
   /// ```json
   /// {
   ///   "latest_version": "1.2.0",
   ///   "downloads": {
-  ///     "arm64-v8a":  "https://yourserver.com/downloads/app-arm64.apk",
-  ///     "armeabi-v7a": "https://yourserver.com/downloads/app-arm32.apk",
-  ///     "default":    "https://yourserver.com/downloads/app-latest.apk"
-  ///   }
+  ///     "arm64-v8a":   "https://yourserver.com/app-arm64.apk",
+  ///     "armeabi-v7a": "https://yourserver.com/app-arm32.apk",
+  ///     "default":     "https://yourserver.com/app-latest.apk"
+  ///   },
+  ///   "update_notes": ["Bug fixes"],
+  ///   "api":     { "base_url": "https://yourserver.com/api" },
+  ///   "support": { "whatsapp": "963XXXXXXXXX" }
   /// }
   /// ```
-  static const String _updateConfigEndpoint = 'app_update';
+  static const String _updateConfigUrl =
+      'https://drive.google.com/uc?export=download&id=1aMv_VNEFff1XzQeiG80s0aEL4r5_c9ao';
 
-  /// Resolves the full update-config URL from the currently saved API base URL
-  /// (falls back to [SettingsService.defaultApiBaseUrl] on first run).
-  Future<String> _resolveConfigUrl() async {
-    final base = await SettingsService.getApiBaseUrl();
-    return 'https://drive.google.com/uc?export=download&id=1aMv_VNEFff1XzQeiG80s0aEL4r5_c9ao';
-  }
+  /// Returns the fixed Google Drive URL for the update-config JSON.
+  Future<String> _resolveConfigUrl() async => _updateConfigUrl;
 
   Future<UpdateInfo?> checkForUpdate(String currentVersion) async {
     final configUrl = await _resolveConfigUrl();
