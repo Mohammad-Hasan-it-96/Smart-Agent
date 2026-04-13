@@ -3,6 +3,7 @@ import '../db/database_helper.dart';
 import '../services/activation_local_storage.dart';
 import '../services/activation_service.dart';
 import '../services/backup_service.dart';
+import '../services/bluetooth_print_service.dart';
 import '../services/device_api_repository.dart';
 import '../services/device_identity_service.dart';
 import '../services/offline_limit_guard.dart';
@@ -47,6 +48,10 @@ Future<void> setupServiceLocator() async {
   getIt.registerLazySingleton<SettingsService>(() => SettingsService());
   getIt.registerLazySingleton<UpdateService>(() => UpdateService());
   getIt.registerLazySingleton<BackupService>(() => BackupService());
+
+  // ── Sprint 5 — Bluetooth printing ─────────────────────────────────────
+  getIt.registerLazySingleton<BluetoothPrintService>(
+      () => BluetoothPrintService());
 
   // ── Database ──────────────────────────────────────────────────────────
   // DatabaseHelper uses its own singleton pattern; we expose the existing

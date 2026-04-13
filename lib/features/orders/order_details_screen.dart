@@ -7,6 +7,7 @@ import 'package:printing/printing.dart';
 import '../../core/db/database_helper.dart';
 import '../../core/di/service_locator.dart';
 import '../../core/services/activation_service.dart';
+import '../../core/services/bluetooth_print_service.dart';
 import '../../core/services/settings_service.dart';
 import '../../core/utils/slide_page_route.dart';
 import '../../core/utils/whatsapp_helper.dart';
@@ -29,6 +30,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
   Map<String, dynamic>? _orderInfo;
   List<Map<String, dynamic>> _orderItems = [];
   bool _isLoading = true;
+  bool _isPrinting = false;
   bool _pricingEnabled = false;
   String _currencyMode = 'usd';
   double _exchangeRate = 1.0;
@@ -303,6 +305,132 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
           ),
         );
       }
+    }
+  }
+
+  // ── Bluetooth printing ──────────────────────────────────────────────────
+
+  Future<void> _printOrder() async {
+    if (_orderInfo == null || _isPrinting) return;
+    setState(() => _isPrinting = true);
+
+    final btService = getIt<BluetoothPrintService>();
+    BtPrinterDevice? deviceToUse;
+    bool wasAutoConnected = false;
+
+    // ── 1. Try silent auto-connect to the last-used printer ───────────────
+    final autoOk = await btService.connectToPreferred();
+    if (!mounted) {
+      setState(() => _isPrinting = false);
+      return;
+    }
+
+    if (autoOk) {
+      deviceToUse = btService.connectedDevice;
+      wasAutoConnected = true;
+    } else {
+      // ── 2. Fall back to manual selection ─────────────────────────────────
+      final devices = await btService.getPairedDevices();
+      final preferredAddress =
+          (await btService.loadPreferredPrinter())?.address;
+
+      if (!mounted) {
+        setState(() => _isPrinting = false);
+        return;
+      }
+
+      if (devices.isEmpty) {
+        setState(() => _isPrinting = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'لا توجد طابعات بلوتوث مقترنة. يرجى إقران الطابعة أولاً من إعدادات الجهاز.',
+              textDirection: TextDirection.rtl,
+            ),
+          ),
+        );
+        return;
+      }
+
+      deviceToUse = await showDialog<BtPrinterDevice>(
+        context: context,
+        builder: (ctx) => _PrinterSelectionDialog(
+          devices: devices,
+          preferredAddress: preferredAddress,
+        ),
+      );
+
+      if (deviceToUse == null || !mounted) {
+        setState(() => _isPrinting = false);
+        return;
+      }
+    }
+
+    // ── 3. Show progress dialog ───────────────────────────────────────────
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const _PrintingProgressDialog(),
+    );
+
+    // ── 4. Connect (if not already auto-connected) ────────────────────────
+    if (!wasAutoConnected) {
+      final connected = await btService.connect(deviceToUse!);
+      if (!mounted) return;
+      if (!connected) {
+        Navigator.of(context).pop();
+        setState(() => _isPrinting = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'تعذّر الاتصال بـ "${deviceToUse.name}"',
+              textDirection: TextDirection.rtl,
+            ),
+          ),
+        );
+        return;
+      }
+      // Save as preferred for next time
+      await btService.savePreferredPrinter(deviceToUse);
+    }
+
+    // ── 5. Print then disconnect ──────────────────────────────────────────
+    try {
+      final agentName = await getIt<ActivationService>().getAgentName();
+      if (!mounted) return;
+
+      await btService.printOrderInvoice(
+        pharmacyName: (_orderInfo!['pharmacy_name'] as String?) ?? 'غير معروف',
+        orderDate: _formatDate(_orderInfo!['created_at'] as String),
+        items: _orderItems,
+        agentName: agentName,
+      );
+      await btService.disconnect();
+
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      setState(() => _isPrinting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'تمت الطباعة بنجاح ✓  (${deviceToUse?.name ?? ''})',
+            textDirection: TextDirection.rtl,
+          ),
+        ),
+      );
+    } catch (e) {
+      await btService.disconnect();
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      setState(() => _isPrinting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'خطأ أثناء الطباعة: $e',
+            textDirection: TextDirection.rtl,
+          ),
+        ),
+      );
     }
   }
 
@@ -729,6 +857,30 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                             padding: const EdgeInsets.symmetric(vertical: 16),
                           ),
                         ),
+                        const SizedBox(height: 12),
+                        FilledButton.icon(
+                          onPressed: (_isLoading || _orderInfo == null || _isPrinting)
+                              ? null
+                              : _printOrder,
+                          icon: _isPrinting
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Icon(Icons.print_rounded),
+                          label: Text(
+                            _isPrinting ? 'جارٍ الطباعة...' : 'طباعة بلوتوث',
+                            style: const TextStyle(fontSize: 18),
+                          ),
+                          style: FilledButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            backgroundColor: Colors.teal,
+                          ),
+                        ),
                         if (_inventoryPhone.trim().isNotEmpty) ...[
                           const SizedBox(height: 20),
                           // Quick share header
@@ -875,3 +1027,98 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     );
   }
 }
+
+// ── Private helper widgets ───────────────────────────────────────────────────
+
+/// Dialog that lists paired BT devices and returns the user's choice.
+/// The previously-used printer is highlighted with a ★ badge.
+class _PrinterSelectionDialog extends StatelessWidget {
+  const _PrinterSelectionDialog({
+    required this.devices,
+    this.preferredAddress,
+  });
+
+  final List<BtPrinterDevice> devices;
+
+  /// MAC address of the last-used printer (may be null).
+  final String? preferredAddress;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AlertDialog(
+      title: Row(
+        textDirection: TextDirection.rtl,
+        children: [
+          Icon(Icons.print_rounded, color: theme.colorScheme.primary),
+          const SizedBox(width: 8),
+          const Text('اختر الطابعة', textDirection: TextDirection.rtl),
+        ],
+      ),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: ListView.separated(
+          shrinkWrap: true,
+          itemCount: devices.length,
+          separatorBuilder: (_, __) => const Divider(height: 1),
+          itemBuilder: (_, i) {
+            final d = devices[i];
+            final isPreferred = d.address == preferredAddress;
+            return ListTile(
+              leading: Icon(
+                isPreferred ? Icons.print_rounded : Icons.print_outlined,
+                color: isPreferred
+                    ? theme.colorScheme.primary
+                    : theme.colorScheme.onSurfaceVariant,
+              ),
+              title: Text(d.name, textDirection: TextDirection.rtl),
+              subtitle: Text(
+                isPreferred
+                    ? '${d.address}  ★ آخر طابعة مستخدمة'
+                    : d.address,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: isPreferred ? theme.colorScheme.primary : null,
+                ),
+              ),
+              onTap: () => Navigator.of(context).pop(d),
+            );
+          },
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('إلغاء'),
+        ),
+      ],
+    );
+  }
+}
+
+/// Non-dismissible progress dialog shown while connecting + printing.
+class _PrintingProgressDialog extends StatelessWidget {
+  const _PrintingProgressDialog();
+
+  @override
+  Widget build(BuildContext context) {
+    return const AlertDialog(
+      content: Padding(
+        padding: EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          textDirection: TextDirection.rtl,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 20),
+            Expanded(
+              child: Text(
+                'جارٍ الاتصال والطباعة...',
+                textDirection: TextDirection.rtl,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
