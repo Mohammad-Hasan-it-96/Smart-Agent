@@ -491,28 +491,6 @@ Future<Uint8List> generateOrderPdf(
 
                       final medicineName = item['medicine_name'] ?? 'غير معروف';
                       final companyName = item['company_name'] ?? 'غير معروف';
-                      final source = item['medicine_source'] as String?;
-                      final form = item['medicine_form'] as String?;
-                      final notes = item['medicine_notes'] as String?;
-
-                      // Build description string: show paid quantity first, then gift quantity if available.
-                      final List<String> descriptionParts = [];
-                      descriptionParts.add('الكمية: $qty');
-                      if (effectiveGiftQty > 0) {
-                        descriptionParts.add('الهدية: $effectiveGiftQty');
-                      }
-                      if (source != null && source.isNotEmpty) {
-                        descriptionParts.add('المصدر: $source');
-                      }
-                      if (form != null && form.isNotEmpty) {
-                        descriptionParts.add('النوع: $form');
-                      }
-                      if (notes != null && notes.isNotEmpty) {
-                        descriptionParts.add('ملاحظات: $notes');
-                      }
-                      final description = descriptionParts.isNotEmpty
-                          ? '(${descriptionParts.join(' — ')})'
-                          : '';
 
                       return pw.TableRow(
                         children: pricingEnabled
@@ -582,54 +560,34 @@ Future<Uint8List> generateOrderPdf(
                                     ),
                                   ),
                                 ),
-                                // الدواء - SIXTH in array
-                                pw.Padding(
-                                  padding: const pw.EdgeInsets.all(4),
-                                  child: pw.Directionality(
-                                    textDirection: pw.TextDirection.rtl,
-                                    child: pw.Column(
-                                      crossAxisAlignment:
-                                          pw.CrossAxisAlignment.start,
-                                      children: [
-                                        pw.Text(
-                                          medicineName,
-                                          style: getArabicStyle(
-                                            fontSize: 9,
-                                            fontWeight: pw.FontWeight.bold,
-                                          ),
-                                          textDirection: pw.TextDirection.rtl,
-                                        ),
-                                        if (description.isNotEmpty) ...[
-                                          pw.SizedBox(height: 2),
-                                          pw.Directionality(
-                                            textDirection: pw.TextDirection.rtl,
-                                            child: pw.Text(
-                                              description,
-                                              style: getArabicStyle(
-                                                fontSize: 7,
-                                              ),
-                                              textDirection:
-                                                  pw.TextDirection.rtl,
-                                            ),
-                                          ),
-                                        ],
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                                // الرقم - LAST in array (rightmost visually in RTL)
-                                pw.Padding(
-                                  padding: const pw.EdgeInsets.all(4),
-                                  child: pw.Directionality(
-                                    textDirection: pw.TextDirection.rtl,
-                                    child: pw.Text(
-                                      globalIndex.toString(),
-                                      style: getArabicStyle(fontSize: 9),
-                                      textAlign: pw.TextAlign.center,
-                                    ),
-                                  ),
-                                ),
-                              ]
+                                 // الدواء - SIXTH in array
+                                 pw.Padding(
+                                   padding: const pw.EdgeInsets.all(4),
+                                   child: pw.Directionality(
+                                     textDirection: pw.TextDirection.rtl,
+                                     child: pw.Text(
+                                       medicineName,
+                                       style: getArabicStyle(
+                                         fontSize: 9,
+                                         fontWeight: pw.FontWeight.bold,
+                                       ),
+                                       textDirection: pw.TextDirection.rtl,
+                                     ),
+                                   ),
+                                 ),
+                                 // الرقم - LAST in array (rightmost visually in RTL)
+                                 pw.Padding(
+                                   padding: const pw.EdgeInsets.all(4),
+                                   child: pw.Directionality(
+                                     textDirection: pw.TextDirection.rtl,
+                                     child: pw.Text(
+                                       globalIndex.toString(),
+                                       style: getArabicStyle(fontSize: 9),
+                                       textAlign: pw.TextAlign.center,
+                                     ),
+                                   ),
+                                 ),
+                               ]
                             : [
                                 // Reversed order for RTL visual reading: هدية, الكمية, الشركة, الدواء, الرقم
                                 // (Visually: الرقم appears on RIGHT, الكمية appears on LEFT)
@@ -669,54 +627,34 @@ Future<Uint8List> generateOrderPdf(
                                     ),
                                   ),
                                 ),
-                                // الدواء - FOURTH in array
-                                pw.Padding(
-                                  padding: const pw.EdgeInsets.all(6),
-                                  child: pw.Directionality(
-                                    textDirection: pw.TextDirection.rtl,
-                                    child: pw.Column(
-                                      crossAxisAlignment:
-                                          pw.CrossAxisAlignment.start,
-                                      children: [
-                                        pw.Text(
-                                          medicineName,
-                                          style: getArabicStyle(
-                                            fontSize: 10,
-                                            fontWeight: pw.FontWeight.bold,
-                                          ),
-                                          textDirection: pw.TextDirection.rtl,
-                                        ),
-                                        if (description.isNotEmpty) ...[
-                                          pw.SizedBox(height: 2),
-                                          pw.Directionality(
-                                            textDirection: pw.TextDirection.rtl,
-                                            child: pw.Text(
-                                              description,
-                                              style: getArabicStyle(
-                                                fontSize: 8,
-                                              ),
-                                              textDirection:
-                                                  pw.TextDirection.rtl,
-                                            ),
-                                          ),
-                                        ],
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                                // الرقم - LAST in array (rightmost visually in RTL)
-                                pw.Padding(
-                                  padding: const pw.EdgeInsets.all(6),
-                                  child: pw.Directionality(
-                                    textDirection: pw.TextDirection.rtl,
-                                    child: pw.Text(
-                                      globalIndex.toString(),
-                                      style: getArabicStyle(fontSize: 10),
-                                      textAlign: pw.TextAlign.center,
-                                    ),
-                                  ),
-                                ),
-                              ],
+                                 // الدواء - FOURTH in array
+                                 pw.Padding(
+                                   padding: const pw.EdgeInsets.all(6),
+                                   child: pw.Directionality(
+                                     textDirection: pw.TextDirection.rtl,
+                                     child: pw.Text(
+                                       medicineName,
+                                       style: getArabicStyle(
+                                         fontSize: 10,
+                                         fontWeight: pw.FontWeight.bold,
+                                       ),
+                                       textDirection: pw.TextDirection.rtl,
+                                     ),
+                                   ),
+                                 ),
+                                 // الرقم - LAST in array (rightmost visually in RTL)
+                                 pw.Padding(
+                                   padding: const pw.EdgeInsets.all(6),
+                                   child: pw.Directionality(
+                                     textDirection: pw.TextDirection.rtl,
+                                     child: pw.Text(
+                                       globalIndex.toString(),
+                                       style: getArabicStyle(fontSize: 10),
+                                       textAlign: pw.TextAlign.center,
+                                     ),
+                                   ),
+                                 ),
+                               ],
                       );
                     }),
                   ],
