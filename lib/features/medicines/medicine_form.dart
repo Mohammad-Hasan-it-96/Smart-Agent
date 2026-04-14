@@ -35,7 +35,15 @@ class _MedicineFormState extends State<MedicineForm> {
   bool _isLoadingCompanies = true;
   String _currencyMode = 'usd';
   double _exchangeRate = 0.0;
-  bool _isSyncingPrices = false;
+
+  // Price sync control:
+  // - _usdEditedByUser / _sypEditedByUser: set to true when the user (or
+  //   pre-loaded data) has given that field a real value.
+  // - _isAutoUpdating: true while we're programmatically writing to the other
+  //   field so the listener knows to ignore that change.
+  bool _usdEditedByUser = false;
+  bool _sypEditedByUser = false;
+  bool _isAutoUpdating = false;
 
   final List<String> _formOptions = [
     'حبوب',
@@ -66,9 +74,11 @@ class _MedicineFormState extends State<MedicineForm> {
       _selectedCompanyId = widget.medicine!.companyId;
       if (widget.medicine!.priceUsd > 0) {
         _priceUsdController.text = widget.medicine!.priceUsd.toString();
+        _usdEditedByUser = true; // treat pre-loaded value as "set"
       }
       if ((widget.medicine!.priceSyp ?? 0) > 0) {
         _priceSypController.text = widget.medicine!.priceSyp.toString();
+        _sypEditedByUser = true; // treat pre-loaded value as "set"
       }
       _sourceController.text = widget.medicine!.source ?? '';
       // Guard: if the saved form value isn't in the list, add it so the
@@ -119,22 +129,34 @@ class _MedicineFormState extends State<MedicineForm> {
     return value.toStringAsFixed(2);
   }
 
+  /// Called every time the user types in the USD field.
+  /// Auto-fills SYP ONLY if SYP has not yet been given a value by the user
+  /// (or by pre-loaded data).  Once the user has independently edited SYP,
+  /// auto-sync stops completely in that direction.
   void _syncFromUsd(String raw) {
-    if (_isSyncingPrices || _exchangeRate <= 0) return;
+    if (_isAutoUpdating || _exchangeRate <= 0) return;
+    _usdEditedByUser = true;
+    if (_sypEditedByUser) return; // SYP already has a deliberate value — don't overwrite
     final usd = _parseOptionalPrice(raw);
     if (usd == null || usd < 0) return;
-    _isSyncingPrices = true;
+    _isAutoUpdating = true;
     _priceSypController.text = _formatPrice(usd * _exchangeRate);
-    _isSyncingPrices = false;
+    _isAutoUpdating = false;
   }
 
+  /// Called every time the user types in the SYP field.
+  /// Auto-fills USD ONLY if USD has not yet been given a value by the user
+  /// (or by pre-loaded data).  Once the user has independently edited USD,
+  /// auto-sync stops completely in that direction.
   void _syncFromSyp(String raw) {
-    if (_isSyncingPrices || _exchangeRate <= 0) return;
+    if (_isAutoUpdating || _exchangeRate <= 0) return;
+    _sypEditedByUser = true;
+    if (_usdEditedByUser) return; // USD already has a deliberate value — don't overwrite
     final syp = _parseOptionalPrice(raw);
     if (syp == null || syp < 0) return;
-    _isSyncingPrices = true;
+    _isAutoUpdating = true;
     _priceUsdController.text = _formatPrice(syp / _exchangeRate);
-    _isSyncingPrices = false;
+    _isAutoUpdating = false;
   }
 
   Future<void> _loadCompanies() async {
