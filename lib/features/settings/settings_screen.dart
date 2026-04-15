@@ -1001,9 +1001,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     try {
       final verified = await ctrl.recheckActivation();
       if (!mounted) return;
+      // Show result in-place — do NOT navigate away.
+      // The user initiated the recheck from inside the app (Settings screen),
+      // so they should stay exactly where they are after seeing the result.
       await showDialog(
         context: context,
-        builder: (_) => AlertDialog(
+        builder: (dialogCtx) => AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           title: Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -1022,17 +1025,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           actionsAlignment: MainAxisAlignment.center,
           actions: [
-            FilledButton(onPressed: () => Navigator.pop(context), child: const Text('حسناً')),
+            // Use dialogCtx so we close only the dialog, not the settings screen.
+            FilledButton(onPressed: () => Navigator.pop(dialogCtx), child: const Text('حسناً')),
           ],
         ),
       );
-
-      if (!mounted) return;
-      if (verified) {
-        Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
-      } else {
-        Navigator.of(context).pushNamedAndRemoveUntil('/activation', (route) => false);
-      }
+      // Stay on Settings — no pushNamedAndRemoveUntil here.
     } catch (e) {
       AppLogger.e('SettingsScreen', '_recheckActivation failed', e);
       if (!mounted) return;

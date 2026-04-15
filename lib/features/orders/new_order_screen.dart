@@ -852,6 +852,203 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
     });
   }
 
+  /// Opens an edit dialog for the quantity/gift of the item at [index].
+  /// Reuses [_QuantityStepperField] so the UX is identical to the add flow.
+  Future<void> _editItemQuantity(int index) async {
+    final item = _orderItems[index];
+    int paidQty = item.qty;
+    int giftQty = item.giftQty;
+    bool hasGift = giftQty > 0;
+
+    final paidQtyController =
+        TextEditingController(text: paidQty.toString());
+    final giftQtyController =
+        TextEditingController(text: giftQty.toString());
+
+    int parseQty(String text) {
+      final v = int.tryParse(text.trim()) ?? 0;
+      return v < 0 ? 0 : v;
+    }
+
+    void syncController(TextEditingController ctrl, int value) {
+      ctrl.value = TextEditingValue(
+        text: value.toString(),
+        selection:
+            TextSelection.collapsed(offset: value.toString().length),
+      );
+    }
+
+    try {
+      await showDialog(
+        context: context,
+        builder: (context) => StatefulBuilder(
+          builder: (context, setDialogState) => AlertDialog(
+            titlePadding: const EdgeInsets.fromLTRB(16, 14, 8, 8),
+            contentPadding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            actionsPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            title: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        item.medicineName,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textDirection: TextDirection.rtl,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        item.companyName,
+                        style: Theme.of(context).textTheme.bodySmall,
+                        textDirection: TextDirection.rtl,
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _QuantityStepperField(
+                    label: 'الكمية',
+                    icon: Icons.shopping_bag_outlined,
+                    controller: paidQtyController,
+                    onIncrement: () {
+                      setDialogState(() {
+                        paidQty += 1;
+                        syncController(paidQtyController, paidQty);
+                      });
+                    },
+                    onDecrement: () {
+                      setDialogState(() {
+                        if (paidQty > 0) paidQty -= 1;
+                        syncController(paidQtyController, paidQty);
+                      });
+                    },
+                    onManualChanged: (value) {
+                      setDialogState(() => paidQty = parseQty(value));
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .surfaceContainerHighest
+                          .withValues(alpha: 0.35),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: CheckboxListTile(
+                      value: hasGift,
+                      onChanged: (value) {
+                        setDialogState(() {
+                          hasGift = value ?? false;
+                          if (!hasGift) {
+                            giftQty = 0;
+                            syncController(giftQtyController, giftQty);
+                          } else if (giftQty == 0) {
+                            giftQty = 1;
+                            syncController(giftQtyController, giftQty);
+                          }
+                        });
+                      },
+                      controlAffinity: ListTileControlAffinity.leading,
+                      title: const Text(
+                        'يوجد هدية',
+                        textDirection: TextDirection.rtl,
+                      ),
+                      subtitle: const Text(
+                        'الهدية لا تؤثر على إجمالي السعر',
+                        textDirection: TextDirection.rtl,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  if (hasGift)
+                    _QuantityStepperField(
+                      label: 'الهدية',
+                      icon: Icons.card_giftcard,
+                      controller: giftQtyController,
+                      onIncrement: () {
+                        setDialogState(() {
+                          giftQty += 1;
+                          syncController(giftQtyController, giftQty);
+                        });
+                      },
+                      onDecrement: () {
+                        setDialogState(() {
+                          if (giftQty > 0) giftQty -= 1;
+                          syncController(giftQtyController, giftQty);
+                        });
+                      },
+                      onManualChanged: (value) {
+                        setDialogState(() => giftQty = parseQty(value));
+                      },
+                    ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('إلغاء'),
+              ),
+              FilledButton.icon(
+                icon: const Icon(Icons.check_rounded),
+                label: const Text('تحديث'),
+                onPressed: () {
+                  paidQty = parseQty(paidQtyController.text);
+                  giftQty = hasGift ? parseQty(giftQtyController.text) : 0;
+
+                  if (paidQty == 0 && giftQty == 0) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'يرجى إدخال كمية أو تفعيل الهدية ثم تحديد كميتها',
+                        ),
+                      ),
+                    );
+                    return;
+                  }
+
+                  final isGiftOnly = paidQty == 0 && giftQty > 0;
+                  setState(() {
+                    _orderItems[index] = OrderItemData(
+                      medicineId: item.medicineId,
+                      medicineName: item.medicineName,
+                      companyId: item.companyId,
+                      companyName: item.companyName,
+                      qty: paidQty,
+                      price: item.price,
+                      isGift: isGiftOnly,
+                      giftQty: giftQty,
+                    );
+                  });
+
+                  Navigator.pop(context);
+                },
+              ),
+            ],
+          ),
+        ),
+      );
+    } finally {
+      paidQtyController.dispose();
+      giftQtyController.dispose();
+    }
+  }
+
   Future<void> _saveOrder() async {
     final isEditMode = widget.editOrderId != null;
 
@@ -1367,12 +1564,14 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
                                             ),
                                           );
                                         },
-                                        child: ListTile(
+                                         child: ListTile(
                                           contentPadding:
                                               const EdgeInsets.symmetric(
                                             horizontal: 16,
                                             vertical: 8,
                                           ),
+                                          onTap: () =>
+                                              _editItemQuantity(index),
                                           leading: Container(
                                             width: 40,
                                             height: 40,
@@ -1432,11 +1631,28 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
                                                 ),
                                             ],
                                           ),
-                                          trailing: IconButton(
-                                            icon: const Icon(
-                                                Icons.delete_outline,
-                                                color: Colors.red),
-                                            onPressed: () => _removeItem(index),
+                                          trailing: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              IconButton(
+                                                icon: const Icon(
+                                                  Icons.edit_outlined,
+                                                  color: Colors.blue,
+                                                ),
+                                                tooltip: 'تعديل الكمية',
+                                                onPressed: () =>
+                                                    _editItemQuantity(index),
+                                              ),
+                                              IconButton(
+                                                icon: const Icon(
+                                                  Icons.delete_outline,
+                                                  color: Colors.red,
+                                                ),
+                                                tooltip: 'حذف',
+                                                onPressed: () =>
+                                                    _removeItem(index),
+                                              ),
+                                            ],
                                           ),
                                         ),
                                       );
