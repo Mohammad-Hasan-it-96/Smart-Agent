@@ -700,8 +700,6 @@ class _PharmaciesScreenState extends State<PharmaciesScreen> {
         message: hasFilters
             ? 'غيّر البحث أو الفلاتر للوصول إلى نتائج.'
             : 'ابدأ بإضافة صيدلية جديدة لإدارة الطلبات بسرعة.',
-        onAdd: () => _navigateToForm(null),
-        addLabel: 'إضافة صيدلية',
       );
     }
 

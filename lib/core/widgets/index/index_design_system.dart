@@ -138,16 +138,16 @@ class IndexEmptySection extends StatelessWidget {
   final IconData icon;
   final String title;
   final String message;
-  final VoidCallback onAdd;
-  final String addLabel;
+  final VoidCallback? onAdd;
+  final String? addLabel;
 
   const IndexEmptySection({
     super.key,
     required this.icon,
     required this.title,
     required this.message,
-    required this.onAdd,
-    required this.addLabel,
+    this.onAdd,
+    this.addLabel,
   });
 
   @override
@@ -156,11 +156,13 @@ class IndexEmptySection extends StatelessWidget {
       icon: icon,
       title: title,
       message: message,
-      action: FilledButton.icon(
-        onPressed: onAdd,
-        icon: const Icon(Icons.add_rounded),
-        label: Text(addLabel),
-      ),
+      action: onAdd != null && addLabel != null
+          ? FilledButton.icon(
+              onPressed: onAdd,
+              icon: const Icon(Icons.add_rounded),
+              label: Text(addLabel!),
+            )
+          : null,
     );
   }
 }
