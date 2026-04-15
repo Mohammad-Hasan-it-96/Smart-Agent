@@ -3,9 +3,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 class SettingsService {
   static const String defaultApiBaseUrl =
       'https://harrypotter.foodsalebot.com/api';
-  static const String defaultSupportEmail = 'mohamad.hasan.it.96@gmail.com';
-  static const String defaultSupportTelegram = 'https://t.me/+963983820430';
-  static const String defaultSupportWhatsapp = '963983820430';
+  static const String defaultSupportEmail = 'smart.agent.app.support@gmail.com';
+  static const String defaultSupportTelegram = 'https://t.me/+963959027196';
+  static const String defaultSupportWhatsapp = '963959027196';
   static const String _enablePricesKey = 'settings_enable_prices';
   static const String _currencyModeKey = 'settings_currency_mode';
   static const String _exchangeRateKey = 'settings_exchange_rate';

@@ -1064,15 +1064,60 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _importData() async {
     if (_isImporting) return;
     try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['smartagent', 'json'],
-        withData: true,
-      );
+      // ── File picker strategy ──────────────────────────────────────────
+      // Android's system file picker (ACTION_OPEN_DOCUMENT) filters by MIME
+      // type, NOT by file extension.  .smartagent has no registered MIME type
+      // in Android's MimeTypeMap, so FileType.custom with ['smartagent'] would
+      // produce an empty MIME list → PlatformException.
+      //
+      // Workaround: use FileType.custom with extensions that DO resolve to
+      // useful MIME types.  Unknown-extension files (like .smartagent) are
+      // typically classified as application/octet-stream by Android file
+      // managers, so including 'bin' (which maps to application/octet-stream)
+      // makes .smartagent files selectable while graying out images, videos,
+      // PDFs, etc.
+      //
+      // If the device's file manager doesn't support the custom filter at all,
+      // we catch the PlatformException and fall back to FileType.any.
+      //
+      // Either way, we always validate the extension after selection.
+      FilePickerResult? result;
+      try {
+        result = await FilePicker.platform.pickFiles(
+          type: FileType.custom,
+          // 'bin' → application/octet-stream  (matches .smartagent on most file managers)
+          // 'json' → application/json
+          allowedExtensions: ['bin', 'json'],
+          dialogTitle: 'اختر ملف .smartagent',
+          withData: true,
+        );
+      } on PlatformException {
+        // Fallback: if the device can't handle the custom filter, show all files.
+        result = await FilePicker.platform.pickFiles(
+          type: FileType.any,
+          dialogTitle: 'اختر ملف .smartagent',
+          withData: true,
+        );
+      }
       if (result == null || result.files.single.bytes == null) return;
 
       final fileName = result.files.single.name;
       final bytes = result.files.single.bytes!;
+
+      // ── Extension whitelist ────────────────────────────────────────────
+      // Accept only .smartagent and .json; reject everything else immediately.
+      const allowedExts = {'.smartagent', '.json'};
+      final ext = fileName.contains('.')
+          ? '.${fileName.split('.').last.toLowerCase()}'
+          : '';
+      if (!allowedExts.contains(ext)) {
+        _snack(
+          'الملف المحدد غير مدعوم.\n'
+          'يُرجى اختيار ملف بامتداد .smartagent فقط.',
+          bg: Colors.red,
+        );
+        return;
+      }
 
       // Validate file content
       try {
