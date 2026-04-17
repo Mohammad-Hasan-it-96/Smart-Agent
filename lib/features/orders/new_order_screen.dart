@@ -3,6 +3,7 @@ import '../../core/db/database_helper.dart';
 import '../../core/di/service_locator.dart';
 import '../../core/models/pharmacy.dart';
 import '../../core/models/company.dart';
+import '../../core/models/gift.dart';
 import '../../core/utils/slide_page_route.dart';
 import '../../core/widgets/custom_app_bar.dart';
 import '../../core/widgets/form_widgets.dart';
@@ -45,6 +46,20 @@ class MedicineWithCompanies {
   });
 }
 
+class GiftOrderItemData {
+  final int giftId;
+  final String giftName;
+  final String? giftNotes;
+  final int qty;
+
+  GiftOrderItemData({
+    required this.giftId,
+    required this.giftName,
+    this.giftNotes,
+    required this.qty,
+  });
+}
+
 class NewOrderScreen extends StatefulWidget {
   /// When non-null, the screen opens in edit mode for the given order ID.
   final int? editOrderId;
@@ -70,6 +85,13 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
 
   // Order items list
   final List<OrderItemData> _orderItems = [];
+  // Gift order items list
+  final List<GiftOrderItemData> _giftItems = [];
+
+  // Gift search
+  final TextEditingController _giftSearchController = TextEditingController();
+  List<Gift> _giftsSearchResults = [];
+  bool _hasGiftSearched = false;
 
   bool _isLoading = true;
   bool _isSaving = false;
@@ -84,6 +106,7 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
     _loadPricingSettings();
     _loadPharmacies();
     _medicineSearchController.addListener(_searchMedicines);
+    _giftSearchController.addListener(_searchGifts);
     if (widget.editOrderId != null) {
       _loadExistingOrder();
     }
@@ -100,6 +123,7 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
   @override
   void dispose() {
     _medicineSearchController.dispose();
+    _giftSearchController.dispose();
     super.dispose();
   }
 
@@ -164,6 +188,26 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
                 price:        (row['price']        as num?)?.toDouble() ?? 0.0,
                 isGift:       (row['is_gift']      as int?) == 1,
                 giftQty:      (row['gift_qty']     as num?)?.toInt() ?? 0,
+              )));
+      });
+
+      // Load existing gift items
+      final giftRows = await db.rawQuery('''
+        SELECT ogi.gift_id, g.name AS gift_name, g.notes AS gift_notes, ogi.qty
+        FROM order_gift_items ogi
+        LEFT JOIN gifts g ON ogi.gift_id = g.id
+        WHERE ogi.order_id = ?
+      ''', [widget.editOrderId]);
+
+      if (!mounted) return;
+      setState(() {
+        _giftItems
+          ..clear()
+          ..addAll(giftRows.map((row) => GiftOrderItemData(
+                giftId:    (row['gift_id']    as num).toInt(),
+                giftName:  (row['gift_name']  as String?) ?? 'غير معروف',
+                giftNotes: row['gift_notes']  as String?,
+                qty:       (row['qty']        as num?)?.toInt() ?? 1,
               )));
       });
     } catch (e) {
@@ -381,6 +425,206 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _searchGifts() async {
+    final query = _giftSearchController.text.trim();
+    if (query.isEmpty) {
+      setState(() {
+        _giftsSearchResults = [];
+        _hasGiftSearched = false;
+      });
+      return;
+    }
+    try {
+      final db = await _dbHelper.database;
+      final rows = await db.query(
+        'gifts',
+        where: 'name LIKE ?',
+        whereArgs: ['%$query%'],
+        orderBy: 'name ASC',
+        limit: 30,
+      );
+      if (!mounted) return;
+      setState(() {
+        _giftsSearchResults = rows.map(Gift.fromMap).toList();
+        _hasGiftSearched = true;
+      });
+    } catch (_) {}
+  }
+
+  void _onGiftSelected(Gift gift) {
+    _giftSearchController.clear();
+    setState(() {
+      _giftsSearchResults = [];
+      _hasGiftSearched = false;
+    });
+    _showGiftQtyDialog(gift);
+  }
+
+  Future<void> _showGiftQtyDialog(Gift gift) async {
+    int qty = 1;
+    final controller = TextEditingController(text: '1');
+
+    int parseQty(String text) {
+      final v = int.tryParse(text.trim()) ?? 1;
+      return v < 1 ? 1 : v;
+    }
+
+    void syncCtrl(int value) {
+      controller.value = TextEditingValue(
+        text: value.toString(),
+        selection: TextSelection.collapsed(offset: value.toString().length),
+      );
+    }
+
+    try {
+      await showDialog(
+        context: context,
+        builder: (context) => StatefulBuilder(
+          builder: (context, setD) => AlertDialog(
+            titlePadding: const EdgeInsets.fromLTRB(16, 14, 8, 8),
+            contentPadding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            actionsPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            title: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    gift.name,
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    textDirection: TextDirection.rtl,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+            content: _QuantityStepperField(
+              label: 'الكمية',
+              icon: Icons.card_giftcard_outlined,
+              controller: controller,
+              onIncrement: () => setD(() { qty += 1; syncCtrl(qty); }),
+              onDecrement: () => setD(() { if (qty > 1) qty -= 1; syncCtrl(qty); }),
+              onManualChanged: (v) => setD(() => qty = parseQty(v)),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('إلغاء'),
+              ),
+              FilledButton.icon(
+                icon: const Icon(Icons.add_shopping_cart_rounded),
+                label: const Text('إضافة'),
+                onPressed: () {
+                  qty = parseQty(controller.text);
+                  setState(() {
+                    // If already added, update qty
+                    final idx = _giftItems.indexWhere((g) => g.giftId == gift.id);
+                    if (idx >= 0) {
+                      _giftItems[idx] = GiftOrderItemData(
+                        giftId: gift.id!,
+                        giftName: gift.name,
+                        giftNotes: gift.notes,
+                        qty: _giftItems[idx].qty + qty,
+                      );
+                    } else {
+                      _giftItems.add(GiftOrderItemData(
+                        giftId: gift.id!,
+                        giftName: gift.name,
+                        giftNotes: gift.notes,
+                        qty: qty,
+                      ));
+                    }
+                  });
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('تمت إضافة ${gift.name}'),
+                      duration: const Duration(seconds: 1),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      );
+    } finally {
+      controller.dispose();
+    }
+  }
+
+  void _removeGiftItem(int index) {
+    setState(() => _giftItems.removeAt(index));
+  }
+
+  Future<void> _editGiftItemQty(int index) async {
+    final item = _giftItems[index];
+    int qty = item.qty;
+    final controller = TextEditingController(text: qty.toString());
+
+    int parseQty(String text) {
+      final v = int.tryParse(text.trim()) ?? 1;
+      return v < 1 ? 1 : v;
+    }
+
+    void syncCtrl(int value) {
+      controller.value = TextEditingValue(
+        text: value.toString(),
+        selection: TextSelection.collapsed(offset: value.toString().length),
+      );
+    }
+
+    try {
+      await showDialog(
+        context: context,
+        builder: (context) => StatefulBuilder(
+          builder: (context, setD) => AlertDialog(
+            title: Row(
+              children: [
+                Expanded(
+                  child: Text(item.giftName,
+                      textDirection: TextDirection.rtl,
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                ),
+                IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
+              ],
+            ),
+            content: _QuantityStepperField(
+              label: 'الكمية',
+              icon: Icons.card_giftcard_outlined,
+              controller: controller,
+              onIncrement: () => setD(() { qty += 1; syncCtrl(qty); }),
+              onDecrement: () => setD(() { if (qty > 1) qty -= 1; syncCtrl(qty); }),
+              onManualChanged: (v) => setD(() => qty = parseQty(v)),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')),
+              FilledButton.icon(
+                icon: const Icon(Icons.check_rounded),
+                label: const Text('تحديث'),
+                onPressed: () {
+                  qty = parseQty(controller.text);
+                  setState(() {
+                    _giftItems[index] = GiftOrderItemData(
+                      giftId: item.giftId,
+                      giftName: item.giftName,
+                      giftNotes: item.giftNotes,
+                      qty: qty,
+                    );
+                  });
+                  Navigator.pop(context);
+                },
+              ),
+            ],
+          ),
+        ),
+      );
+    } finally {
+      controller.dispose();
+    }
   }
 
   Future<void> _searchMedicines() async {
@@ -1073,8 +1317,8 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
       return;
     }
 
-    // Validation: at least one item
-    if (_orderItems.isEmpty) {
+    // Validation: at least one item (medicines or gifts)
+    if (_orderItems.isEmpty && _giftItems.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('يرجى إضافة عنصر واحد على الأقل للطلبية'),
@@ -1104,6 +1348,12 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
             where: 'order_id = ?',
             whereArgs: [widget.editOrderId],
           );
+          // Delete existing gift items
+          await txn.delete(
+            'order_gift_items',
+            where: 'order_id = ?',
+            whereArgs: [widget.editOrderId],
+          );
           // Re-insert the current items
           for (final item in _orderItems) {
             await txn.insert('order_items', {
@@ -1113,6 +1363,14 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
               'price':       item.price,
               'is_gift':     item.isGift ? 1 : 0,
               'gift_qty':    item.giftQty,
+            });
+          }
+          // Re-insert gift items
+          for (final g in _giftItems) {
+            await txn.insert('order_gift_items', {
+              'order_id': widget.editOrderId,
+              'gift_id':  g.giftId,
+              'qty':      g.qty,
             });
           }
         });
@@ -1143,6 +1401,14 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
             'price':       item.price,
             'is_gift':     item.isGift ? 1 : 0,
             'gift_qty':    item.giftQty,
+          });
+        }
+
+        for (final g in _giftItems) {
+          await _dbHelper.insert('order_gift_items', {
+            'order_id': orderId,
+            'gift_id':  g.giftId,
+            'qty':      g.qty,
           });
         }
 
@@ -1436,9 +1702,156 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
                               ),
                           const SizedBox(height: 8),
 
-                          // Section 3: Current Order Items — use same style header
-                          _buildSectionHeader(
-                              '3', 'عناصر الطلبية', Icons.shopping_cart_rounded),
+                          // Section 3: Gift Items
+                          _buildSectionHeader('3', 'بحث وإضافة الهدايا', Icons.card_giftcard_rounded),
+                          const SizedBox(height: 8),
+                          Card(
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  TextField(
+                                    controller: _giftSearchController,
+                                    decoration: const InputDecoration(
+                                      labelText: 'بحث عن هدية',
+                                      hintText: 'أدخل اسم الهدية...',
+                                      prefixIcon: Icon(Icons.search_rounded),
+                                    ),
+                                    textDirection: TextDirection.rtl,
+                                  ),
+                                  if (_hasGiftSearched && _giftsSearchResults.isEmpty) ...[
+                                    const SizedBox(height: 12),
+                                    Text(
+                                      'لم يتم العثور على الهدية. يمكنك إضافتها من صفحة الهدايا.',
+                                      style: TextStyle(color: Colors.orange.shade700),
+                                      textDirection: TextDirection.rtl,
+                                    ),
+                                  ] else if (_giftsSearchResults.isNotEmpty) ...[
+                                    const SizedBox(height: 8),
+                                    Container(
+                                      decoration: BoxDecoration(
+                                        border: Border.all(color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3)),
+                                        borderRadius: BorderRadius.circular(12),
+                                        color: Theme.of(context).colorScheme.surfaceVariant,
+                                      ),
+                                      constraints: const BoxConstraints(maxHeight: 160),
+                                      child: Material(
+                                        color: Colors.transparent,
+                                        child: ListView.separated(
+                                          shrinkWrap: true,
+                                          padding: EdgeInsets.zero,
+                                          itemCount: _giftsSearchResults.length,
+                                          separatorBuilder: (_, __) => Divider(height: 1, color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2)),
+                                          itemBuilder: (_, i) {
+                                            final g = _giftsSearchResults[i];
+                                            return ListTile(
+                                              onTap: () => _onGiftSelected(g),
+                                              leading: const Icon(Icons.card_giftcard_rounded),
+                                              title: Text(g.name, textDirection: TextDirection.rtl),
+                                              subtitle: (g.notes ?? '').isNotEmpty
+                                                  ? Text(g.notes!, textDirection: TextDirection.rtl, style: Theme.of(context).textTheme.bodySmall)
+                                                  : null,
+                                              trailing: const Icon(Icons.add_circle_outline, color: Colors.green),
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          if (_giftItems.isNotEmpty)
+                            Card(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Padding(
+                                    padding: const EdgeInsets.all(16),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                          decoration: BoxDecoration(
+                                            color: Colors.teal,
+                                            borderRadius: BorderRadius.circular(20),
+                                          ),
+                                          child: Text(
+                                            '${_giftItems.length} هدية',
+                                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                            textDirection: TextDirection.rtl,
+                                          ),
+                                        ),
+                                        const Text('اسحب لحذف', style: TextStyle(fontSize: 12, color: Colors.grey), textDirection: TextDirection.rtl),
+                                      ],
+                                    ),
+                                  ),
+                                  const Divider(height: 1),
+                                  ListView.separated(
+                                    shrinkWrap: true,
+                                    physics: const NeverScrollableScrollPhysics(),
+                                    itemCount: _giftItems.length,
+                                    separatorBuilder: (_, __) => const Divider(height: 1),
+                                    itemBuilder: (context, index) {
+                                      final g = _giftItems[index];
+                                      return Dismissible(
+                                        key: Key('gift_item_$index'),
+                                        direction: DismissDirection.endToStart,
+                                        background: Container(
+                                          alignment: Alignment.centerRight,
+                                          padding: const EdgeInsets.only(right: 20),
+                                          color: Colors.red,
+                                          child: const Icon(Icons.delete, color: Colors.white, size: 28),
+                                        ),
+                                        onDismissed: (_) => _removeGiftItem(index),
+                                        child: ListTile(
+                                          onTap: () => _editGiftItemQty(index),
+                                          leading: Container(
+                                            width: 40,
+                                            height: 40,
+                                            decoration: BoxDecoration(
+                                              color: Colors.teal.withValues(alpha: 0.1),
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: Center(
+                                              child: Text(
+                                                g.qty.toString(),
+                                                style: const TextStyle(color: Colors.teal, fontWeight: FontWeight.bold),
+                                              ),
+                                            ),
+                                          ),
+                                          title: Text(g.giftName, style: const TextStyle(fontWeight: FontWeight.bold), textDirection: TextDirection.rtl),
+                                          subtitle: (g.giftNotes ?? '').isNotEmpty
+                                              ? Text(g.giftNotes!, textDirection: TextDirection.rtl, style: const TextStyle(fontSize: 12))
+                                              : null,
+                                          trailing: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              IconButton(
+                                                icon: const Icon(Icons.edit_outlined, color: Colors.blue),
+                                                onPressed: () => _editGiftItemQty(index),
+                                              ),
+                                              IconButton(
+                                                icon: const Icon(Icons.delete_outline, color: Colors.red),
+                                                onPressed: () => _removeGiftItem(index),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                          const SizedBox(height: 8),
+
+                          // Section 4: Current Order Items
+                          _buildSectionHeader('4', 'عناصر الطلبية', Icons.shopping_cart_rounded),
                           const SizedBox(height: 8),
                           if (_orderItems.isEmpty)
                             Card(
@@ -1684,7 +2097,7 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
                       child: SizedBox(
                         height: 56,
                         child: FilledButton.icon(
-                          onPressed: _isSaving || _orderItems.isEmpty
+                          onPressed: _isSaving || (_orderItems.isEmpty && _giftItems.isEmpty)
                               ? null
                               : _saveOrder,
                           icon: _isSaving
@@ -1702,8 +2115,8 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
                             _isSaving
                                 ? 'جارٍ الحفظ...'
                                 : widget.editOrderId != null
-                                    ? 'حفظ التعديلات (${_orderItems.length})'
-                                    : 'حفظ الطلبية ${_orderItems.isEmpty ? '' : '(${_orderItems.length})'}',
+                                    ? 'حفظ التعديلات (${_orderItems.length + _giftItems.length})'
+                                    : 'حفظ الطلبية ${(_orderItems.isEmpty && _giftItems.isEmpty) ? '' : '(${_orderItems.length + _giftItems.length})'}',
                             style: const TextStyle(
                               fontSize: 17,
                               fontWeight: FontWeight.bold,

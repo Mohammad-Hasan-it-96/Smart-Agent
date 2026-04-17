@@ -214,18 +214,24 @@ class PushNotificationService {
   }
 
   Future<void> _syncTokenOnLaunch({bool forceRegisterAttempt = false}) async {
-    final token = await _messaging.getToken();
-    if (token == null || token.isEmpty) return;
+    try {
+      final token = await _messaging.getToken();
+      if (token == null || token.isEmpty) return;
 
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_fcmTokenKey, token);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_fcmTokenKey, token);
 
-    final registered = prefs.getBool(_fcmRegisteredOnceKey) ?? false;
-    if (!registered || forceRegisterAttempt) {
-      final ok = await _registerTokenOnce(token);
-      if (ok) {
-        await prefs.setBool(_fcmRegisteredOnceKey, true);
+      final registered = prefs.getBool(_fcmRegisteredOnceKey) ?? false;
+      if (!registered || forceRegisterAttempt) {
+        final ok = await _registerTokenOnce(token);
+        if (ok) {
+          await prefs.setBool(_fcmRegisteredOnceKey, true);
+        }
       }
+    } catch (e) {
+      // Google Play Services may be unavailable on some devices/regions.
+      // This is non-fatal – the app works fully offline without push tokens.
+      AppLogger.w('PushNotificationService', '_syncTokenOnLaunch failed (non-fatal)', e);
     }
   }
 

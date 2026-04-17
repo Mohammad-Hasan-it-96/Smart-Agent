@@ -29,6 +29,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
   final SettingsService _settingsService = getIt<SettingsService>();
   Map<String, dynamic>? _orderInfo;
   List<Map<String, dynamic>> _orderItems = [];
+  List<Map<String, dynamic>> _giftOrderItems = [];
   bool _isLoading = true;
   bool _isPrinting = false;
   bool _pricingEnabled = false;
@@ -117,6 +118,19 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
         _orderItems = itemMaps;
         _isLoading = false;
       });
+
+      // Load gift items
+      final giftMaps = await db.rawQuery('''
+        SELECT ogi.id, ogi.qty, g.name AS gift_name, g.notes AS gift_notes
+        FROM order_gift_items ogi
+        LEFT JOIN gifts g ON ogi.gift_id = g.id
+        WHERE ogi.order_id = ?
+        ORDER BY g.name
+      ''', [widget.orderId]);
+
+      if (mounted) {
+        setState(() => _giftOrderItems = giftMaps);
+      }
     } catch (e) {
       setState(() {
         _isLoading = false;
@@ -403,6 +417,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
         pharmacyName: (_orderInfo!['pharmacy_name'] as String?) ?? 'غير معروف',
         orderDate: _formatDate(_orderInfo!['created_at'] as String),
         items: _orderItems,
+        giftOrderItems: _giftOrderItems,
         agentName: agentName,
       );
       await btService.disconnect();
@@ -808,6 +823,46 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                                   );
                                 }),
                               ),
+
+                        // Gift order items section
+                        if (_giftOrderItems.isNotEmpty) ...[
+                          const SizedBox(height: 24),
+                          Text(
+                            'الهدايا',
+                            style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                            textDirection: TextDirection.rtl,
+                          ),
+                          const SizedBox(height: 12),
+                          Column(
+                            children: List.generate(_giftOrderItems.length, (i) {
+                              final g = _giftOrderItems[i];
+                              final giftName = (g['gift_name'] as String?) ?? 'غير معروف';
+                              final giftNotes = g['gift_notes'] as String?;
+                              final qty = (g['qty'] as num?)?.toInt() ?? 0;
+                              return Card(
+                                margin: const EdgeInsets.only(bottom: 10),
+                                child: ListTile(
+                                  leading: CircleAvatar(
+                                    backgroundColor: Colors.teal.withValues(alpha: 0.15),
+                                    child: const Icon(Icons.card_giftcard_rounded, color: Colors.teal),
+                                  ),
+                                  title: Text(giftName, style: const TextStyle(fontWeight: FontWeight.bold), textDirection: TextDirection.rtl),
+                                  subtitle: (giftNotes ?? '').isNotEmpty
+                                      ? Text(giftNotes!, textDirection: TextDirection.rtl)
+                                      : null,
+                                  trailing: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: Colors.teal.withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Text('× $qty', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.teal)),
+                                  ),
+                                ),
+                              );
+                            }),
+                          ),
+                        ],
 
                         // Total (if pricing enabled)
                         if (_pricingEnabled && _orderItems.isNotEmpty) ...[

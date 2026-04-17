@@ -10,8 +10,9 @@ import '../../core/db/database_helper.dart';
 Future<Uint8List> generateOrderPdf(
   Map<String, dynamic> order,
   List<Map<String, dynamic>> items,
-  Map<String, dynamic> pharmacy,
-) async {
+  Map<String, dynamic> pharmacy, {
+  List<Map<String, dynamic>> giftOrderItems = const [],
+}) async {
   // If items list is empty, try to fetch from database
   // This handles cases where order object doesn't have items loaded
   if (items.isEmpty && order['id'] != null) {
@@ -22,6 +23,23 @@ Future<Uint8List> generateOrderPdf(
     } catch (e) {
       // If DB fetch fails, continue with empty items list
       debugPrint('Warning: Could not fetch items from DB: $e');
+    }
+  }
+
+  // Fetch gift order items from DB if not provided
+  if (giftOrderItems.isEmpty && order['id'] != null) {
+    try {
+      final dbHelper = DatabaseHelper.instance;
+      final db = await dbHelper.database;
+      giftOrderItems = await db.rawQuery('''
+        SELECT ogi.qty, g.name AS gift_name, g.notes AS gift_notes
+        FROM order_gift_items ogi
+        LEFT JOIN gifts g ON ogi.gift_id = g.id
+        WHERE ogi.order_id = ?
+        ORDER BY g.name
+      ''', [order['id'] as int]);
+    } catch (e) {
+      debugPrint('Warning: Could not fetch gift items from DB: $e');
     }
   }
   // Load Arabic font
@@ -664,6 +682,92 @@ Future<Uint8List> generateOrderPdf(
     );
   }
 
+  // Build gifts section (shown on last page if gifts exist)
+  pw.Widget buildGiftsSection() {
+    if (giftOrderItems.isEmpty) return pw.SizedBox.shrink();
+    return pw.Directionality(
+      textDirection: pw.TextDirection.rtl,
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.SizedBox(height: 10),
+          pw.Text(
+            'الهدايا',
+            style: getArabicStyle(fontSize: 12, fontWeight: pw.FontWeight.bold),
+          ),
+          pw.SizedBox(height: 6),
+          pw.Table(
+            border: pw.TableBorder.all(color: PdfColors.teal200),
+            columnWidths: {
+              0: const pw.FlexColumnWidth(1),   // الكمية
+              1: const pw.FlexColumnWidth(3),   // اسم الهدية
+              2: const pw.FixedColumnWidth(35), // الرقم
+            },
+            children: [
+              pw.TableRow(
+                decoration: const pw.BoxDecoration(color: PdfColors.teal50),
+                children: [
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.all(5),
+                    child: pw.Directionality(
+                      textDirection: pw.TextDirection.rtl,
+                      child: pw.Text('الكمية', style: getArabicStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
+                    ),
+                  ),
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.all(5),
+                    child: pw.Directionality(
+                      textDirection: pw.TextDirection.rtl,
+                      child: pw.Text('اسم الهدية', style: getArabicStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
+                    ),
+                  ),
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.all(5),
+                    child: pw.Directionality(
+                      textDirection: pw.TextDirection.rtl,
+                      child: pw.Text('الرقم', style: getArabicStyle(fontWeight: pw.FontWeight.bold, fontSize: 9), textAlign: pw.TextAlign.center),
+                    ),
+                  ),
+                ],
+              ),
+              ...giftOrderItems.asMap().entries.map((entry) {
+                final i = entry.key;
+                final g = entry.value;
+                final name = (g['gift_name'] as String?) ?? 'غير معروف';
+                final qty = (g['qty'] as num?)?.toInt() ?? 0;
+                return pw.TableRow(
+                  children: [
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.all(5),
+                      child: pw.Directionality(
+                        textDirection: pw.TextDirection.rtl,
+                        child: pw.Text(qty.toString(), style: getArabicStyle(fontSize: 9)),
+                      ),
+                    ),
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.all(5),
+                      child: pw.Directionality(
+                        textDirection: pw.TextDirection.rtl,
+                        child: pw.Text(name, style: getArabicStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
+                      ),
+                    ),
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.all(5),
+                      child: pw.Directionality(
+                        textDirection: pw.TextDirection.rtl,
+                        child: pw.Text((i + 1).toString(), style: getArabicStyle(fontSize: 9), textAlign: pw.TextAlign.center),
+                      ),
+                    ),
+                  ],
+                );
+              }),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   // Build footer summary (shown only on last page)
   pw.Widget buildFooter() {
     // Definitions:
@@ -788,6 +892,7 @@ Future<Uint8List> generateOrderPdf(
                 buildItemsTable(chunkItems, pageIndex * itemsPerPage),
 
                 // Footer with totals (only on last page)
+                if (isLastPage) buildGiftsSection(),
                 if (isLastPage) buildFooter(),
               ],
             ),

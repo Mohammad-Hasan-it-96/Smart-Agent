@@ -28,6 +28,7 @@ import 'core/services/push_notification_service.dart';
 import 'core/services/file_import_handler.dart';
 import 'features/settings/notification_history_screen.dart';
 import 'features/search/search_screen.dart';
+import 'features/gifts/gifts_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -145,6 +146,9 @@ class _MyAppState extends State<MyApp> {
                 break;
               case '/companies':
                 page = const CompaniesScreen();
+                break;
+              case '/gifts':
+                page = const GiftsScreen();
                 break;
               case '/medicines':
                 page = const MedicinesScreen();

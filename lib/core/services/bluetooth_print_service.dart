@@ -235,6 +235,7 @@ class BluetoothPrintService extends ChangeNotifier {
     required String pharmacyName,
     required String orderDate,
     required List<Map<String, dynamic>> items,
+    List<Map<String, dynamic>> giftOrderItems = const [],
     String? agentName,
   }) async {
     _assertConnected();
@@ -278,6 +279,20 @@ class BluetoothPrintService extends ChangeNotifier {
     await _bt.printCustom(_kInnerSep, 1, 1);
     await _bt.printCustom('Lines    : ${items.length}', 1, 0);
     await _bt.printCustom('Total Qty: $totalQty', 1, 0);
+
+    // ── Gift items ────────────────────────────────────────────────────────
+    if (giftOrderItems.isNotEmpty) {
+      await _bt.printCustom(_kOuterSep, 1, 1);
+      await _bt.printCustom('Gifts', 2, 1);
+      await _bt.printCustom(_kInnerSep, 1, 1);
+      for (var i = 0; i < giftOrderItems.length; i++) {
+        final g = giftOrderItems[i];
+        final name = (g['gift_name'] as String?) ?? '';
+        final qty = (g['qty'] as num?)?.toInt() ?? 0;
+        await _bt.printCustom(_itemLine(i + 1, name, qty.toString()), 1, 0);
+      }
+    }
+
     await _bt.printCustom(_kOuterSep, 1, 1);
 
     // Paper feed

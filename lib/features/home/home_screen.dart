@@ -15,6 +15,7 @@ import '../orders/new_order_screen.dart';
 import '../orders/orders_list_screen.dart';
 import '../settings/settings_screen.dart';
 import '../search/search_screen.dart';
+import '../gifts/gifts_screen.dart';
 import 'home_controller.dart';
 
 /// Global RouteObserver — register once in MaterialApp's navigatorObservers.
@@ -729,6 +730,8 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
           const Color(0xFF2563A8), () => _navigate(const CompaniesScreen())),
       _Menu('الصيدليات', Icons.local_pharmacy_rounded,
           const Color(0xFFFF8F00), () => _navigate(const PharmaciesScreen())),
+      _Menu('الهدايا', Icons.card_giftcard_rounded,
+          const Color(0xFF00897B), () => _navigate(const GiftsScreen())),
       _Menu('الإعدادات', Icons.settings_rounded,
           const Color(0xFF546E7A), () => _navigate(const SettingsScreen())),
     ];

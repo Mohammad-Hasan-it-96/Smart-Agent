@@ -22,7 +22,7 @@ class DatabaseHelper {
     return await databaseFactory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 11,
+        version: 12,
         onCreate: _createDB,
         onUpgrade: _onUpgrade,
       ),
@@ -106,6 +106,28 @@ class DatabaseHelper {
     ''');
     await db.execute('''
       CREATE INDEX IF NOT EXISTS idx_pharmacies_name ON pharmacies(name)
+    ''');
+
+    // Create gifts table
+    await db.execute('''
+      CREATE TABLE gifts(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        notes TEXT
+      )
+    ''');
+
+    // Create order_gift_items table
+    await db.execute('''
+      CREATE TABLE order_gift_items(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        order_id INTEGER NOT NULL,
+        gift_id INTEGER NOT NULL,
+        qty INTEGER NOT NULL DEFAULT 1
+      )
+    ''');
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS idx_order_gift_items_order ON order_gift_items(order_id)
     ''');
 
     // Create notifications table
@@ -289,6 +311,34 @@ class DatabaseHelper {
       } catch (e) {
         // Column might already exist, ignore error
       }
+    }
+
+    if (oldVersion < 12) {
+      // Add gifts and order_gift_items tables
+      try {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS gifts(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            notes TEXT
+          )
+        ''');
+      } catch (e) { /* ignore */ }
+      try {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS order_gift_items(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            order_id INTEGER NOT NULL,
+            gift_id INTEGER NOT NULL,
+            qty INTEGER NOT NULL DEFAULT 1
+          )
+        ''');
+      } catch (e) { /* ignore */ }
+      try {
+        await db.execute('''
+          CREATE INDEX IF NOT EXISTS idx_order_gift_items_order ON order_gift_items(order_id)
+        ''');
+      } catch (e) { /* ignore */ }
     }
   }
 
