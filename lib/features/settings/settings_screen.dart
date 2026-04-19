@@ -5,6 +5,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/services/activation_service.dart';
 import '../../core/services/data_export_service.dart';
 import '../../core/services/contact_launcher_service.dart';
 import '../../core/services/update_service.dart';
@@ -16,6 +17,7 @@ import '../../core/widgets/custom_app_bar.dart';
 import '../../core/widgets/update_dialog.dart';
 import '../../core/utils/app_logger.dart';
 import '../../core/utils/phone_validator.dart';
+import '../../core/di/service_locator.dart';
 import 'settings_controller.dart';
 import 'widgets/setting_tile.dart';
 
@@ -30,11 +32,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late final SettingsController _ctrl;
   final ContactLauncherService _contactLauncher = const ContactLauncherService();
   final _dataExport = DataExportService();
+  final _activationService = getIt<ActivationService>();
   String _appVersion = '';
   bool _isExporting = false;
   bool _isImporting = false;
   bool _isCheckingActivation = false;
   bool _isCheckingUpdates = false;
+
+  // ── Review state ──────────────────────────────────────────────────────
+  bool _reviewSent = true; // optimistic hide until loaded
+  int _reviewStars = 0;
+  final _reviewCommentController = TextEditingController();
+  bool _isSubmittingReview = false;
+  String? _reviewError;
+
   SupportContactInfo _support = const SupportContactInfo(
     email: SettingsService.defaultSupportEmail,
     telegram: SettingsService.defaultSupportTelegram,
@@ -48,10 +59,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _ctrl.load();
     _loadVersion();
     _loadSupportInfo();
+    _loadReviewStatus();
   }
 
   @override
   void dispose() {
+    _reviewCommentController.dispose();
     _ctrl.dispose();
     super.dispose();
   }
@@ -74,6 +87,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
       }
     } catch (e) {
       AppLogger.w('SettingsScreen', '_loadSupportInfo failed – using defaults', e);
+    }
+  }
+
+  Future<void> _loadReviewStatus() async {
+    try {
+      final sent = await _activationService.hasReviewBeenSent();
+      if (mounted) setState(() => _reviewSent = sent);
+    } catch (_) {
+      if (mounted) setState(() => _reviewSent = false);
     }
   }
 
@@ -145,6 +167,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   _buildUpdatesSection(),
                   _buildAppearanceSection(ctrl),
                   _buildPdfImportSection(),
+                  if (!_reviewSent) _buildReviewSection(),
                   _buildSupportSection(ctrl),
                   const SizedBox(height: 32),
                 ],
@@ -1645,6 +1668,150 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ],
     );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // REVIEW SECTION
+  // ═══════════════════════════════════════════════════════════════════
+
+  Widget _buildReviewSection() {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return SettingSection(
+      title: 'قيّم التطبيق',
+      icon: Icons.star_outline_rounded,
+      children: [
+        // Stars row
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(5, (i) {
+              final starIndex = i + 1;
+              return GestureDetector(
+                onTap: _isSubmittingReview
+                    ? null
+                    : () => setState(() => _reviewStars = starIndex),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Icon(
+                    starIndex <= _reviewStars
+                        ? Icons.star_rounded
+                        : Icons.star_outline_rounded,
+                    size: 38,
+                    color: starIndex <= _reviewStars
+                        ? Colors.amber.shade600
+                        : (isDark ? Colors.grey.shade600 : Colors.grey.shade400),
+                  ),
+                ),
+              );
+            }),
+          ),
+        ),
+        const SizedBox(height: 8),
+        // Comment field
+        TextField(
+          controller: _reviewCommentController,
+          enabled: !_isSubmittingReview,
+          textDirection: TextDirection.rtl,
+          textAlign: TextAlign.right,
+          maxLines: 3,
+          decoration: InputDecoration(
+            hintText: 'أضف تعليقاً (اختياري)...',
+            hintTextDirection: TextDirection.rtl,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            filled: true,
+            fillColor: theme.colorScheme.surfaceContainerHighest
+                .withValues(alpha: 0.3),
+          ),
+        ),
+        if (_reviewError != null) ...[
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              const Icon(Icons.error_outline, color: Colors.red, size: 16),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  _reviewError!,
+                  style: const TextStyle(color: Colors.red, fontSize: 13),
+                  textDirection: TextDirection.rtl,
+                ),
+              ),
+            ],
+          ),
+        ],
+        const SizedBox(height: 14),
+        SizedBox(
+          width: double.infinity,
+          height: 60,
+          child: FilledButton.icon(
+            onPressed: (_isSubmittingReview || _reviewStars == 0)
+                ? null
+                : _submitReview,
+            icon: _isSubmittingReview
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor:
+                            AlwaysStoppedAnimation<Color>(Colors.white)),
+                  )
+                : const Icon(Icons.send_rounded),
+            label: Text(
+              _isSubmittingReview ? 'جارٍ الإرسال...' : 'إرسال التقييم',
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ),
+        const SizedBox(height: 4),
+      ],
+    );
+  }
+
+  Future<void> _submitReview() async {
+    if (_reviewStars == 0) return;
+    setState(() {
+      _isSubmittingReview = true;
+      _reviewError = null;
+    });
+    try {
+      final success = await _activationService.submitReview(
+        stars: _reviewStars,
+        comment: _reviewCommentController.text.trim().isEmpty
+            ? null
+            : _reviewCommentController.text.trim(),
+      );
+      if (!mounted) return;
+      if (success) {
+        await _activationService.markReviewSent();
+        if (mounted) {
+          setState(() {
+            _reviewSent = true;
+            _isSubmittingReview = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('شكراً! تم إرسال تقييمك بنجاح.'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } else {
+        setState(() {
+          _isSubmittingReview = false;
+          _reviewError = 'فشل الإرسال. يرجى المحاولة مجدداً.';
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isSubmittingReview = false;
+        _reviewError = 'حدث خطأ: ${e.toString()}';
+      });
+    }
   }
 
   void _showAbout() {

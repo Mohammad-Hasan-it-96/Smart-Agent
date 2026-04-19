@@ -43,6 +43,9 @@ class ActivationLocalStorage {
   static const String trialMedicinesLimitKey = 'trial_limit_medicines';
   static const String trialUsedOnceFileName = 'trial_used_once.flag';
 
+  // ── Review ───────────────────────────────────────────────────────────
+  static const String reviewSentKey = 'review_sent';
+
   // ═══════════════════════════════════════════════════════════════════
   // Activation status
   // ═══════════════════════════════════════════════════════════════════
@@ -356,6 +359,20 @@ class ActivationLocalStorage {
   Future<bool> hasSubscriptionRequestBeenSent() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getBool(subscriptionRequestSentKey) ?? false;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // Review
+  // ═══════════════════════════════════════════════════════════════════
+
+  Future<bool> hasReviewBeenSent() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(reviewSentKey) ?? false;
+  }
+
+  Future<void> markReviewSent() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(reviewSentKey, true);
   }
 }
 

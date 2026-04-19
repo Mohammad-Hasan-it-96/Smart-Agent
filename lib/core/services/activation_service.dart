@@ -394,4 +394,15 @@ class ActivationService {
   // Check if subscription activation request was sent (legacy method).
   Future<bool> hasSubscriptionRequestBeenSent() =>
       _localStorage.hasSubscriptionRequestBeenSent();
+
+  // ── Review ────────────────────────────────────────────────────────────
+
+  Future<bool> hasReviewBeenSent() => _localStorage.hasReviewBeenSent();
+
+  Future<void> markReviewSent() => _localStorage.markReviewSent();
+
+  Future<bool> submitReview({required int stars, String? comment}) async {
+    final deviceId = await getDeviceId();
+    return _api.addReview(deviceId: deviceId, stars: stars, comment: comment);
+  }
 }

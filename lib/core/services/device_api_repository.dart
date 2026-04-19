@@ -117,6 +117,36 @@ class DeviceApiRepository {
     return false;
   }
 
+  // ── addReview ─────────────────────────────────────────────────────────
+
+  /// Posts a star rating and optional comment for the device.
+  ///
+  /// Returns `true` on HTTP 200/201.
+  /// Returns `false` on non-2xx.
+  /// Rethrows network / timeout errors.
+  Future<bool> addReview({
+    required String deviceId,
+    required int stars,
+    String? comment,
+  }) async {
+    final body = jsonEncode({
+      'device_id': deviceId,
+      'app_name': AppConstants.appName,
+      'stars': stars,
+      'comment': comment,
+    });
+
+    final response = await http
+        .post(await _apiUri('add_review'),
+            headers: _jsonHeaders, body: body)
+        .timeout(
+          const Duration(seconds: 15),
+          onTimeout: () => throw Exception('Connection timeout'),
+        );
+
+    return response.statusCode == 200 || response.statusCode == 201;
+  }
+
   // ── createDeviceWithPlan ──────────────────────────────────────────────
 
   /// Sends a subscription activation request with plan and contact details.
