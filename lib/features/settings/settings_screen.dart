@@ -144,6 +144,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   _buildDataSection(),
                   _buildUpdatesSection(),
                   _buildAppearanceSection(ctrl),
+                  _buildPdfImportSection(),
                   _buildSupportSection(ctrl),
                   const SizedBox(height: 32),
                 ],
@@ -1574,6 +1575,75 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context,
       method: method,
       result: result,
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // PDF IMPORT INSTRUCTIONS
+  // ═══════════════════════════════════════════════════════════════════
+  Widget _buildPdfImportSection() {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    const pdfMessage =
+        'يمكنك إرسال ملف PDF الخاص بالمستودع عبر واتساب أو تيليجرام، وسيتم تحويله إلى ملف قابل للاستيراد داخل التطبيق (.smartagent) خلال 24-48 ساعة.';
+    const pdfWhatsAppMsg =
+        'مرحباً، أرغب في تحويل ملف PDF الخاص بالمستودع إلى ملف .smartagent.';
+
+    return SettingSection(
+      title: 'استيراد الأدوية من ملف PDF',
+      icon: Icons.picture_as_pdf_outlined,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: isDark
+                ? Colors.blue.shade900.withValues(alpha: 0.18)
+                : Colors.blue.shade50,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: isDark ? Colors.blue.shade800 : Colors.blue.shade200,
+            ),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.info_outline_rounded,
+                  color: isDark ? Colors.blue.shade300 : Colors.blue.shade700,
+                  size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  pdfMessage,
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    height: 1.6,
+                    color: isDark
+                        ? Colors.blue.shade100
+                        : Colors.blue.shade900,
+                  ),
+                  textDirection: TextDirection.rtl,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        SettingTile(
+          icon: Icons.chat_outlined,
+          iconColor: Colors.green,
+          title: 'إرسال عبر واتساب',
+          subtitle: _support.whatsapp,
+          onTap: () => _launchSupportByWhatsApp(pdfWhatsAppMsg),
+        ),
+        SettingTile(
+          icon: Icons.telegram,
+          iconColor: const Color(0xFF0088CC),
+          title: 'إرسال عبر تيليجرام',
+          subtitle: _support.telegram,
+          showDivider: false,
+          onTap: () => _launchSupportByTelegram(pdfWhatsAppMsg),
+        ),
+      ],
     );
   }
 
