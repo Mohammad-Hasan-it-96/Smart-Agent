@@ -10,6 +10,7 @@ import '../../core/widgets/form_widgets.dart';
 import '../../core/utils/phone_validator.dart';
 import '../../core/services/activation_service.dart';
 import '../../core/services/settings_service.dart';
+import '../../core/services/invoice_number_service.dart';
 import 'order_details_screen.dart';
 
 class OrderItemData {
@@ -1388,9 +1389,17 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
       } else {
         // ── Create mode: original logic ─────────────────────────────────
         final now = DateTime.now().toIso8601String();
+
+        // Generate unique invoice number using userId as prefix
+        final activationService = getIt<ActivationService>();
+        final userId = await activationService.getUserId();
+        final invoiceService = await InvoiceNumberService.create();
+        final invoiceNumber = await invoiceService.nextInvoiceNumber(userId);
+
         final orderId = await _dbHelper.insert('orders', {
-          'pharmacy_id': _selectedPharmacyId,
-          'created_at':  now,
+          'pharmacy_id':    _selectedPharmacyId,
+          'created_at':     now,
+          'invoice_number': invoiceNumber,
         });
 
         for (final item in _orderItems) {

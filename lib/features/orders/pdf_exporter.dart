@@ -224,6 +224,14 @@ Future<Uint8List> generateOrderPdf(
                         style: getArabicStyle(fontSize: 8.5),
                         textDirection: pw.TextDirection.rtl,
                       ),
+                      if ((order['invoice_number'] as String?)?.isNotEmpty ?? false) ...[
+                        pw.SizedBox(height: 2),
+                        pw.Text(
+                          'رقم الفاتورة: ${order['invoice_number']}',
+                          style: getArabicStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold),
+                          textDirection: pw.TextDirection.rtl,
+                        ),
+                      ],
                     ],
                   ),
                 ),

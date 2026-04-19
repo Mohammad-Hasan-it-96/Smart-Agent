@@ -86,6 +86,12 @@ class ActivationService {
       }
       await _localStorage.setActivationCalled();
 
+      // Save user_id from API response if available
+      final userId = data['user_id'];
+      if (userId != null) {
+        await _localStorage.saveUserId(userId.toString());
+      }
+
       return verified;
     } catch (e) {
       throw Exception('فشل الاتصال – حاول لاحقاً: ${e.toString()}');
@@ -220,6 +226,12 @@ class ActivationService {
         await _localStorage.saveSelectedPlan(plan);
       }
 
+      // Save user_id from API response if available
+      final userId = data['user_id'];
+      if (userId != null) {
+        await _localStorage.saveUserId(userId.toString());
+      }
+
       return verified;
     } catch (e) {
       rethrow;
@@ -294,6 +306,7 @@ class ActivationService {
 
   Future<String> getAgentName() => _localStorage.getAgentName();
   Future<String> getAgentPhone() => _localStorage.getAgentPhone();
+  Future<String> getUserId() => _localStorage.getUserId();
   Future<void> saveAgentName(String name) => _localStorage.saveAgentName(name);
   Future<void> saveAgentPhone(String phone) =>
       _localStorage.saveAgentPhone(phone);

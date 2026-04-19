@@ -33,6 +33,7 @@ class ActivationLocalStorage {
   // ── Agent ────────────────────────────────────────────────────────────
   static const String agentNameKey = 'agent_full_name';
   static const String agentPhoneKey = 'agent_phone';
+  static const String agentUserIdKey = 'agent_user_id';
 
   // ── Trial ────────────────────────────────────────────────────────────
   static const String trialEnabledKey = 'trial_enabled';
@@ -229,6 +230,16 @@ class ActivationLocalStorage {
   Future<void> saveAgentPhone(String phone) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(agentPhoneKey, phone);
+  }
+
+  Future<void> saveUserId(String userId) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(agentUserIdKey, userId);
+  }
+
+  Future<String> getUserId() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(agentUserIdKey) ?? '';
   }
 
   // ═══════════════════════════════════════════════════════════════════

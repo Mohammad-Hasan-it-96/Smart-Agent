@@ -74,6 +74,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
           orders.id,
           orders.pharmacy_id,
           orders.created_at,
+          orders.invoice_number,
           pharmacies.name as pharmacy_name,
           pharmacies.address as pharmacy_address,
           pharmacies.phone as pharmacy_phone
@@ -419,6 +420,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
         items: _orderItems,
         giftOrderItems: _giftOrderItems,
         agentName: agentName,
+        invoiceNumber: _orderInfo!['invoice_number'] as String?,
       );
       await btService.disconnect();
 
@@ -610,6 +612,14 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                                       _orderInfo!['created_at'] as String),
                                   theme,
                                 ),
+                                if ((_orderInfo!['invoice_number'] as String?)?.isNotEmpty ?? false) ...[
+                                  const SizedBox(height: 12),
+                                  _buildInfoRow(
+                                    'رقم الفاتورة',
+                                    _orderInfo!['invoice_number'] as String,
+                                    theme,
+                                  ),
+                                ],
                               ],
                             ),
                           ),

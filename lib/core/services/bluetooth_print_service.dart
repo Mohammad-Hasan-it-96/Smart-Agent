@@ -237,6 +237,7 @@ class BluetoothPrintService extends ChangeNotifier {
     required List<Map<String, dynamic>> items,
     List<Map<String, dynamic>> giftOrderItems = const [],
     String? agentName,
+    String? invoiceNumber,
   }) async {
     _assertConnected();
 
@@ -250,6 +251,9 @@ class BluetoothPrintService extends ChangeNotifier {
     await _bt.printCustom('Date     : $orderDate', 1, 0);
     if (agentName != null && agentName.isNotEmpty) {
       await _bt.printCustom('Agent    : $agentName', 1, 0);
+    }
+    if (invoiceNumber != null && invoiceNumber.isNotEmpty) {
+      await _bt.printCustom('Inv#     : $invoiceNumber', 1, 0);
     }
     await _bt.printCustom(_kOuterSep, 1, 1);
 

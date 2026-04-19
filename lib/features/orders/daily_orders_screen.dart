@@ -102,6 +102,7 @@ class _DailyOrdersScreenState extends State<DailyOrdersScreen> {
           orders.id,
           orders.pharmacy_id,
           orders.created_at,
+          orders.invoice_number,
           pharmacies.name as pharmacy_name,
           COUNT(order_items.id) as item_count
         FROM orders
@@ -231,6 +232,17 @@ class _DailyOrdersScreenState extends State<DailyOrdersScreen> {
                                           ),
                                           textDirection: TextDirection.rtl,
                                         ),
+                                        if ((order['invoice_number'] as String?)?.isNotEmpty ?? false) ...[
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            'فاتورة: ${order['invoice_number']}',
+                                            style: theme.textTheme.bodySmall?.copyWith(
+                                              color: theme.colorScheme.primary,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                            textDirection: TextDirection.rtl,
+                                          ),
+                                        ],
                                         const SizedBox(height: 8),
                                         Row(
                                           children: [
