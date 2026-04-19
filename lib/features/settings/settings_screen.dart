@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/services/activation_service.dart';
 import '../../core/services/data_export_service.dart';
@@ -167,6 +169,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   _buildUpdatesSection(),
                   _buildAppearanceSection(ctrl),
                   _buildPdfImportSection(),
+                  _buildShareAppSection(),
                   if (!_reviewSent) _buildReviewSection(),
                   _buildSupportSection(ctrl),
                   const SizedBox(height: 32),
@@ -1667,6 +1670,96 @@ class _SettingsScreenState extends State<SettingsScreen> {
           onTap: () => _launchSupportByTelegram(pdfWhatsAppMsg),
         ),
       ],
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // SHARE APP SECTION
+  // ═══════════════════════════════════════════════════════════════════
+  Widget _buildShareAppSection() {
+    return SettingSection(
+      title: 'مشاركة التطبيق',
+      icon: Icons.share_outlined,
+      children: [
+        SettingTile(
+          icon: Icons.people_outline_rounded,
+          iconColor: Colors.deepPurple,
+          title: 'مشاركة التطبيق مع أصدقائك',
+          subtitle: 'شارك رابط التحميل أو رمز QR',
+          showDivider: false,
+          onTap: _showShareAppDialog,
+        ),
+      ],
+    );
+  }
+
+  void _showShareAppDialog() {
+    const downloadUrl = 'https://harrypotter.foodsalebot.com/api/app-download';
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade400,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'امسح رمز QR لتنزيل التطبيق',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: isDark ? Colors.white : Colors.black87,
+              ),
+              textDirection: TextDirection.rtl,
+            ),
+            const SizedBox(height: 20),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: QrImageView(
+                data: downloadUrl,
+                version: QrVersions.auto,
+                size: 220,
+                backgroundColor: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.share),
+                label: const Text('مشاركة الرابط'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: () {
+                  Share.share('حمّل تطبيق Smart Agent من هنا:\n$downloadUrl');
+                },
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
     );
   }
 
