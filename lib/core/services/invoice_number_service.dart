@@ -17,7 +17,12 @@ class InvoiceNumberService {
 
   final SharedPreferences _prefs;
 
-  InvoiceNumberService(this._prefs);
+  /// Optional clock override — used in tests to simulate a different year
+  /// without changing any production behaviour.
+  final DateTime Function() _clock;
+
+  InvoiceNumberService(this._prefs, {DateTime Function()? clock})
+      : _clock = clock ?? (() => DateTime.now());
 
   /// Caches the userId prefix from [userId].
   /// Falls back to 'AGENT' when [userId] is empty.
@@ -40,7 +45,7 @@ class InvoiceNumberService {
   /// Generates the next invoice number and persists the incremented counter.
   /// [userId] is used as the prefix directly (full string, not derived from phone).
   Future<String> nextInvoiceNumber(String userId) async {
-    final year = DateTime.now().year;
+    final year = _clock().year;
     final counterKey = '$_counterKeyPrefix$year';
 
     final current = _prefs.getInt(counterKey) ?? 0;
