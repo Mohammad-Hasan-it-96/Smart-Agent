@@ -65,7 +65,10 @@ class NewOrderScreen extends StatefulWidget {
   /// When non-null, the screen opens in edit mode for the given order ID.
   final int? editOrderId;
 
-  const NewOrderScreen({super.key, this.editOrderId});
+  /// When non-null, the pharmacy is pre-selected on creation (skip picker).
+  final int? preSelectedPharmacyId;
+
+  const NewOrderScreen({super.key, this.editOrderId, this.preSelectedPharmacyId});
 
   @override
   State<NewOrderScreen> createState() => _NewOrderScreenState();
@@ -110,6 +113,8 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
     _giftSearchController.addListener(_searchGifts);
     if (widget.editOrderId != null) {
       _loadExistingOrder();
+    } else if (widget.preSelectedPharmacyId != null) {
+      _selectedPharmacyId = widget.preSelectedPharmacyId;
     }
   }
 
@@ -140,6 +145,182 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
         _isLoading = false;
       });
     }
+  }
+
+  // ── Searchable pharmacy picker (shown when count > 10) ────────────────
+
+  /// Returns the currently selected pharmacy name, or a placeholder.
+  String get _selectedPharmacyLabel {
+    if (_selectedPharmacyId == null) return 'اختر صيدلية من القائمة';
+    final match = _pharmacies.where((p) => p.id == _selectedPharmacyId);
+    return match.isNotEmpty ? match.first.name : 'اختر صيدلية من القائمة';
+  }
+
+  Widget _buildSearchablePharmacyPicker() {
+    final theme = Theme.of(context);
+    final hasValue = _selectedPharmacyId != null;
+    return InkWell(
+      onTap: _showPharmacySearchSheet,
+      borderRadius: BorderRadius.circular(12),
+      child: InputDecorator(
+        decoration: const InputDecoration(
+          labelText: 'اختر الصيدلية *',
+          prefixIcon: Icon(Icons.local_pharmacy_rounded),
+        ),
+        child: Text(
+          _selectedPharmacyLabel,
+          style: TextStyle(
+            color: hasValue ? theme.textTheme.bodyLarge?.color : theme.hintColor,
+          ),
+          textDirection: TextDirection.rtl,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
+    );
+  }
+
+  void _showPharmacySearchSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        final searchCtrl = TextEditingController();
+        List<Pharmacy> filtered = List.of(_pharmacies);
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            return DraggableScrollableSheet(
+              expand: false,
+              initialChildSize: 0.65,
+              minChildSize: 0.4,
+              maxChildSize: 0.85,
+              builder: (ctx, scrollCtrl) {
+                return Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  child: Column(
+                    children: [
+                      // Handle bar
+                      Container(
+                        width: 40,
+                        height: 4,
+                        margin: const EdgeInsets.only(bottom: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[400],
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                      Text(
+                        'اختر الصيدلية',
+                        style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                      ),
+                      const SizedBox(height: 12),
+                      // Search field
+                      TextField(
+                        controller: searchCtrl,
+                        textDirection: TextDirection.rtl,
+                        textAlign: TextAlign.right,
+                        decoration: InputDecoration(
+                          hintText: 'ابحث باسم الصيدلية...',
+                          hintTextDirection: TextDirection.rtl,
+                          prefixIcon: const Icon(Icons.search_rounded),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          filled: true,
+                          fillColor: Theme.of(ctx)
+                              .colorScheme
+                              .surfaceContainerHighest
+                              .withValues(alpha: 0.3),
+                          isDense: true,
+                        ),
+                        onChanged: (q) {
+                          final lower = q.trim().toLowerCase();
+                          setSheetState(() {
+                            filtered = lower.isEmpty
+                                ? List.of(_pharmacies)
+                                : _pharmacies
+                                    .where((p) =>
+                                        p.name.toLowerCase().contains(lower))
+                                    .toList();
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 8),
+                      Expanded(
+                        child: filtered.isEmpty
+                            ? Center(
+                                child: Text(
+                                  'لا توجد نتائج',
+                                  style: TextStyle(color: Colors.grey[500]),
+                                ),
+                              )
+                            : ListView.separated(
+                                controller: scrollCtrl,
+                                itemCount: filtered.length,
+                                separatorBuilder: (_, __) =>
+                                    const Divider(height: 1),
+                                itemBuilder: (_, i) {
+                                  final p = filtered[i];
+                                  final selected =
+                                      p.id == _selectedPharmacyId;
+                                  return ListTile(
+                                    leading: Icon(
+                                      Icons.local_pharmacy_rounded,
+                                      color: selected
+                                          ? Theme.of(ctx).colorScheme.primary
+                                          : null,
+                                    ),
+                                    title: Text(
+                                      p.name,
+                                      textDirection: TextDirection.rtl,
+                                      style: TextStyle(
+                                        fontWeight: selected
+                                            ? FontWeight.bold
+                                            : FontWeight.normal,
+                                        color: selected
+                                            ? Theme.of(ctx).colorScheme.primary
+                                            : null,
+                                      ),
+                                    ),
+                                    subtitle: p.address != null &&
+                                            p.address!.isNotEmpty
+                                        ? Text(
+                                            p.address!,
+                                            textDirection: TextDirection.rtl,
+                                            style: Theme.of(ctx)
+                                                .textTheme
+                                                .bodySmall,
+                                          )
+                                        : null,
+                                    trailing: selected
+                                        ? Icon(Icons.check_circle,
+                                            color: Theme.of(ctx)
+                                                .colorScheme
+                                                .primary)
+                                        : null,
+                                    onTap: () {
+                                      setState(() {
+                                        _selectedPharmacyId = p.id;
+                                      });
+                                      Navigator.pop(ctx);
+                                    },
+                                  );
+                                },
+                              ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
+    );
   }
 
   /// Loads the existing order's pharmacy and items into the form (edit mode).
@@ -1472,28 +1653,30 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
                               Row(
                                 children: [
                                   Expanded(
-                                    child: DropdownButtonFormField<int>(
-                                      value: _selectedPharmacyId,
-                                      decoration: const InputDecoration(
-                                        labelText: 'اختر الصيدلية *',
-                                        hintText: 'اختر صيدلية من القائمة',
-                                        prefixIcon: Icon(Icons.local_pharmacy_rounded),
-                                      ),
-                                      items: _pharmacies.map((pharmacy) {
-                                        return DropdownMenuItem<int>(
-                                          value: pharmacy.id,
-                                          child: Text(
-                                            pharmacy.name,
-                                            textDirection: TextDirection.rtl,
+                                    child: _pharmacies.length > 10
+                                        ? _buildSearchablePharmacyPicker()
+                                        : DropdownButtonFormField<int>(
+                                            value: _selectedPharmacyId,
+                                            decoration: const InputDecoration(
+                                              labelText: 'اختر الصيدلية *',
+                                              hintText: 'اختر صيدلية من القائمة',
+                                              prefixIcon: Icon(Icons.local_pharmacy_rounded),
+                                            ),
+                                            items: _pharmacies.map((pharmacy) {
+                                              return DropdownMenuItem<int>(
+                                                value: pharmacy.id,
+                                                child: Text(
+                                                  pharmacy.name,
+                                                  textDirection: TextDirection.rtl,
+                                                ),
+                                              );
+                                            }).toList(),
+                                            onChanged: (value) {
+                                              setState(() {
+                                                _selectedPharmacyId = value;
+                                              });
+                                            },
                                           ),
-                                        );
-                                      }).toList(),
-                                      onChanged: (value) {
-                                        setState(() {
-                                          _selectedPharmacyId = value;
-                                        });
-                                      },
-                                    ),
                                   ),
                                   const SizedBox(width: 8),
                                   Tooltip(

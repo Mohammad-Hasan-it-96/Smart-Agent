@@ -8,6 +8,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/utils/slide_page_route.dart';
 import '../companies/company_form.dart';
 import '../medicines/medicine_form.dart';
+import '../orders/new_order_screen.dart';
 import '../pharmacies/pharmacy_form.dart';
 
 /// Global search screen — searches medicines, companies & pharmacies
@@ -190,6 +191,20 @@ class _SearchScreenState extends State<SearchScreen>
     if (result == true && _lastQuery.isNotEmpty) {
       await _search(_lastQuery);
     }
+  }
+
+  /// Opens NewOrderScreen with the pharmacy pre-selected.
+  Future<void> _startQuickOrder(Map<String, dynamic> p) async {
+    final id = p['id'] as int?;
+    if (id == null) return;
+    if (!mounted) return;
+    await Navigator.push(
+      context,
+      SlidePageRoute(
+        page: NewOrderScreen(preSelectedPharmacyId: id),
+        direction: SlideDirection.rightToLeft,
+      ),
+    );
   }
 
   @override
@@ -900,8 +915,37 @@ class _SearchScreenState extends State<SearchScreen>
               ],
             ),
           ),
-          const Icon(Icons.chevron_left_rounded,
-              color: Color(0xFF8096AA), size: 20),
+          // Quick order button
+          GestureDetector(
+            onTap: () => _startQuickOrder(p),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppTheme.primaryColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: AppTheme.primaryColor.withValues(alpha: 0.25),
+                ),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.add_shopping_cart_rounded,
+                      color: AppTheme.primaryColor, size: 16),
+                  SizedBox(width: 4),
+                  Text(
+                    'طلبية سريعة',
+                    style: TextStyle(
+                      fontFamily: 'Cairo',
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.primaryColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );
