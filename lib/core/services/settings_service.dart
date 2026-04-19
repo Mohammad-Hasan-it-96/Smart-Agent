@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../models/warehouse.dart';
 
 class SettingsService {
   static const String defaultApiBaseUrl =
@@ -11,6 +13,9 @@ class SettingsService {
   static const String _exchangeRateKey = 'settings_exchange_rate';
   static const String _inventoryPhoneKey = 'settings_inventory_phone';
   static const String _apiBaseUrlKey = 'settings_api_base_url';
+  static const String _warehouse1Key = 'settings_warehouse_1';
+  static const String _warehouse2Key = 'settings_warehouse_2';
+  static const String _warehouse3Key = 'settings_warehouse_3';
   static const String _supportEmailKey = 'settings_support_email';
   static const String _supportTelegramKey = 'settings_support_telegram';
   static const String _supportWhatsappKey = 'settings_support_whatsapp';
@@ -124,42 +129,99 @@ class SettingsService {
     await prefs.setDouble(_exchangeRateKey, rate);
   }
 
-  // Inventory WhatsApp phone number (for warehouse)
+  // ── Warehouse storage (unified model) ──────────────────────────────
+  static const String _warehousesV2Key = 'settings_warehouses_v2';
+  static const int maxWarehouses = 4;
+
+  // Inventory WhatsApp phone number — DEPRECATED, use getWarehouseList()
+  // Kept for backward-compat migration only.
   Future<String> getInventoryPhone() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_inventoryPhoneKey) ?? '';
+    final list = await getWarehouseList();
+    return list.isNotEmpty ? list.first.phone : '';
   }
 
   Future<void> setInventoryPhone(String phone) async {
-    final prefs = await SharedPreferences.getInstance();
-    if (phone.trim().isEmpty) {
-      await prefs.remove(_inventoryPhoneKey);
+    // Migrate: update warehouse 1 phone, keep existing name
+    final list = await getWarehouseList();
+    final updated = List<Warehouse>.from(list);
+    if (updated.isEmpty) {
+      updated.add(Warehouse(name: 'المستودع الرئيسي', phone: phone.trim()));
     } else {
-      await prefs.setString(_inventoryPhoneKey, phone.trim());
+      updated[0] = updated[0].copyWith(phone: phone.trim());
     }
+    await setWarehouseList(updated);
   }
 
-  // Convert USD value to display currency
-  Future<double> convertToDisplayCurrency(double usdValue) async {
-    final mode = await getCurrencyMode();
-    if (mode == 'syp') {
-      final rate = await getExchangeRate();
-      return usdValue * rate;
+  // ── Unified warehouse list ─────────────────────────────────────────
+
+  /// Returns up to [maxWarehouses] warehouses, migrating old keys on first call.
+  Future<List<Warehouse>> getWarehouseList() async {
+    final prefs = await SharedPreferences.getInstance();
+    final json = prefs.getString(_warehousesV2Key);
+    if (json != null) {
+      try {
+        final list = (jsonDecode(json) as List)
+            .map((e) => Warehouse.fromJson(e as Map<String, dynamic>))
+            .toList();
+        // Pad to maxWarehouses
+        while (list.length < maxWarehouses) {
+          list.add(const Warehouse());
+        }
+        return list.sublist(0, maxWarehouses);
+      } catch (_) {}
     }
-    return usdValue;
+    // ── Migration from old keys ──────────────────────────────────────
+    final oldInvPhone = prefs.getString(_inventoryPhoneKey) ?? '';
+    final oldWh1 = prefs.getString(_warehouse1Key) ?? '';
+    final oldWh2 = prefs.getString(_warehouse2Key) ?? '';
+    final oldWh3 = prefs.getString(_warehouse3Key) ?? '';
+
+    final migrated = <Warehouse>[
+      Warehouse(
+        name: oldInvPhone.trim().isNotEmpty ? 'المستودع الرئيسي' : '',
+        phone: oldInvPhone.trim(),
+      ),
+      Warehouse(name: oldWh1.trim().isNotEmpty ? 'مستودع 2' : '', phone: oldWh1.trim()),
+      Warehouse(name: oldWh2.trim().isNotEmpty ? 'مستودع 3' : '', phone: oldWh2.trim()),
+      Warehouse(name: oldWh3.trim().isNotEmpty ? 'مستودع 4' : '', phone: oldWh3.trim()),
+    ];
+
+    // Persist migrated data and clean up old keys
+    await _saveWarehouseJson(prefs, migrated);
+    await prefs.remove(_inventoryPhoneKey);
+    await prefs.remove(_warehouse1Key);
+    await prefs.remove(_warehouse2Key);
+    await prefs.remove(_warehouse3Key);
+
+    return migrated;
   }
 
-  // Get currency symbol
-  Future<String> getCurrencySymbol() async {
-    final mode = await getCurrencyMode();
-    return mode == 'syp' ? 'ل.س' : '\$';
+  Future<void> setWarehouseList(List<Warehouse> list) async {
+    final prefs = await SharedPreferences.getInstance();
+    await _saveWarehouseJson(prefs, list);
   }
 
-  // Format price with currency symbol
-  Future<String> formatPrice(double price) async {
-    final symbol = await getCurrencySymbol();
-    final displayPrice = await convertToDisplayCurrency(price);
-    return '$displayPrice $symbol';
+  Future<void> _saveWarehouseJson(SharedPreferences prefs, List<Warehouse> list) async {
+    final padded = List<Warehouse>.from(list);
+    while (padded.length < maxWarehouses) {
+      padded.add(const Warehouse());
+    }
+    final json = jsonEncode(padded.sublist(0, maxWarehouses).map((w) => w.toJson()).toList());
+    await prefs.setString(_warehousesV2Key, json);
+  }
+
+  // Legacy getters kept for compile-compat — delegate to unified list
+  Future<List<String>> getWarehouses() async {
+    final list = await getWarehouseList();
+    return list.map((w) => w.phone).toList();
+  }
+
+  Future<void> setWarehouse(int index, String phone) async {
+    final list = await getWarehouseList();
+    if (index >= 0 && index < list.length) {
+      list[index] = list[index].copyWith(phone: phone.trim());
+      await setWarehouseList(list);
+    }
   }
 }
 

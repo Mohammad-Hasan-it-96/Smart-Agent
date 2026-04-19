@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/di/service_locator.dart';
+import '../../core/models/warehouse.dart';
 import '../../core/services/activation_service.dart';
 import '../../core/services/settings_service.dart';
 import '../../core/utils/app_logger.dart';
@@ -9,7 +10,6 @@ import '../../core/utils/app_logger.dart';
 class SettingsData {
   String agentName;
   String agentPhone;
-  String inventoryPhone;
   String deviceId;
   bool isActivated;
   String? expiresAt;
@@ -20,11 +20,11 @@ class SettingsData {
   int pdfFontSize;
   bool enableGifts;
   bool hideCarousel;
+  List<Warehouse> warehouses;
 
   SettingsData({
     this.agentName = '',
     this.agentPhone = '',
-    this.inventoryPhone = '',
     this.deviceId = '',
     this.isActivated = false,
     this.expiresAt,
@@ -35,7 +35,11 @@ class SettingsData {
     this.pdfFontSize = 12,
     this.enableGifts = false,
     this.hideCarousel = false,
+    this.warehouses = const [],
   });
+
+  /// Convenience: warehouses that have both name and phone filled.
+  List<Warehouse> get filledWarehouses => warehouses.where((w) => w.isFilled).toList();
 }
 
 class SettingsController extends ChangeNotifier {
@@ -53,7 +57,6 @@ class SettingsController extends ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       data.agentName = await _activation.getAgentName();
       data.agentPhone = await _activation.getAgentPhone();
-      data.inventoryPhone = await _settings.getInventoryPhone();
       data.deviceId = await _activation.getDeviceId();
       data.isActivated = await _activation.isActivated();
       data.expiresAt = await _activation.getExpiresAt();
@@ -64,6 +67,7 @@ class SettingsController extends ChangeNotifier {
       data.pdfFontSize = prefs.getInt(AppConstants.kPdfFontSize) ?? 12;
       data.enableGifts = prefs.getBool(AppConstants.kEnableGifts) ?? false;
       data.hideCarousel = prefs.getBool(AppConstants.kHideHomeCarousel) ?? false;
+      data.warehouses = await _settings.getWarehouseList();
     } catch (e) {
       AppLogger.e('SettingsController', 'load failed', e);
     }
@@ -71,22 +75,19 @@ class SettingsController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<bool> saveAccount(String name, String phone, String inv) async {
+  /// Save agent name + phone only.
+  Future<bool> saveAccount(String name, String phone) async {
     isSavingAccount = true;
     notifyListeners();
     bool serverOk = false;
     try {
       await _activation.saveAgentName(name);
       await _activation.saveAgentPhone(phone);
-      await _settings.setInventoryPhone(inv);
       data.agentName = name;
       data.agentPhone = phone;
-      data.inventoryPhone = inv;
       try {
         serverOk = await _activation.updateMyData(name, phone);
       } catch (e) {
-        // Local data was saved successfully. The server sync failed (e.g. offline).
-        // The caller receives serverOk=false so it can inform the user.
         AppLogger.w('SettingsController', 'updateMyData server sync failed', e);
       }
     } catch (e) {
@@ -98,6 +99,13 @@ class SettingsController extends ChangeNotifier {
     isSavingAccount = false;
     notifyListeners();
     return serverOk;
+  }
+
+  /// Save the full warehouse list.
+  Future<void> saveWarehouses(List<Warehouse> list) async {
+    await _settings.setWarehouseList(list);
+    data.warehouses = list;
+    notifyListeners();
   }
 
   Future<bool> recheckActivation() async {

@@ -116,6 +116,7 @@ class _MedicineFormState extends State<MedicineForm> {
     });
   }
 
+
   double? _parseOptionalPrice(String raw) {
     final value = raw.trim();
     if (value.isEmpty) return null;

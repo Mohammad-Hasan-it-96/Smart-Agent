@@ -10,6 +10,7 @@ import '../../core/services/contact_launcher_service.dart';
 import '../../core/services/update_service.dart';
 import '../../core/services/push_notification_service.dart';
 import '../../core/services/settings_service.dart';
+import '../../core/models/warehouse.dart';
 import '../../core/providers/theme_provider.dart';
 import '../../core/widgets/custom_app_bar.dart';
 import '../../core/widgets/update_dialog.dart';
@@ -75,6 +76,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       AppLogger.w('SettingsScreen', '_loadSupportInfo failed – using defaults', e);
     }
   }
+
 
   String _formatExpiry(String? raw) {
     if (raw == null || raw.isEmpty) return 'غير محدد';
@@ -283,7 +285,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                       // Edit button
                       GestureDetector(
-                        onTap: () => _showEditAccountSheet(ctrl),
+                        onTap: () => _showEditAgentSheet(ctrl),
                         child: Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
@@ -404,6 +406,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _buildAccountSection(SettingsController ctrl) {
+    final filled = ctrl.data.filledWarehouses;
     return SettingSection(
       title: 'معلومات الحساب',
       icon: Icons.person_outline,
@@ -413,19 +416,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
           icon: Icons.badge_outlined,
           title: 'اسم المندوب',
           subtitle: ctrl.data.agentName.isEmpty ? 'لم يتم التعيين' : ctrl.data.agentName,
-          onTap: () => _showEditAccountSheet(ctrl),
+          onTap: () => _showEditAgentSheet(ctrl),
         ),
         SettingTile(
           icon: Icons.phone_outlined,
           title: 'رقم الهاتف',
           subtitle: ctrl.data.agentPhone.isEmpty ? 'لم يتم التعيين' : ctrl.data.agentPhone,
-          onTap: () => _showEditAccountSheet(ctrl),
+          onTap: () => _showEditAgentSheet(ctrl),
         ),
         SettingTile(
-          icon: Icons.warehouse_outlined,
-          title: 'رقم المستودع',
-          subtitle: ctrl.data.inventoryPhone.isEmpty ? 'لم يتم التعيين' : ctrl.data.inventoryPhone,
-          onTap: () => _showEditAccountSheet(ctrl),
+          icon: Icons.local_shipping_outlined,
+          title: 'المستودعات',
+          subtitle: filled.isEmpty
+              ? 'لم تتم إضافة مستودعات'
+              : filled.map((w) => w.name).join(' • '),
+          onTap: () => _showManageWarehousesSheet(ctrl),
         ),
         SettingTile(
           icon: Icons.fingerprint,
@@ -527,6 +532,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ],
     );
   }
+
 
   // ═══════════════════════════════════════════════════════════════════
   // 4️⃣  DATA MANAGEMENT
@@ -700,11 +706,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   //  BOTTOM SHEETS & DIALOGS
   // ═══════════════════════════════════════════════════════════════════
 
-  /// Edit Account Info
-  void _showEditAccountSheet(SettingsController ctrl) {
+  /// Edit Agent Info (name + phone only)
+  void _showEditAgentSheet(SettingsController ctrl) {
     final nameC = TextEditingController(text: ctrl.data.agentName);
     final phoneC = TextEditingController(text: ctrl.data.agentPhone);
-    final invC = TextEditingController(text: ctrl.data.inventoryPhone);
     final formKey = GlobalKey<FormState>();
 
     showModalBottomSheet(
@@ -720,20 +725,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Drag handle
-              Container(
-                width: 40,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                  color: Colors.grey[400],
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              Text(
-                'تعديل بيانات المندوب',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-              ),
+              Container(width: 40, height: 4, margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(color: Colors.grey[400], borderRadius: BorderRadius.circular(2))),
+              Text('تعديل بيانات المندوب',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
               const SizedBox(height: 20),
               _buildTextField(nameC, 'الاسم الكامل', Icons.person_outline, validator: (v) {
                 if (v == null || v.trim().isEmpty) return 'مطلوب';
@@ -744,39 +739,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _buildTextField(phoneC, 'رقم الهاتف', Icons.phone_outlined,
                   keyboardType: TextInputType.phone,
                   validator: (v) => validatePhone(v, required: true)),
-              const SizedBox(height: 14),
-              _buildTextField(invC, 'رقم المستودع (واتساب)', Icons.warehouse_outlined,
-                  keyboardType: TextInputType.phone,
-                  validator: (v) => validatePhone(v, required: false)),
               const SizedBox(height: 24),
               SizedBox(
-                width: double.infinity,
-                height: 52,
+                width: double.infinity, height: 52,
                 child: ListenableBuilder(
                   listenable: ctrl,
                   builder: (_, __) => FilledButton(
-                    onPressed: ctrl.isSavingAccount
-                        ? null
-                        : () async {
-                            if (!formKey.currentState!.validate()) return;
-                            final ok = await ctrl.saveAccount(
-                              nameC.text.trim(),
-                              phoneC.text.trim(),
-                              invC.text.trim(),
-                            );
-                            if (!ctx.mounted) return;
-                            Navigator.pop(ctx);
-                            _snack(
-                              ok ? 'تم الحفظ بنجاح وتحديث السيرفر' : 'تم الحفظ محلياً (السيرفر غير متاح)',
-                              bg: ok ? Colors.green : Colors.orange,
-                            );
-                          },
+                    onPressed: ctrl.isSavingAccount ? null : () async {
+                      if (!formKey.currentState!.validate()) return;
+                      final name = nameC.text.trim();
+                      final phone = phoneC.text.trim();
+                      Navigator.pop(ctx);
+                      final ok = await ctrl.saveAccount(name, phone);
+                      _snack(ok ? 'تم الحفظ بنجاح وتحديث السيرفر' : 'تم الحفظ محلياً (السيرفر غير متاح)',
+                        bg: ok ? Colors.green : Colors.orange);
+                    },
                     child: ctrl.isSavingAccount
-                        ? const SizedBox(
-                            width: 22,
-                            height: 22,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                          )
+                        ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                         : const Text('حفظ التعديلات', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   ),
                 ),
@@ -785,7 +764,119 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ),
       ),
-    );
+    ).whenComplete(() {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        nameC.dispose();
+        phoneC.dispose();
+      });
+    });
+  }
+
+  /// Manage Warehouses (up to 4, each with name + phone)
+  void _showManageWarehousesSheet(SettingsController ctrl) {
+    final max = SettingsService.maxWarehouses;
+    final nameControllers = <TextEditingController>[];
+    final phoneControllers = <TextEditingController>[];
+    for (int i = 0; i < max; i++) {
+      final w = i < ctrl.data.warehouses.length ? ctrl.data.warehouses[i] : const Warehouse();
+      nameControllers.add(TextEditingController(text: w.name));
+      phoneControllers.add(TextEditingController(text: w.phone));
+    }
+    final formKey = GlobalKey<FormState>();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            // Check sequential fill state
+            bool isSlotEnabled(int index) {
+              if (index == 0) return true;
+              for (int j = 0; j < index; j++) {
+                if (nameControllers[j].text.trim().isEmpty || phoneControllers[j].text.trim().isEmpty) {
+                  return false;
+                }
+              }
+              return true;
+            }
+
+            return Padding(
+              padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
+              child: Form(
+                key: formKey,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(width: 40, height: 4, margin: const EdgeInsets.only(bottom: 16),
+                        decoration: BoxDecoration(color: Colors.grey[400], borderRadius: BorderRadius.circular(2))),
+                      Text('إدارة المستودعات',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 8),
+                      Text('أضف حتى $max مستودعات — كل مستودع باسمه ورقم واتساب',
+                        style: Theme.of(context).textTheme.bodySmall, textDirection: TextDirection.rtl),
+                      const SizedBox(height: 16),
+                      for (int i = 0; i < max; i++) ...[
+                        if (i > 0) const Divider(height: 24),
+                        Align(
+                          alignment: AlignmentDirectional.centerEnd,
+                          child: Text('مستودع ${i + 1}',
+                            style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                            textDirection: TextDirection.rtl),
+                        ),
+                        const SizedBox(height: 8),
+                        _buildTextField(nameControllers[i], 'اسم المستودع', Icons.label_outline,
+                          enabled: isSlotEnabled(i),
+                          onChanged: (_) => setSheetState(() {})),
+                        const SizedBox(height: 8),
+                        _buildTextField(phoneControllers[i], 'رقم واتساب', Icons.phone_outlined,
+                          keyboardType: TextInputType.phone,
+                          enabled: isSlotEnabled(i),
+                          validator: (v) => validatePhone(v, required: false),
+                          onChanged: (_) => setSheetState(() {})),
+                      ],
+                      const SizedBox(height: 24),
+                      SizedBox(
+                        width: double.infinity, height: 52,
+                        child: FilledButton(
+                          onPressed: () async {
+                            if (!formKey.currentState!.validate()) return;
+                            final list = <Warehouse>[];
+                            for (int i = 0; i < max; i++) {
+                              final n = nameControllers[i].text.trim();
+                              final p = phoneControllers[i].text.trim();
+                              // Enforce sequential: if previous is empty, clear this
+                              if (i > 0 && list[i - 1].isEmpty) {
+                                list.add(const Warehouse());
+                              } else {
+                                list.add(Warehouse(name: n, phone: p));
+                              }
+                            }
+                            Navigator.pop(ctx);
+                            await ctrl.saveWarehouses(list);
+                            _snack('تم حفظ المستودعات', bg: Colors.green);
+                          },
+                          child: const Text('حفظ المستودعات', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    ).whenComplete(() {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        for (final c in nameControllers) { c.dispose(); }
+        for (final c in phoneControllers) { c.dispose(); }
+      });
+    });
   }
 
   Widget _buildTextField(
@@ -794,18 +885,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
     IconData icon, {
     TextInputType keyboardType = TextInputType.text,
     String? Function(String?)? validator,
+    bool enabled = true,
+    ValueChanged<String>? onChanged,
   }) {
     return TextFormField(
       controller: controller,
       keyboardType: keyboardType,
       textDirection: TextDirection.rtl,
       validator: validator,
+      enabled: enabled,
+      onChanged: onChanged,
       decoration: InputDecoration(
         labelText: label,
         prefixIcon: Icon(icon),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
         filled: true,
-        fillColor: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+        fillColor: enabled
+            ? Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3)
+            : Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.1),
       ),
     );
   }

@@ -12,6 +12,7 @@ import '../../core/services/settings_service.dart';
 import '../../core/utils/slide_page_route.dart';
 import '../../core/utils/whatsapp_helper.dart';
 import '../../core/widgets/custom_app_bar.dart';
+import '../../core/models/warehouse.dart';
 import 'new_order_screen.dart';
 import 'pdf_exporter.dart';
 
@@ -35,7 +36,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
   bool _pricingEnabled = false;
   String _currencyMode = 'usd';
   double _exchangeRate = 1.0;
-  String _inventoryPhone = '';
+    List<Warehouse> _warehouses = [];
 
   static const MethodChannel _whatsAppChannel =
       MethodChannel('smart_agent/whatsapp_share');
@@ -47,18 +48,18 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     _loadOrderDetails();
   }
 
-  Future<void> _loadPricingSettings() async {
+    Future<void> _loadPricingSettings() async {
     final enabled = await _settingsService.isPricingEnabled();
     final mode = await _settingsService.getCurrencyMode();
     final rate = await _settingsService.getExchangeRate();
-    final inventoryPhone = await _settingsService.getInventoryPhone();
+    final warehouseList = await _settingsService.getWarehouseList();
     setState(() {
       _pricingEnabled = enabled;
       _currencyMode = mode;
       _exchangeRate = rate;
-      _inventoryPhone = inventoryPhone;
+      _warehouses = warehouseList.where((w) => w.isFilled).toList();
     });
-  }
+    }
 
   Future<void> _loadOrderDetails() async {
     setState(() {
@@ -188,33 +189,75 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     }
   }
 
-  /// Send text order summary to WhatsApp inventory chat via wa.me deep link.
-  Future<void> _sendTextToInventory() async {
+
+  /// Share PDF to a specific phone number via WhatsApp
+  Future<void> _sharePdfToPhone(String phone) async {
     if (_orderInfo == null) return;
-    final phone = _inventoryPhone.trim();
-
-    if (phone.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('لم يتم تعيين رقم المستودع. أضفه من الإعدادات.')),
-        );
-      }
-      return;
-    }
-
-    final normalized = normalizePhone(phone);
+    final normalized = normalizePhone(phone.trim());
     if (normalized == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('رقم المستودع غير صالح. تحقق منه في الإعدادات.')),
+          const SnackBar(content: Text('رقم المستودع غير صالح.')),
         );
       }
       return;
     }
+    if (!Platform.isAndroid) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('مشاركة ملف PDF مدعومة على أجهزة أندرويد فقط.')),
+        );
+      }
+      return;
+    }
+    try {
+      final pharmacy = {
+        'pharmacy_name': _orderInfo!['pharmacy_name'],
+        'pharmacy_address': _orderInfo!['pharmacy_address'],
+        'pharmacy_phone': _orderInfo!['pharmacy_phone'],
+      };
+      final pdfBytes = await generateOrderPdf(_orderInfo!, _orderItems, pharmacy);
+      final tempDir = await getTemporaryDirectory();
+      final filePath = '${tempDir.path}/order_${widget.orderId}.pdf';
+      final file = File(filePath);
+      await file.writeAsBytes(pdfBytes, flush: true);
+      await _whatsAppChannel.invokeMethod('sharePdfToWhatsApp', {
+        'filePath': file.path,
+        'phone': normalized,
+        'message': 'طلبية صيدلية ${_orderInfo!['pharmacy_name'] ?? ''}',
+      });
+    } on PlatformException catch (e) {
+      if (!mounted) return;
+      if (e.code == 'WHATSAPP_NOT_INSTALLED' || e.code == 'WHATSAPP_NOT_AVAILABLE') {
+        showWhatsAppUnavailableDialog(context);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تعذّر مشاركة الطلبية عبر واتساب.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('حدث خطأ غير متوقع أثناء مشاركة الطلبية.')),
+        );
+      }
+    }
+  }
 
+  /// Send text order summary to a specific phone via WhatsApp
+  Future<void> _sendTextToPhone(String phone) async {
+    if (_orderInfo == null) return;
+    final normalized = normalizePhone(phone.trim());
+    if (normalized == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('رقم المستودع غير صالح.')),
+        );
+      }
+      return;
+    }
     final agentName = await getIt<ActivationService>().getAgentName();
     final currencySymbol = _currencyMode == 'syp' ? 'ل.س' : '\$';
-
     final message = buildOrderMessage(
       pharmacyName: _orderInfo!['pharmacy_name'] ?? 'غير معروف',
       representativeName: agentName,
@@ -226,100 +269,9 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
       currencyMode: _currencyMode,
       exchangeRate: _exchangeRate,
     );
-
-    final success = await openWhatsAppChat(phone: phone, message: message);
-
+    final success = await openWhatsAppChat(phone: phone.trim(), message: message);
     if (!success && mounted) {
       showWhatsAppUnavailableDialog(context);
-    }
-  }
-
-  /// Share order PDF directly to WhatsApp chat with inventory phone
-  Future<void> _shareWithInventory() async {
-    if (_orderInfo == null) return;
-    final phone = _inventoryPhone.trim();
-
-    if (phone.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('لم يتم تعيين رقم المستودع. أضفه من الإعدادات.')),
-        );
-      }
-      return;
-    }
-
-    // Normalize phone number (add 963 country code if needed)
-    final normalized = normalizePhone(phone);
-    if (normalized == null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('رقم المستودع غير صالح. تحقق منه في الإعدادات.')),
-        );
-      }
-      return;
-    }
-
-    if (!Platform.isAndroid) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('مشاركة ملف PDF مدعومة على أجهزة أندرويد فقط.\nيمكنك إرسال رسالة نصية بدلاً من ذلك.'),
-          ),
-        );
-      }
-      return;
-    }
-
-    try {
-      // Prepare pharmacy data
-      final pharmacy = {
-        'pharmacy_name': _orderInfo!['pharmacy_name'],
-        'pharmacy_address': _orderInfo!['pharmacy_address'],
-        'pharmacy_phone': _orderInfo!['pharmacy_phone'],
-      };
-
-      // Generate PDF bytes
-      final pdfBytes = await generateOrderPdf(
-        _orderInfo!,
-        _orderItems,
-        pharmacy,
-      );
-
-      // Save PDF to a temporary file so it can be shared via FileProvider
-      final tempDir = await getTemporaryDirectory();
-      final filePath = '${tempDir.path}/order_${widget.orderId}.pdf';
-      final file = File(filePath);
-      await file.writeAsBytes(pdfBytes, flush: true);
-
-      try {
-        await _whatsAppChannel.invokeMethod('sharePdfToWhatsApp', {
-          'filePath': file.path,
-          'phone': normalized,
-          'message': 'طلبية صيدلية ${_orderInfo!['pharmacy_name'] ?? ''}',
-        });
-      } on PlatformException catch (e) {
-        if (!mounted) return;
-        if (e.code == 'WHATSAPP_NOT_INSTALLED' ||
-            e.code == 'WHATSAPP_NOT_AVAILABLE') {
-          showWhatsAppUnavailableDialog(context);
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content:
-                  Text('تعذّر مشاركة الطلبية عبر واتساب. يرجى المحاولة مرة أخرى.'),
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content:
-                Text('حدث خطأ غير متوقع أثناء مشاركة الطلبية. يرجى المحاولة لاحقاً.'),
-          ),
-        );
-      }
     }
   }
 
@@ -946,9 +898,25 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                             backgroundColor: Colors.teal,
                           ),
                         ),
-                        if (_inventoryPhone.trim().isNotEmpty) ...[
+                        // ── Unified warehouse quick actions ──
+                        if (_warehouses.isNotEmpty) ...[
                           const SizedBox(height: 20),
-                          // Quick share header
+                          if (_pricingEnabled && _hasMissingSelectedCurrencyPrice()) ...[
+                            Card(
+                              color: theme.colorScheme.secondaryContainer,
+                              child: Padding(
+                                padding: const EdgeInsets.all(12.0),
+                                child: Text(
+                                  'بعض الأدوية لا تملك سعرًا بالعملة المحددة، لذلك تم استخدام سعر بديل بشكل آمن.',
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: theme.colorScheme.onSecondaryContainer,
+                                  ),
+                                  textDirection: TextDirection.rtl,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                          ],
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
@@ -956,7 +924,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                                   size: 20, color: theme.colorScheme.primary),
                               const SizedBox(width: 8),
                               Text(
-                                'مشاركة سريعة مع المستودع',
+                                'مشاركة سريعة مع المستودعات',
                                 style: theme.textTheme.titleSmall?.copyWith(
                                   fontWeight: FontWeight.bold,
                                   color: theme.colorScheme.primary,
@@ -965,57 +933,51 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                             ],
                           ),
                           const SizedBox(height: 10),
-                            if (_pricingEnabled && _hasMissingSelectedCurrencyPrice()) ...[
-                              Card(
-                                color: theme.colorScheme.secondaryContainer,
-                                child: Padding(
-                                  padding: const EdgeInsets.all(12.0),
-                                  child: Text(
-                                    'بعض الأدوية لا تملك سعرًا بالعملة المحددة، لذلك تم استخدام سعر بديل بشكل آمن.',
-                                    style: theme.textTheme.bodyMedium?.copyWith(
-                                      color: theme.colorScheme.onSecondaryContainer,
+                          for (final wh in _warehouses)
+                            Card(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    Text(
+                                      wh.name,
+                                      style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                                      textDirection: TextDirection.rtl,
                                     ),
-                                    textDirection: TextDirection.rtl,
-                                  ),
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: OutlinedButton.icon(
+                                            onPressed: () => _sharePdfToPhone(wh.phone),
+                                            icon: const Icon(Icons.picture_as_pdf, size: 18),
+                                            label: const Text('PDF', style: TextStyle(fontSize: 13)),
+                                            style: OutlinedButton.styleFrom(
+                                              padding: const EdgeInsets.symmetric(vertical: 10),
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: OutlinedButton.icon(
+                                            onPressed: () => _sendTextToPhone(wh.phone),
+                                            icon: const Icon(Icons.chat, size: 18, color: Color(0xFF25D366)),
+                                            label: const Text('رسالة', style: TextStyle(fontSize: 13)),
+                                            style: OutlinedButton.styleFrom(
+                                              padding: const EdgeInsets.symmetric(vertical: 10),
+                                              foregroundColor: const Color(0xFF25D366),
+                                              side: const BorderSide(color: Color(0xFF25D366)),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
                                 ),
                               ),
-                              const SizedBox(height: 12),
-                            ],
-                          Row(
-                            children: [
-                              // Send PDF file button
-                              Expanded(
-                                child: OutlinedButton.icon(
-                                  onPressed: _shareWithInventory,
-                                  icon: const Icon(Icons.picture_as_pdf, size: 20),
-                                  label: const Text(
-                                    'إرسال PDF',
-                                    style: TextStyle(fontSize: 14),
-                                  ),
-                                  style: OutlinedButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(vertical: 14),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              // Send text message button
-                              Expanded(
-                                child: OutlinedButton.icon(
-                                  onPressed: _sendTextToInventory,
-                                  icon: const Icon(Icons.chat, size: 20, color: Color(0xFF25D366)),
-                                  label: const Text(
-                                    'إرسال رسالة',
-                                    style: TextStyle(fontSize: 14),
-                                  ),
-                                  style: OutlinedButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(vertical: 14),
-                                    foregroundColor: const Color(0xFF25D366),
-                                    side: const BorderSide(color: Color(0xFF25D366)),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
+                            ),
                         ],
                       ],
                     ),
