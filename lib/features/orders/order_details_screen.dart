@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:printing/printing.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/db/database_helper.dart';
 import '../../core/di/service_locator.dart';
 import '../../core/services/activation_service.dart';
@@ -277,8 +278,69 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
 
   // ── Bluetooth printing ──────────────────────────────────────────────────
 
+  /// Shows a one-time explanation dialog about the Nearby Devices / Bluetooth
+  /// permission before the first print attempt.
+  ///
+  /// Returns `true` when the user confirms and printing should continue.
+  /// Returns `false` when the user cancels and the flow should be aborted.
+  Future<bool> _ensureBluetoothExplained() async {
+    const _kExplainedKey = 'bt_permission_explained';
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool(_kExplainedKey) == true) return true; // already shown
+
+    if (!mounted) return false;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          textDirection: TextDirection.rtl,
+          children: [
+            Icon(Icons.bluetooth_searching_rounded, color: Colors.teal),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'الطباعة عبر البلوتوث',
+                textDirection: TextDirection.rtl,
+                style: TextStyle(fontSize: 17),
+              ),
+            ),
+          ],
+        ),
+        content: const Text(
+          'لاكتشاف الطابعة والاتصال بها، يحتاج التطبيق إلى صلاحية "الأجهزة القريبة" (Nearby Devices).\n\n'
+          'في الأجهزة التي تعمل بنظام Android 12 أو أحدث، ستظهر هذه الصلاحية باسم "الأجهزة القريبة"، وهو أمر طبيعي ومتوقع.\n\n'
+          'اضغط "موافق" للمتابعة والسماح بالصلاحية عند الطلب.',
+          textDirection: TextDirection.rtl,
+          style: TextStyle(fontSize: 14, height: 1.55),
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('موافق'),
+          ),
+        ],
+      ),
+    );
+
+    final ok = confirmed == true;
+    if (ok) await prefs.setBool(_kExplainedKey, true);
+    return ok;
+  }
+
   Future<void> _printOrder() async {
     if (_orderInfo == null || _isPrinting) return;
+
+    // ── 0. Show one-time Bluetooth permission explanation ─────────────────
+    final proceed = await _ensureBluetoothExplained();
+    if (!proceed || !mounted) return;
+
     setState(() => _isPrinting = true);
 
     final btService = getIt<BluetoothPrintService>();
@@ -311,9 +373,11 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              'لا توجد طابعات بلوتوث مقترنة. يرجى إقران الطابعة أولاً من إعدادات الجهاز.',
+              'لا توجد طابعات بلوتوث مقترنة. يرجى إقران الطابعة أولاً من إعدادات الجهاز.\n'
+              'إذا رفضت صلاحية "الأجهزة القريبة"، يرجى تفعيلها من إعدادات التطبيق.',
               textDirection: TextDirection.rtl,
             ),
+            duration: Duration(seconds: 5),
           ),
         );
         return;
