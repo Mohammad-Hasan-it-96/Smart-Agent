@@ -130,13 +130,22 @@ class _MedicineFormState extends State<MedicineForm> {
   }
 
   /// Called every time the user types in the USD field.
-  /// Auto-fills SYP ONLY if SYP has not yet been given a value by the user
-  /// (or by pre-loaded data).  Once the user has independently edited SYP,
-  /// auto-sync stops completely in that direction.
+  ///
+  /// Rules:
+  /// - Mark USD as user-edited.
+  /// - If user clears USD → also clear the user-edited flag so re-typing
+  ///   can resume auto-fill.
+  /// - Auto-fill SYP ONLY if SYP has not been deliberately edited by the user.
+  /// - If BOTH fields have been edited by the user → no sync at all.
   void _syncFromUsd(String raw) {
     if (_isAutoUpdating || _exchangeRate <= 0) return;
+    if (raw.trim().isEmpty) {
+      // User cleared USD — reset its flag so the other field can drive sync again
+      _usdEditedByUser = false;
+      return;
+    }
     _usdEditedByUser = true;
-    if (_sypEditedByUser) return; // SYP already has a deliberate value — don't overwrite
+    if (_sypEditedByUser) return; // both sides edited → stop sync
     final usd = _parseOptionalPrice(raw);
     if (usd == null || usd < 0) return;
     _isAutoUpdating = true;
@@ -145,13 +154,21 @@ class _MedicineFormState extends State<MedicineForm> {
   }
 
   /// Called every time the user types in the SYP field.
-  /// Auto-fills USD ONLY if USD has not yet been given a value by the user
-  /// (or by pre-loaded data).  Once the user has independently edited USD,
-  /// auto-sync stops completely in that direction.
+  ///
+  /// Rules:
+  /// - Mark SYP as user-edited.
+  /// - If user clears SYP → also clear its flag so USD can drive sync again.
+  /// - Auto-fill USD ONLY if USD has not been deliberately edited by the user.
+  /// - If BOTH fields have been edited by the user → no sync at all.
   void _syncFromSyp(String raw) {
     if (_isAutoUpdating || _exchangeRate <= 0) return;
+    if (raw.trim().isEmpty) {
+      // User cleared SYP — reset its flag so USD can auto-fill it again
+      _sypEditedByUser = false;
+      return;
+    }
     _sypEditedByUser = true;
-    if (_usdEditedByUser) return; // USD already has a deliberate value — don't overwrite
+    if (_usdEditedByUser) return; // both sides edited → stop sync
     final syp = _parseOptionalPrice(raw);
     if (syp == null || syp < 0) return;
     _isAutoUpdating = true;
