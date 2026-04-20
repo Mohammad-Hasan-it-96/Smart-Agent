@@ -22,7 +22,7 @@ class DatabaseHelper {
     return await databaseFactory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 13,
+        version: 14,
         onCreate: _createDB,
         onUpgrade: _onUpgrade,
       ),
@@ -314,14 +314,69 @@ class DatabaseHelper {
       }
     }
 
+    if (oldVersion < 12) {
+      // Add gifts table
+      try {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS gifts(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            notes TEXT
+          )
+        ''');
+      } catch (e) { /* ignore */ }
+
+      // Add order_gift_items table
+      try {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS order_gift_items(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            order_id INTEGER NOT NULL,
+            gift_id INTEGER NOT NULL,
+            qty INTEGER NOT NULL DEFAULT 1
+          )
+        ''');
+      } catch (e) { /* ignore */ }
+      try {
+        await db.execute('''
+          CREATE INDEX IF NOT EXISTS idx_order_gift_items_order ON order_gift_items(order_id)
+        ''');
+      } catch (e) { /* ignore */ }
+    }
+
     if (oldVersion < 13) {
       try {
         await db.execute('ALTER TABLE orders ADD COLUMN invoice_number TEXT');
       } catch (e) { /* ignore */ }
     }
-    if (oldVersion < 13) {
+
+    if (oldVersion < 14) {
+      // Recovery migration: ensure gifts tables exist for users who
+      // upgraded to the broken v13 build where the v12 migration may
+      // have failed or been skipped.
       try {
-        await db.execute('ALTER TABLE orders ADD COLUMN invoice_number TEXT');
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS gifts(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            notes TEXT
+          )
+        ''');
+      } catch (e) { /* ignore */ }
+      try {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS order_gift_items(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            order_id INTEGER NOT NULL,
+            gift_id INTEGER NOT NULL,
+            qty INTEGER NOT NULL DEFAULT 1
+          )
+        ''');
+      } catch (e) { /* ignore */ }
+      try {
+        await db.execute('''
+          CREATE INDEX IF NOT EXISTS idx_order_gift_items_order ON order_gift_items(order_id)
+        ''');
       } catch (e) { /* ignore */ }
     }
   }

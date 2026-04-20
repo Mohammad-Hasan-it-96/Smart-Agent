@@ -732,8 +732,8 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
           const Color(0xFFFF8F00), () => _navigate(const PharmaciesScreen())),
       _Menu('الهدايا', Icons.card_giftcard_rounded,
           const Color(0xFF00897B), () => _navigate(const GiftsScreen())),
-      _Menu('الإعدادات', Icons.settings_rounded,
-          const Color(0xFF546E7A), () => _navigate(const SettingsScreen())),
+      // _Menu('الإعدادات', Icons.settings_rounded,
+      //     const Color(0xFF546E7A), () => _navigate(const SettingsScreen())),
     ];
 
     return GridView.builder(
