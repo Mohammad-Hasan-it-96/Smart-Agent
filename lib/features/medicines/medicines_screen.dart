@@ -13,6 +13,7 @@ import '../../core/services/settings_service.dart';
 import '../../core/utils/slide_page_route.dart';
 import '../../core/widgets/custom_app_bar.dart';
 import '../../core/widgets/index/index_design_system.dart';
+import '../../core/widgets/undo_bar.dart';
 import 'medicine_form.dart';
 
 class MedicinesScreen extends StatefulWidget {
@@ -53,6 +54,11 @@ class _MedicinesScreenState extends State<MedicinesScreen> {
   bool _pricingEnabled = false;
   String _currencyMode = 'usd';
 
+  // Undo bar state
+  Timer? _undoTimer;
+  String? _undoMessage;
+  VoidCallback? _undoAction;
+
   @override
   void initState() {
     super.initState();
@@ -71,6 +77,7 @@ class _MedicinesScreenState extends State<MedicinesScreen> {
   @override
   void dispose() {
     _debounceTimer?.cancel();
+    _undoTimer?.cancel();
     _searchController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -508,33 +515,23 @@ class _MedicinesScreenState extends State<MedicinesScreen> {
       await _refreshFiltersMetadata();
       await _loadMedicines();
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-        ..clearSnackBars()
-        ..showSnackBar(
-          SnackBar(
-            content: Text('تم حذف ${medicine['name']}'),
-            duration: const Duration(seconds: 4),
-            action: SnackBarAction(
-              label: 'تراجع',
-              onPressed: () async {
-                try {
-                  await _dbHelper.insert('medicines', {
-                    'id': medicine['id'],
-                    'name': medicine['name'],
-                    'company_id': medicine['company_id'],
-                    'price_usd': medicine['price_usd'],
-                    'price_syp': medicine['price_syp'],
-                    'source': medicine['source'],
-                    'form': medicine['form'],
-                    'notes': medicine['notes'],
-                  });
-                  await _refreshFiltersMetadata();
-                  await _loadMedicines();
-                } catch (_) {}
-              },
-            ),
-          ),
-        );
+      _showUndoBar('تم حذف ${medicine['name']}', () async {
+        try {
+          await _dbHelper.insert('medicines', {
+            'id': medicine['id'],
+            'name': medicine['name'],
+            'company_id': medicine['company_id'],
+            'price_usd': medicine['price_usd'],
+            'price_syp': medicine['price_syp'],
+            'source': medicine['source'],
+            'form': medicine['form'],
+            'notes': medicine['notes'],
+          });
+          await _refreshFiltersMetadata();
+          await _loadMedicines();
+        } catch (_) {}
+        _hideUndoBar();
+      });
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -610,7 +607,7 @@ class _MedicinesScreenState extends State<MedicinesScreen> {
       await _refreshFiltersMetadata();
       await _loadMedicines();
     }
-    }
+  }
 
   Future<void> _showDetails(Map<String, dynamic> medicine) async {
     final priceText = await _getPriceDisplay(medicine);
@@ -856,6 +853,29 @@ class _MedicinesScreenState extends State<MedicinesScreen> {
     return 'السعر: ${_syncPriceText(medicine)}';
   }
 
+  void _showUndoBar(String message, VoidCallback onUndo) {
+    _undoTimer?.cancel();
+    setState(() {
+      _undoMessage = message;
+      _undoAction = onUndo;
+    });
+    _undoTimer = Timer(const Duration(seconds: 3), () {
+      if (!mounted) return;
+      setState(() {
+        _undoMessage = null;
+        _undoAction = null;
+      });
+    });
+  }
+
+  void _hideUndoBar() {
+    _undoTimer?.cancel();
+    setState(() {
+      _undoMessage = null;
+      _undoAction = null;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -869,51 +889,61 @@ class _MedicinesScreenState extends State<MedicinesScreen> {
         icon: const Icon(Icons.add_rounded),
         label: const Text('إضافة دواء'),
       ),
-      body: RefreshIndicator(
-        onRefresh: () async {
-          await _refreshFiltersMetadata();
-          await _loadMedicines();
-        },
-        child: CustomScrollView(
-          controller: _scrollController,
-          slivers: [
-            SliverPersistentHeader(
-              pinned: true,
-              delegate: _StickyHeaderDelegate(
-                minHeight: _hasActiveFilters ? 190 : 138,
-                maxHeight: _hasActiveFilters ? 190 : 138,
-                child: _buildHeader(),
-              ),
-            ),
-            if (_isInitialLoading)
-              SliverPadding(
-                padding: const EdgeInsets.only(top: 8),
-                sliver: SliverList.builder(
-                  itemCount: 8,
-                  itemBuilder: (context, index) => const IndexSkeletonCard(),
+      body: Stack(
+        children: [
+          RefreshIndicator(
+            onRefresh: () async {
+              await _refreshFiltersMetadata();
+              await _loadMedicines();
+            },
+            child: CustomScrollView(
+              controller: _scrollController,
+              slivers: [
+                SliverPersistentHeader(
+                  pinned: true,
+                  delegate: _StickyHeaderDelegate(
+                    minHeight: _hasActiveFilters ? 190 : 138,
+                    maxHeight: _hasActiveFilters ? 190 : 138,
+                    child: _buildHeader(),
+                  ),
                 ),
-              )
-            else if (_medicines.isEmpty)
-              _buildEmptyState()
-            else
-              SliverList.builder(
-                itemCount: _medicines.length + (_isLoading && _hasMoreData ? 1 : 0),
-                itemBuilder: (context, index) {
-                  if (index == _medicines.length) {
-                    return const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 20),
-                      child: Center(child: CircularProgressIndicator()),
-                    );
-                  }
-                  return _buildMedicineCard(_medicines[index]);
-                },
-              ),
-            const SliverToBoxAdapter(child: SizedBox(height: 90)),
-          ],
-        ),
+                if (_isInitialLoading)
+                  SliverPadding(
+                    padding: const EdgeInsets.only(top: 8),
+                    sliver: SliverList.builder(
+                      itemCount: 8,
+                      itemBuilder: (context, index) => const IndexSkeletonCard(),
+                    ),
+                  )
+                else if (_medicines.isEmpty)
+                  _buildEmptyState()
+                else
+                  SliverList.builder(
+                    itemCount: _medicines.length + (_isLoading && _hasMoreData ? 1 : 0),
+                    itemBuilder: (context, index) {
+                      if (index == _medicines.length) {
+                        return const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 20),
+                          child: Center(child: CircularProgressIndicator()),
+                        );
+                      }
+                      return _buildMedicineCard(_medicines[index]);
+                    },
+                  ),
+                const SliverToBoxAdapter(child: SizedBox(height: 90)),
+              ],
+            ),
+          ),
+          if (_undoMessage != null)
+            UndoBar(
+              message: _undoMessage!,
+              onUndo: () => _undoAction?.call(),
+              onDismiss: _hideUndoBar,
+            ),
+        ],
       ),
     );
-    }
+  }
 }
 
 class _FiltersResult {
@@ -1002,4 +1032,6 @@ class _DetailsLine extends StatelessWidget {
     );
   }
 }
+
+
 

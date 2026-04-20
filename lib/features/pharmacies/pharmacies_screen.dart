@@ -10,6 +10,7 @@ import '../../core/services/activation_service.dart';
 import '../../core/utils/slide_page_route.dart';
 import '../../core/widgets/custom_app_bar.dart';
 import '../../core/widgets/index/index_design_system.dart';
+import '../../core/widgets/undo_bar.dart';
 import 'pharmacy_form.dart';
 
 enum _ActivityFilter { all, active, inactive }
@@ -47,6 +48,11 @@ class _PharmaciesScreenState extends State<PharmaciesScreen> {
 
   Timer? _debounce;
 
+  // Undo bar state
+  Timer? _undoTimer;
+  String? _undoMessage;
+  VoidCallback? _undoAction;
+
   @override
   void initState() {
     super.initState();
@@ -63,6 +69,7 @@ class _PharmaciesScreenState extends State<PharmaciesScreen> {
   @override
   void dispose() {
     _debounce?.cancel();
+    _undoTimer?.cancel();
     _searchController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -285,35 +292,48 @@ class _PharmaciesScreenState extends State<PharmaciesScreen> {
       await _loadCityOptions();
       await _loadPharmacies(reset: true);
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-        ..clearSnackBars()
-        ..showSnackBar(
-          SnackBar(
-            content: Text('تم حذف ${pharmacy.name}'),
-            duration: const Duration(seconds: 4),
-            action: SnackBarAction(
-              label: 'تراجع',
-              onPressed: () async {
-                try {
-                  await _dbHelper.insert('pharmacies', {
-                    'id': pharmacy.id,
-                    'name': pharmacy.name,
-                    'phone': pharmacy.phone.isEmpty ? null : pharmacy.phone,
-                    'address': pharmacy.address.isEmpty ? null : pharmacy.address,
-                  });
-                  await _loadCityOptions();
-                  await _loadPharmacies(reset: true);
-                } catch (_) {}
-              },
-            ),
-          ),
-        );
+      _showUndoBar('تم حذف ${pharmacy.name}', () async {
+        try {
+          await _dbHelper.insert('pharmacies', {
+            'id': pharmacy.id,
+            'name': pharmacy.name,
+            'phone': pharmacy.phone.isEmpty ? null : pharmacy.phone,
+            'address': pharmacy.address.isEmpty ? null : pharmacy.address,
+          });
+          await _loadCityOptions();
+          await _loadPharmacies(reset: true);
+        } catch (_) {}
+        _hideUndoBar();
+      });
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('تعذر حذف الصيدلية')),
       );
     }
+  }
+
+  void _showUndoBar(String message, VoidCallback onUndo) {
+    _undoTimer?.cancel();
+    setState(() {
+      _undoMessage = message;
+      _undoAction = onUndo;
+    });
+    _undoTimer = Timer(const Duration(seconds: 3), () {
+      if (!mounted) return;
+      setState(() {
+        _undoMessage = null;
+        _undoAction = null;
+      });
+    });
+  }
+
+  void _hideUndoBar() {
+    _undoTimer?.cancel();
+    setState(() {
+      _undoMessage = null;
+      _undoAction = null;
+    });
   }
 
   Future<void> _navigateToForm(Pharmacy? pharmacy) async {
@@ -728,18 +748,28 @@ class _PharmaciesScreenState extends State<PharmaciesScreen> {
         showSettings: true,
       ),
       body: SafeArea(
-        child: Column(
+        child: Stack(
           children: [
-            _buildHeader(),
-            Expanded(
-              child: RefreshIndicator(
-                onRefresh: () async {
-                  await _loadCityOptions();
-                  await _loadPharmacies(reset: true);
-                },
-                child: _buildContent(),
-              ),
+            Column(
+              children: [
+                _buildHeader(),
+                Expanded(
+                  child: RefreshIndicator(
+                    onRefresh: () async {
+                      await _loadCityOptions();
+                      await _loadPharmacies(reset: true);
+                    },
+                    child: _buildContent(),
+                  ),
+                ),
+              ],
             ),
+            if (_undoMessage != null)
+              UndoBar(
+                message: _undoMessage!,
+                onUndo: () => _undoAction?.call(),
+                onDismiss: _hideUndoBar,
+              ),
           ],
         ),
       ),

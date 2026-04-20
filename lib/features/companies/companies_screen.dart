@@ -10,6 +10,7 @@ import '../../core/services/activation_service.dart';
 import '../../core/utils/slide_page_route.dart';
 import '../../core/widgets/custom_app_bar.dart';
 import '../../core/widgets/index/index_design_system.dart';
+import '../../core/widgets/undo_bar.dart';
 import 'company_form.dart';
 
 enum _CompanySort { aToZ, newest, mostUsed }
@@ -43,6 +44,11 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
 
   Timer? _debounceTimer;
 
+  // Undo bar state
+  Timer? _undoTimer;
+  String? _undoMessage;
+  VoidCallback? _undoAction;
+
   @override
   void initState() {
     super.initState();
@@ -54,6 +60,7 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
   @override
   void dispose() {
     _debounceTimer?.cancel();
+    _undoTimer?.cancel();
     _searchController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -165,6 +172,29 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
     }
   }
 
+  void _showUndoBar(String message, VoidCallback onUndo) {
+    _undoTimer?.cancel();
+    setState(() {
+      _undoMessage = message;
+      _undoAction = onUndo;
+    });
+    _undoTimer = Timer(const Duration(seconds: 3), () {
+      if (!mounted) return;
+      setState(() {
+        _undoMessage = null;
+        _undoAction = null;
+      });
+    });
+  }
+
+  void _hideUndoBar() {
+    _undoTimer?.cancel();
+    setState(() {
+      _undoMessage = null;
+      _undoAction = null;
+    });
+  }
+
   Future<void> _deleteCompany(_CompanyListItem company) async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -197,26 +227,16 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
       );
       await _loadCompanies(reset: true);
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-        ..clearSnackBars()
-        ..showSnackBar(
-          SnackBar(
-            content: Text('تم حذف ${company.name}'),
-            duration: const Duration(seconds: 4),
-            action: SnackBarAction(
-              label: 'تراجع',
-              onPressed: () async {
-                try {
-                  await _dbHelper.insert('companies', {
-                    'id': company.id,
-                    'name': company.name,
-                  });
-                  await _loadCompanies(reset: true);
-                } catch (_) {}
-              },
-            ),
-          ),
-        );
+      _showUndoBar('تم حذف ${company.name}', () async {
+        try {
+          await _dbHelper.insert('companies', {
+            'id': company.id,
+            'name': company.name,
+          });
+          await _loadCompanies(reset: true);
+        } catch (_) {}
+        _hideUndoBar();
+      });
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -515,15 +535,25 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
         showSettings: true,
       ),
       body: SafeArea(
-        child: Column(
+        child: Stack(
           children: [
-            _buildHeader(context),
-            Expanded(
-              child: RefreshIndicator(
-                onRefresh: () => _loadCompanies(reset: true),
-                child: _buildBody(context),
-              ),
+            Column(
+              children: [
+                _buildHeader(context),
+                Expanded(
+                  child: RefreshIndicator(
+                    onRefresh: () => _loadCompanies(reset: true),
+                    child: _buildBody(context),
+                  ),
+                ),
+              ],
             ),
+            if (_undoMessage != null)
+              UndoBar(
+                message: _undoMessage!,
+                onUndo: () => _undoAction?.call(),
+                onDismiss: _hideUndoBar,
+              ),
           ],
         ),
       ),
@@ -563,5 +593,4 @@ class _CompanyListItem {
 
   Company toCompany() => Company(id: id, name: name);
 }
-
 
