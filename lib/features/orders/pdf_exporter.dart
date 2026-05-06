@@ -80,7 +80,7 @@ Future<Uint8List> generateOrderPdf(
 
   final pdf = pw.Document();
   final pageWidth = PdfPageFormat.a4.width;
-  const itemsPerPage = 20;
+  const itemsPerPage = 12;
 
   // Split items into chunks for pagination
   final List<List<Map<String, dynamic>>> itemChunks = [];
@@ -252,15 +252,6 @@ Future<Uint8List> generateOrderPdf(
       child: pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
-          pw.Text(
-            'عناصر الطلبية',
-            style: getArabicStyle(
-              fontSize: 12,
-              fontWeight: pw.FontWeight.bold,
-            ),
-            textDirection: pw.TextDirection.rtl,
-          ),
-          pw.SizedBox(height: 8),
           chunkItems.isEmpty
               ? pw.Padding(
                   padding: const pw.EdgeInsets.all(16),
